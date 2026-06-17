@@ -27,21 +27,39 @@
 
         header {
             background: white;
-            padding: 30px;
+            padding: 20px 30px 0;
             border-radius: 8px;
             margin-bottom: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-top: 4px solid #2563eb;
         }
 
         .header-title {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 18px;
+            margin-bottom: 16px;
         }
 
         .header-logo {
-            width: 40px;
-            height: 40px;
+            height: 52px;
+            width: auto;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .header-text {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .header-text h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #111827;
+            margin: 0;
+            line-height: 1.2;
         }
 
         h1 {
@@ -50,8 +68,41 @@
         }
 
         .subtitle {
-            color: #666;
+            color: #6b7280;
             font-size: 14px;
+            font-weight: 500;
+            margin: 0;
+        }
+
+        .header-tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .header-tabs .tab-button {
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            padding: 10px 16px;
+            margin: 0 0 -1px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4b5563;
+            cursor: pointer;
+            transition: color 0.2s, border-bottom-color 0.2s;
+            border-radius: 0;
+        }
+
+        .header-tabs .tab-button:hover {
+            color: #2563eb;
+            background: transparent;
+        }
+
+        .header-tabs .tab-button.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            background: transparent;
         }
 
         .controls {
@@ -554,12 +605,14 @@
         <header>
             <div class="header-title">
                 <img class="header-logo" src="{{ url_for('static', filename='medik8s-logo.png') }}" alt="medik8s">
-                <h1>medik8s CI Dashboard</h1>
+                <div class="header-text">
+                    <h1>medik8s CI Dashboard</h1>
+                    <p class="subtitle">medik8s QE - OpenShift CI Test Results</p>
+                </div>
             </div>
-            <p class="subtitle">medik8s QE - OpenShift CI Test Results</p>
-            <div style="margin-top: 15px;">
-                <button class="tab-button active" onclick="showTab('overview')">Overview</button>
-                <button class="tab-button" onclick="showTab('weekly-report')">Weekly Report</button>
+            <div class="header-tabs" role="tablist" aria-label="Dashboard views">
+                <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
             </div>
         </header>
 
@@ -869,23 +922,28 @@
         let currentLogData = {}; // Store current log data for AI analysis and Jira creation
 
         function showTab(tabName) {
+            var tabs = document.querySelectorAll('.header-tabs .tab-button');
+
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
 
             // Remove active from all buttons
-            document.querySelectorAll('.tab-button').forEach(btn => {
+            tabs.forEach(btn => {
                 btn.classList.remove('active');
+                btn.setAttribute('aria-selected', 'false');
             });
 
             // Show selected tab
             if (tabName === 'overview') {
                 document.getElementById('overview-tab').classList.add('active');
-                document.querySelectorAll('.tab-button')[0].classList.add('active');
+                tabs[0].classList.add('active');
+                tabs[0].setAttribute('aria-selected', 'true');
             } else if (tabName === 'weekly-report') {
                 document.getElementById('weekly-report-tab').classList.add('active');
-                document.querySelectorAll('.tab-button')[1].classList.add('active');
+                tabs[1].classList.add('active');
+                tabs[1].setAttribute('aria-selected', 'true');
                 refreshWeeklyReport();
             }
         }
