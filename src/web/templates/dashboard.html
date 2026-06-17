@@ -13,10 +13,31 @@
             box-sizing: border-box;
         }
 
+        :root {
+            color-scheme: dark;
+            --bg-body: #111217;
+            --bg-surface: #181b1f;
+            --bg-card: #1a1b21;
+            --bg-hover: #22252b;
+            --bg-table-header: #22252b;
+            --border: #2c3235;
+            --border-accent: var(--accent-blue);
+            --text-primary: #d8d9da;
+            --text-muted: #9fa7b3;
+            --text-heading: #f4f5f5;
+            --accent-blue: #5794f2;
+            --accent-green: #73bf69;
+            --accent-red: #f2495c;
+            --accent-orange: #ff9830;
+            --accent-purple: #b794f4;
+            --shadow: 0 1px 3px rgba(0,0,0,0.4);
+            --overlay-bg: rgba(17,18,23,0.85);
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            background: var(--bg-body);
+            color: var(--text-primary);
             padding: 20px;
         }
 
@@ -26,12 +47,12 @@
         }
 
         header {
-            background: white;
+            background: var(--bg-surface);
             padding: 20px 30px 0;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-top: 4px solid #2563eb;
+            box-shadow: var(--shadow);
+            border-top: 4px solid var(--border-accent);
         }
 
         .header-title {
@@ -57,7 +78,7 @@
         .header-text h1 {
             font-size: 26px;
             font-weight: 700;
-            color: #111827;
+            color: var(--text-heading);
             margin: 0;
             line-height: 1.2;
         }
@@ -68,7 +89,7 @@
         }
 
         .subtitle {
-            color: #6b7280;
+            color: var(--text-muted);
             font-size: 14px;
             font-weight: 500;
             margin: 0;
@@ -77,7 +98,7 @@
         .header-tabs {
             display: flex;
             gap: 8px;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border);
         }
 
         .header-tabs .tab-button {
@@ -88,42 +109,50 @@
             margin: 0 0 -1px 0;
             font-size: 14px;
             font-weight: 600;
-            color: #4b5563;
+            color: var(--text-muted);
             cursor: pointer;
             transition: color 0.2s, border-bottom-color 0.2s;
             border-radius: 0;
         }
 
         .header-tabs .tab-button:hover {
-            color: #2563eb;
+            color: var(--accent-blue);
             background: transparent;
         }
 
         .header-tabs .tab-button.active {
-            color: #2563eb;
-            border-bottom-color: #2563eb;
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
             background: transparent;
         }
 
         .controls {
-            background: white;
+            background: var(--bg-card);
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
         }
 
         .controls label {
             margin-right: 10px;
             font-weight: 500;
+            color: var(--text-primary);
         }
 
         .controls select {
             padding: 8px 12px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border);
             border-radius: 4px;
             margin-right: 20px;
             font-size: 14px;
+            background: var(--bg-surface);
+            color: var(--text-primary);
+        }
+
+        .controls select option {
+            background: var(--bg-card);
+            color: var(--text-primary);
         }
 
         .summary-cards {
@@ -134,15 +163,16 @@
         }
 
         .card {
-            background: white;
+            background: var(--bg-card);
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         .card h3 {
             font-size: 14px;
-            color: #666;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 10px;
@@ -151,7 +181,7 @@
         .card .value {
             font-size: 36px;
             font-weight: bold;
-            color: #2563eb;
+            color: var(--accent-blue);
         }
 
         .card .trend {
@@ -159,9 +189,9 @@
             font-size: 14px;
         }
 
-        .trend.improving { color: #059669; }
-        .trend.declining { color: #dc2626; }
-        .trend.stable { color: #666; }
+        .trend.improving { color: var(--accent-green); }
+        .trend.declining { color: var(--accent-red); }
+        .trend.stable { color: var(--text-muted); }
 
         .loading-overlay {
             position: fixed;
@@ -169,14 +199,14 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255, 255, 255, 0.9);
+            background: var(--overlay-bg);
             display: none;
             align-items: center;
             justify-content: center;
             z-index: 9999;
             font-size: 18px;
             font-weight: 600;
-            color: #2563eb;
+            color: var(--accent-blue);
         }
 
         .loading-overlay.active {
@@ -184,8 +214,8 @@
         }
 
         .loading-spinner {
-            border: 4px solid #f3f4f6;
-            border-top: 4px solid #2563eb;
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--accent-blue);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -200,7 +230,7 @@
 
         .card .label {
             font-size: 13px;
-            color: #666;
+            color: var(--text-muted);
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -214,16 +244,17 @@
         }
 
         .chart-container {
-            background: white;
+            background: var(--bg-card);
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         .chart-container h2 {
             font-size: 18px;
             margin-bottom: 20px;
-            color: #333;
+            color: var(--text-heading);
         }
 
         .chart-wrapper {
@@ -232,10 +263,11 @@
         }
 
         .test-list {
-            background: white;
+            background: var(--bg-card);
             padding: 25px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         .test-list h2 {
@@ -251,25 +283,25 @@
         .test-list th {
             text-align: left;
             padding: 12px;
-            background: #f9fafb;
+            background: var(--bg-table-header);
             font-weight: 600;
             font-size: 13px;
             text-transform: uppercase;
-            color: #666;
-            border-bottom: 2px solid #e5e7eb;
+            color: var(--text-muted);
+            border-bottom: 2px solid var(--border);
         }
 
         .test-list td {
             padding: 12px;
-            border-bottom: 1px solid #f3f4f6;
+            border-bottom: 1px solid var(--border);
         }
 
         .test-list tr:hover {
-            background: #f9fafb;
+            background: var(--bg-hover);
         }
 
         .pass-rate-bar {
-            background: #e5e7eb;
+            background: var(--border);
             height: 20px;
             border-radius: 4px;
             overflow: hidden;
@@ -289,35 +321,36 @@
             transform: translate(-50%, -50%);
             font-size: 11px;
             font-weight: 600;
-            color: #333;
+            color: var(--text-primary);
         }
 
         .loading {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: var(--text-muted);
         }
 
         .tab-button {
-            background: white;
-            border: 2px solid #e5e7eb;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
             padding: 10px 20px;
             margin-right: 10px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 14px;
             font-weight: 600;
+            color: var(--text-primary);
             transition: all 0.2s;
         }
 
         .tab-button:hover {
-            background: #f9fafb;
+            background: var(--bg-hover);
         }
 
         .tab-button.active {
-            background: #2563eb;
+            background: var(--accent-blue);
             color: white;
-            border-color: #2563eb;
+            border-color: var(--accent-blue);
         }
 
         .tab-content {
@@ -329,11 +362,12 @@
         }
 
         .platform-card {
-            background: white;
+            background: var(--bg-card);
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -357,7 +391,7 @@
 
         .stat-label {
             font-size: 11px;
-            color: #666;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -374,15 +408,15 @@
         }
 
         .delta.positive {
-            color: #059669;
+            color: var(--accent-green);
         }
 
         .delta.negative {
-            color: #dc2626;
+            color: var(--accent-red);
         }
 
         .delta.neutral {
-            color: #666;
+            color: var(--text-muted);
         }
 
         .status-badge {
@@ -394,26 +428,27 @@
         }
 
         .status-ok {
-            background: #d1fae5;
-            color: #065f46;
+            background: rgba(115, 191, 105, 0.15);
+            color: var(--accent-green);
         }
 
         .status-warn {
-            background: #fef3c7;
-            color: #92400e;
+            background: rgba(255, 152, 48, 0.15);
+            color: var(--accent-orange);
         }
 
         .status-fail {
-            background: #fee2e2;
-            color: #991b1b;
+            background: rgba(242, 73, 92, 0.15);
+            color: var(--accent-red);
         }
 
         .report-header {
-            background: white;
+            background: var(--bg-card);
             padding: 25px;
             border-radius: 8px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         .report-title {
@@ -423,7 +458,7 @@
         }
 
         .report-subtitle {
-            color: #666;
+            color: var(--text-muted);
             font-size: 14px;
         }
 
@@ -434,7 +469,7 @@
 
         .platform-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
         }
 
         .modal {
@@ -450,7 +485,7 @@
         }
 
         .modal-content {
-            background-color: white;
+            background-color: var(--bg-card);
             margin: 5% auto;
             padding: 0;
             border-radius: 8px;
@@ -464,7 +499,7 @@
 
         .modal-header {
             padding: 20px 25px;
-            background: #2563eb;
+            background: var(--accent-blue);
             color: white;
             display: flex;
             justify-content: space-between;
@@ -503,7 +538,7 @@
         }
 
         .collection-banner {
-            background: #3b82f6;
+            background: var(--accent-blue);
             color: white;
             padding: 15px 25px;
             border-radius: 8px;
@@ -519,11 +554,11 @@
         }
 
         .collection-banner.error {
-            background: #dc2626;
+            background: var(--accent-red);
         }
 
         .collection-banner.success {
-            background: #059669;
+            background: var(--accent-green);
         }
 
         .spinner {
@@ -546,9 +581,9 @@
         }
 
         .auth-error-banner {
-            background: #fee2e2;
-            border: 2px solid #dc2626;
-            color: #991b1b;
+            background: rgba(242, 73, 92, 0.15);
+            border: 2px solid var(--accent-red);
+            color: var(--accent-red);
             padding: 20px 25px;
             border-radius: 8px;
             margin-bottom: 20px;
@@ -556,8 +591,8 @@
         }
 
         .refresh-button {
-            background: white;
-            color: #3b82f6;
+            background: var(--bg-surface);
+            color: var(--accent-blue);
             border: none;
             padding: 8px 16px;
             border-radius: 4px;
@@ -571,11 +606,11 @@
         }
 
         #exportMenu a:hover {
-            background: #f3f4f6;
+            background: var(--bg-hover);
         }
 
         .platform-stat-card {
-            background: #f9fafb;
+            background: var(--bg-surface);
             padding: 15px;
             border-radius: 6px;
             text-align: center;
@@ -583,7 +618,7 @@
 
         .platform-stat-label {
             font-size: 11px;
-            color: #666;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 8px;
@@ -592,7 +627,7 @@
         .platform-stat-value {
             font-size: 24px;
             font-weight: bold;
-            color: #2563eb;
+            color: var(--accent-blue);
         }
     </style>
 </head>
@@ -635,7 +670,7 @@
                     <div style="font-weight: 600; font-size: 16px; margin-bottom: 5px;">Authentication Failed</div>
                     <div id="authErrorMessage" style="font-size: 14px;"></div>
                 </div>
-                <button onclick="document.getElementById('authErrorBanner').style.display='none'" style="background: transparent; border: none; color: #dc2626; cursor: pointer; font-size: 24px; padding: 0 10px;">&times;</button>
+                <button onclick="document.getElementById('authErrorBanner').style.display='none'" style="background: transparent; border: none; color: var(--accent-red); cursor: pointer; font-size: 24px; padding: 0 10px;">&times;</button>
             </div>
         </div>
 
@@ -667,11 +702,11 @@
                             </svg>
                             Export
                         </button>
-                        <div id="exportMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 5px; background: white; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000; min-width: 150px;">
+                        <div id="exportMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 1000; min-width: 150px;">
                             <div style="padding: 8px 0;">
-                                <a onclick="exportData('xlsx')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: #333; font-weight: 500;">Excel (.xlsx)</a>
-                                <a onclick="exportData('csv')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: #333; font-weight: 500;">CSV (.csv)</a>
-                                <a onclick="exportData('md')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: #333; font-weight: 500;">Markdown (.md)</a>
+                                <a onclick="exportData('xlsx')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">Excel (.xlsx)</a>
+                                <a onclick="exportData('csv')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">CSV (.csv)</a>
+                                <a onclick="exportData('md')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">Markdown (.md)</a>
                             </div>
                         </div>
                     </div>
@@ -690,7 +725,7 @@
             <div class="card">
                 <h3>Test Pass Rate</h3>
                 <div class="value" id="avgPassRate">--%</div>
-                <div style="margin-top:10px; font-size:14px; color:#666;">
+                <div style="margin-top:10px; font-size:14px; color:var(--text-muted);">
                     <span id="testBreakdown">-- executions: -- passed, -- failed</span>
                     <br>
                     <span id="uniqueTests">-- unique tests</span>
@@ -699,10 +734,10 @@
             </div>
             <div class="card">
                 <h3>Date Range</h3>
-                <div id="dateRange" style="margin-top:15px; font-size:18px; color:#333; font-weight:600;">--</div>
-                <div style="margin-top:15px; padding-top:15px; border-top:1px solid #e5e7eb;">
+                <div id="dateRange" style="margin-top:15px; font-size:18px; color:var(--text-primary); font-weight:600;">--</div>
+                <div style="margin-top:15px; padding-top:15px; border-top:1px solid var(--border);">
                     <div class="label">Trend</div>
-                    <div id="trendText" style="margin-top:5px; font-size:16px; color:#333; font-weight:600;">--</div>
+                    <div id="trendText" style="margin-top:5px; font-size:16px; color:var(--text-primary); font-weight:600;">--</div>
                 </div>
             </div>
         </div>
@@ -781,29 +816,29 @@
                 <div class="report-subtitle" id="reportSubtitle">Loading...</div>
             </div>
 
-            <div style="background: white; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: var(--shadow); border: 1px solid var(--border);">
                 <h2 style="font-size: 18px; margin-bottom: 20px;">Platform Pass Rates (Week-over-Week)</h2>
                 <div id="platformComparison">
-                    <div style="text-align: center; padding: 40px; color: #666;">Loading...</div>
+                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">Loading...</div>
                 </div>
             </div>
 
-            <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; box-shadow: var(--shadow); border: 1px solid var(--border);">
                 <h2 style="font-size: 18px; margin-bottom: 20px;" id="topTestsHeader">Top 10 Failing Tests</h2>
                 <div style="max-height: 600px; overflow-y: auto;">
                     <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
                             <tr>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Rank</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Test Name</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Version</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Pass Rate</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Runs</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Performance</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Rank</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Test Name</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Version</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Pass Rate</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Runs</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
                             </tr>
                         </thead>
                         <tbody id="topFailingTests">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>
+                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -823,18 +858,18 @@
                 <h3 style="margin-bottom: 15px;">Test Results</h3>
                 <div style="max-height: 400px; overflow-y: auto;">
                     <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: white; z-index: 1;">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
                             <tr>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Rank</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Test Name</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Version</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Pass Rate</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Runs</th>
-                                <th style="text-align: left; padding: 12px; background: #f9fafb; font-weight: 600; font-size: 13px; text-transform: uppercase; color: #666; border-bottom: 2px solid #e5e7eb;">Performance</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Rank</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Test Name</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Version</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Pass Rate</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Runs</th>
+                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
                             </tr>
                         </thead>
                         <tbody id="platformModalTests">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #666;">Loading...</td></tr>
+                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -854,30 +889,30 @@
             </div>
             <div class="modal-body">
                 <!-- Metadata -->
-                <div id="logMetadata" style="background: #f9fafb; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 14px;"></div>
+                <div id="logMetadata" style="background: var(--bg-surface); padding: 15px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; color: var(--text-primary);"></div>
 
                 <!-- Manual Classification Section -->
                 <div id="classificationSection" style="margin-bottom: 20px;">
-                    <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; border: 2px solid #d1d5db;">
+                    <div style="background: var(--bg-surface); padding: 20px; border-radius: 8px; border: 2px solid var(--border);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3 style="margin: 0; font-size: 16px; color: #1f2937;">Manual Classification</h3>
-                            <button id="saveClassificationBtn" onclick="saveClassification()" style="background: #10b981; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;">
+                            <h3 style="margin: 0; font-size: 16px; color: var(--text-heading);">Manual Classification</h3>
+                            <button id="saveClassificationBtn" onclick="saveClassification()" style="background: var(--accent-green); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;">
                                 Save
                             </button>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
-                                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #374151; font-size: 13px;">Classification:</label>
-                                <select id="classificationSelect" style="width: 100%; padding: 10px; border: 2px solid #d1d5db; border-radius: 6px; font-size: 14px; background: white; cursor: pointer;">
+                                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: var(--text-primary); font-size: 13px;">Classification:</label>
+                                <select id="classificationSelect" style="width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--bg-card); color: var(--text-primary); cursor: pointer;">
                                     <option value="">-- Select Classification --</option>
-                                    <option value="product_bug" style="color: #dc2626;">Product Bug</option>
-                                    <option value="automation_bug" style="color: #f59e0b;">Automation Bug</option>
-                                    <option value="system_issue" style="color: #3b82f6;">System Issue</option>
-                                    <option value="transient" style="color: #10b981;">Transient</option>
-                                    <option value="to_investigate" style="color: #8b5cf6;">To Investigate</option>
+                                    <option value="product_bug" style="color: var(--accent-red);">Product Bug</option>
+                                    <option value="automation_bug" style="color: var(--accent-orange);">Automation Bug</option>
+                                    <option value="system_issue" style="color: var(--accent-blue);">System Issue</option>
+                                    <option value="transient" style="color: var(--accent-green);">Transient</option>
+                                    <option value="to_investigate" style="color: var(--accent-purple);">To Investigate</option>
                                 </select>
                             </div>
-                            <div id="classificationStatus" style="display: flex; align-items: flex-end; font-size: 13px; color: #6b7280;">
+                            <div id="classificationStatus" style="display: flex; align-items: flex-end; font-size: 13px; color: var(--text-muted);">
                                 Select a classification and click Save
                             </div>
                         </div>
@@ -889,7 +924,7 @@
                 <div id="aiAnalysisSection" style="display: none; margin-bottom: 20px;">
                     <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px; color: white;">
                         <h3 style="margin: 0 0 15px 0; font-size: 16px;">AI Analysis</h3>
-                        <div id="aiAnalysisContent" style="background: rgba(255,255,255,0.95); color: #1e293b; padding: 15px; border-radius: 6px; font-size: 14px;"></div>
+                        <div id="aiAnalysisContent" style="background: var(--bg-surface); color: var(--text-primary); padding: 15px; border-radius: 6px; font-size: 14px;"></div>
                     </div>
                 </div>
                 {% endif %}
@@ -918,6 +953,18 @@
     </div>
 
     <script>
+        // Chart.js dark mode defaults (read from CSS variables for single source of truth)
+        const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        Chart.defaults.color = cssVar('--text-muted');
+        Chart.defaults.borderColor = cssVar('--border');
+        Chart.defaults.plugins.tooltip.backgroundColor = cssVar('--bg-card');
+        Chart.defaults.plugins.tooltip.titleColor = cssVar('--text-primary');
+        Chart.defaults.plugins.tooltip.bodyColor = cssVar('--text-primary');
+        Chart.defaults.plugins.tooltip.borderColor = cssVar('--border');
+        Chart.defaults.plugins.tooltip.borderWidth = 1;
+
+        const accentBlue = cssVar('--accent-blue');
+
         let trendChart, versionChart;
         let currentLogData = {}; // Store current log data for AI analysis and Jira creation
 
@@ -1069,10 +1116,10 @@
             const metadataHtml = `
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                     <div><strong>Timestamp:</strong> ${escapeHtml(formattedTimestamp)}</div>
-                    <div><strong>Platform:</strong> <span style="background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${escapeHtml(metadata.platform || 'Unknown').toUpperCase()}</span></div>
+                    <div><strong>Platform:</strong> <span style="background: var(--accent-blue); color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${escapeHtml(metadata.platform || 'Unknown').toUpperCase()}</span></div>
                     <div><strong>Job:</strong> ${escapeHtml(metadata.jobName || 'Unknown')}</div>
                     <div><strong>Build ID:</strong> ${escapeHtml(metadata.buildId || 'Unknown')}</div>
-                    ${metadata.jobUrl ? `<div style="grid-column: 1 / -1;"><strong>Job URL:</strong> <a href="${escapeHtml(metadata.jobUrl)}" target="_blank" style="color: #2563eb;">${escapeHtml(linkText)}</a></div>` : ''}
+                    ${metadata.jobUrl ? `<div style="grid-column: 1 / -1;"><strong>Job URL:</strong> <a href="${escapeHtml(metadata.jobUrl)}" target="_blank" style="color: var(--accent-blue);">${escapeHtml(linkText)}</a></div>` : ''}
                 </div>
             `;
 
@@ -1099,7 +1146,7 @@
             }
             if (classSaveBtn) {
                 classSaveBtn.textContent = 'Save';
-                classSaveBtn.style.background = '#10b981';
+                classSaveBtn.style.background = 'var(--accent-green)';
                 classSaveBtn.disabled = false;
             }
 
@@ -1191,7 +1238,7 @@
                 if (data.status === 'existing') {
                     // Existing Jira - just update button to be a link, no popup
                     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 0 0-1.414 1.414l4 4a1 1 0 0 0 1.414 0l8-8a1 1 0 0 0-1.414-1.414L10 15.586z"/></svg> ${data.issue_key}`;
-                    btn.style.background = '#10b981';
+                    btn.style.background = 'var(--accent-green)';
                     btn.onclick = function() {
                         window.open(data.issue_url, '_blank');
                     };
@@ -1199,7 +1246,7 @@
                     // New Jira created - open in new tab
                     window.open(data.issue_url, '_blank');
                     btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 0 0-1.414 1.414l4 4a1 1 0 0 0 1.414 0l8-8a1 1 0 0 0-1.414-1.414L10 15.586z"/></svg> ${data.issue_key}`;
-                    btn.style.background = '#10b981';
+                    btn.style.background = 'var(--accent-green)';
                     btn.onclick = function() {
                         window.open(data.issue_url, '_blank');
                     };
@@ -1223,19 +1270,19 @@
             const classification = select.value;
 
             if (!classification) {
-                status.innerHTML = '<span style="color: #dc2626;">Please select a classification</span>';
+                status.innerHTML = '<span style="color: var(--accent-red);">Please select a classification</span>';
                 return;
             }
 
             if (!currentLogData || !currentLogData.metadata) {
-                status.innerHTML = '<span style="color: #dc2626;">No test data available</span>';
+                status.innerHTML = '<span style="color: var(--accent-red);">No test data available</span>';
                 return;
             }
 
             const originalBtnText = btn.textContent;
             btn.disabled = true;
             btn.textContent = 'Saving...';
-            status.innerHTML = '<span style="color: #6b7280;">Saving...</span>';
+            status.innerHTML = '<span style="color: var(--text-muted);">Saving...</span>';
 
             try {
                 const response = await fetch('/api/save-classification', {
@@ -1259,19 +1306,19 @@
                         'transient': 'Transient',
                         'to_investigate': 'To Investigate'
                     };
-                    status.innerHTML = `<span style="color: #10b981; font-weight: 600;">Saved as ${classNames[classification]}</span>`;
+                    status.innerHTML = `<span style="color: var(--accent-green); font-weight: 600;">Saved as ${classNames[classification]}</span>`;
                     btn.textContent = 'Saved';
-                    btn.style.background = '#10b981';
+                    btn.style.background = 'var(--accent-green)';
                     setTimeout(() => {
                         btn.textContent = originalBtnText;
-                        btn.style.background = '#10b981';
+                        btn.style.background = 'var(--accent-green)';
                     }, 2000);
                 } else {
-                    status.innerHTML = `<span style="color: #dc2626;">${data.error || 'Failed to save'}</span>`;
+                    status.innerHTML = `<span style="color: var(--accent-red);">${data.error || 'Failed to save'}</span>`;
                 }
             } catch (error) {
                 console.error('Error saving classification:', error);
-                status.innerHTML = `<span style="color: #dc2626;">Error: ${error.message}</span>`;
+                status.innerHTML = `<span style="color: var(--accent-red);">Error: ${error.message}</span>`;
             } finally {
                 btn.disabled = false;
             }
@@ -1312,7 +1359,7 @@
                         classSelect.value = data.manual_classification;
                     }
                     if (classStatus) {
-                        classStatus.innerHTML = `<span style="color: #10b981; font-weight: 600;">Saved as ${classNames[data.manual_classification]}</span>`;
+                        classStatus.innerHTML = `<span style="color: var(--accent-green); font-weight: 600;">Saved as ${classNames[data.manual_classification]}</span>`;
                     }
                 }
 
@@ -1322,7 +1369,7 @@
                     if (jiraBtn) {
                         const jiraUrl = `https://redhat.atlassian.net/browse/${data.jira_issue_key}`;
                         jiraBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 0 0-1.414 1.414l4 4a1 1 0 0 0 1.414 0l8-8a1 1 0 0 0-1.414-1.414L10 15.586z"/></svg> ${data.jira_issue_key}`;
-                        jiraBtn.style.background = '#10b981';
+                        jiraBtn.style.background = 'var(--accent-green)';
                         jiraBtn.onclick = function() {
                             window.open(jiraUrl, '_blank');
                         };
@@ -1337,48 +1384,32 @@
                 if (data.ai_analysis) {
                     if (section && content) {
                         const analysis = data.ai_analysis;
-                        const classNames = {
-                            'product_bug': 'Product Bug',
-                            'automation_bug': 'Automation Bug',
-                            'system_issue': 'System Issue',
-                            'transient': 'Transient',
-                            'to_investigate': 'To Investigate'
-                        };
-                        const classColors = {
-                            'product_bug': '#dc2626',
-                            'automation_bug': '#f59e0b',
-                            'system_issue': '#3b82f6',
-                            'transient': '#10b981',
-                            'to_investigate': '#8b5cf6'
-                        };
-                        const className = classNames[analysis.failure_type] || analysis.failure_type || 'Unknown';
-                        const classColor = classColors[analysis.failure_type] || '#6b7280';
 
                         content.innerHTML = `
-                            <div style="background: #f9fafb; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
-                                <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Root Cause:</div>
-                                <div style="color: #1f2937;">${analysis.root_cause || 'N/A'}</div>
+                            <div style="background: var(--bg-surface); padding: 15px; border-radius: 6px; margin-bottom: 12px;">
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Root Cause:</div>
+                                <div style="color: var(--text-primary);">${analysis.root_cause || 'N/A'}</div>
                             </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                                <div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-                                    <div style="font-weight: 600; color: #374151; margin-bottom: 6px; font-size: 13px;">Component:</div>
-                                    <div style="color: #1f2937; font-size: 14px;">${analysis.component || 'Unknown'}</div>
+                                <div style="background: var(--bg-surface); padding: 12px; border-radius: 6px;">
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 13px;">Component:</div>
+                                    <div style="color: var(--text-primary); font-size: 14px;">${analysis.component || 'Unknown'}</div>
                                 </div>
-                                <div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-                                    <div style="font-weight: 600; color: #374151; margin-bottom: 6px; font-size: 13px;">Confidence:</div>
-                                    <div style="color: #1f2937; font-size: 14px;">${analysis.confidence || 0}%</div>
+                                <div style="background: var(--bg-surface); padding: 12px; border-radius: 6px;">
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 13px;">Confidence:</div>
+                                    <div style="color: var(--text-primary); font-size: 14px;">${analysis.confidence || 0}%</div>
                                 </div>
                             </div>
                             ${analysis.evidence ? `
-                                <div style="background: #f9fafb; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
-                                    <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Evidence:</div>
-                                    <div style="color: #1f2937; font-size: 14px; white-space: pre-wrap;">${analysis.evidence}</div>
+                                <div style="background: var(--bg-surface); padding: 15px; border-radius: 6px; margin-bottom: 12px;">
+                                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Evidence:</div>
+                                    <div style="color: var(--text-primary); font-size: 14px; white-space: pre-wrap;">${analysis.evidence}</div>
                                 </div>
                             ` : ''}
                             ${analysis.suggested_action ? `
-                                <div style="background: #fef3c7; padding: 15px; border-radius: 6px;">
-                                    <div style="font-weight: 600; color: #92400e; margin-bottom: 8px;">Suggested Action:</div>
-                                    <div style="color: #78350f; font-size: 14px;">${analysis.suggested_action}</div>
+                                <div style="background: rgba(255, 152, 48, 0.15); padding: 15px; border-radius: 6px;">
+                                    <div style="font-weight: 600; color: var(--accent-orange); margin-bottom: 8px;">Suggested Action:</div>
+                                    <div style="color: var(--text-primary); font-size: 14px;">${analysis.suggested_action}</div>
                                 </div>
                             ` : ''}
                         `;
@@ -1415,7 +1446,7 @@
             }
 
             section.style.display = 'block';
-            content.innerHTML = '<div style="text-align: center; padding: 20px; color: #64748b;">Analyzing failure... (~5 seconds)</div>';
+            content.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted);">Analyzing failure... (~5 seconds)</div>';
 
             try {
                 const response = await fetch('/api/analyze-failure', {
@@ -1435,41 +1466,41 @@
                 if (response.ok && data.root_cause) {
                     // Display in same format as auto-loaded analysis
                     content.innerHTML = `
-                        <div style="background: #f9fafb; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
-                            <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Root Cause:</div>
-                            <div style="color: #1f2937;">${data.root_cause || 'N/A'}</div>
+                        <div style="background: var(--bg-surface); padding: 15px; border-radius: 6px; margin-bottom: 12px;">
+                            <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Root Cause:</div>
+                            <div style="color: var(--text-primary);">${data.root_cause || 'N/A'}</div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                            <div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-                                <div style="font-weight: 600; color: #374151; margin-bottom: 6px; font-size: 13px;">Component:</div>
-                                <div style="color: #1f2937; font-size: 14px;">${data.component || 'Unknown'}</div>
+                            <div style="background: var(--bg-surface); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 13px;">Component:</div>
+                                <div style="color: var(--text-primary); font-size: 14px;">${data.component || 'Unknown'}</div>
                             </div>
-                            <div style="background: #f9fafb; padding: 12px; border-radius: 6px;">
-                                <div style="font-weight: 600; color: #374151; margin-bottom: 6px; font-size: 13px;">Confidence:</div>
-                                <div style="color: #1f2937; font-size: 14px;">${data.confidence || 0}%</div>
+                            <div style="background: var(--bg-surface); padding: 12px; border-radius: 6px;">
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; font-size: 13px;">Confidence:</div>
+                                <div style="color: var(--text-primary); font-size: 14px;">${data.confidence || 0}%</div>
                             </div>
                         </div>
                         ${data.evidence ? `
-                            <div style="background: #f9fafb; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
-                                <div style="font-weight: 600; color: #374151; margin-bottom: 8px;">Evidence:</div>
-                                <div style="color: #1f2937; font-size: 14px; white-space: pre-wrap;">${data.evidence}</div>
+                            <div style="background: var(--bg-surface); padding: 15px; border-radius: 6px; margin-bottom: 12px;">
+                                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">Evidence:</div>
+                                <div style="color: var(--text-primary); font-size: 14px; white-space: pre-wrap;">${data.evidence}</div>
                             </div>
                         ` : ''}
                         ${data.suggested_action ? `
-                            <div style="background: #fef3c7; padding: 15px; border-radius: 6px;">
-                                <div style="font-weight: 600; color: #92400e; margin-bottom: 8px;">Suggested Action:</div>
-                                <div style="color: #78350f; font-size: 14px;">${data.suggested_action}</div>
+                            <div style="background: rgba(255, 152, 48, 0.15); padding: 15px; border-radius: 6px;">
+                                <div style="font-weight: 600; color: var(--accent-orange); margin-bottom: 8px;">Suggested Action:</div>
+                                <div style="color: var(--text-primary); font-size: 14px;">${data.suggested_action}</div>
                             </div>
                         ` : ''}
                     `;
                     // Update button to show success
                     if (btn) {
                         btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15.586L6.707 12.293a1 1 0 0 0-1.414 1.414l4 4a1 1 0 0 0 1.414 0l8-8a1 1 0 0 0-1.414-1.414L10 15.586z"/></svg> Analyzed';
-                        btn.style.background = '#10b981';
+                        btn.style.background = 'var(--accent-green)';
                         btn.disabled = false;
                     }
                 } else {
-                    content.innerHTML = `<div style="color: #dc2626; padding: 10px; background: #fee2e2; border-radius: 6px;">Error: ${data.error || 'Failed to analyze'}</div>`;
+                    content.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(242, 73, 92, 0.15); border-radius: 6px;">Error: ${data.error || 'Failed to analyze'}</div>`;
                     // Reset button on error
                     if (btn) {
                         btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg> AI Analyze';
@@ -1478,7 +1509,7 @@
                     }
                 }
             } catch (error) {
-                content.innerHTML = `<div style="color: #dc2626; padding: 10px; background: #fee2e2; border-radius: 6px;">Error: ${error.message}</div>`;
+                content.innerHTML = `<div style="color: var(--accent-red); padding: 10px; background: rgba(242, 73, 92, 0.15); border-radius: 6px;">Error: ${error.message}</div>`;
                 // Reset button on error
                 if (btn) {
                     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg> AI Analyze';
@@ -1525,7 +1556,7 @@
         }
 
         function formatError(errorText, testName, testDescription, failedPlatforms, timestamp, platform, jobName, buildId, jobUrl, version, days) {
-            if (!errorText) return '<span style="color: #999; font-size: 12px;">No logs available</span>';
+            if (!errorText) return '<span style="color: var(--text-muted); font-size: 12px;">No logs available</span>';
 
             // Use test name for consistent IDs so Jira creation can find them
             const safeTestName = testName.replace(/[^a-zA-Z0-9]/g, '-');
@@ -1614,8 +1645,8 @@
                     datasets: [{
                         label: 'Pass Rate %',
                         data: data.pass_rates,
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        borderColor: accentBlue,
+                        backgroundColor: accentBlue + '26',
                         tension: 0.4,
                         fill: true
                     }]
@@ -1657,7 +1688,7 @@
                     datasets: [{
                         label: 'Pass Rate %',
                         data: data.pass_rates,
-                        backgroundColor: '#2563eb'
+                        backgroundColor: accentBlue
                     }]
                 },
                 options: {
@@ -1696,7 +1727,7 @@
             const tbody = document.getElementById('testRankings');
 
             if (rankings.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#666;">No data available</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">No data available</td></tr>';
                 return;
             }
 
@@ -1709,8 +1740,8 @@
                 <tr>
                     <td style="vertical-align: top;">
                         <div><strong>${test.test_name}</strong></div>
-                        ${test.test_description ? `<div style="font-size:12px; color:#666; margin-top:2px;">${test.test_description}</div>` : ''}
-                        ${showLogs ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid #e5e7eb;">${formatError(test.sample_error, test.test_name, test.test_description, test.failed_platforms, test.sample_error_timestamp, test.sample_error_platform, test.sample_error_job_name, test.sample_error_build_id, test.sample_error_job_url, test.version, days)}</div>` : ''}
+                        ${test.test_description ? `<div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${test.test_description}</div>` : ''}
+                        ${showLogs ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">${formatError(test.sample_error, test.test_name, test.test_description, test.failed_platforms, test.sample_error_timestamp, test.sample_error_platform, test.sample_error_job_name, test.sample_error_build_id, test.sample_error_job_url, test.version, days)}</div>` : ''}
                     </td>
                     <td style="vertical-align: top;">${test.version}</td>
                     <td style="vertical-align: top;">${test.total_runs}</td>
@@ -1720,7 +1751,7 @@
                             <div class="fill" style="width: ${test.pass_rate}%"></div>
                             <div class="label">${test.pass_rate.toFixed(1)}%</div>
                         </div>
-                        ${lastRun ? `<div style="font-size:12px; color:#999; margin-top:4px; text-align:right;">Last run: ${lastRun}</div>` : ''}
+                        ${lastRun ? `<div style="font-size:12px; color:var(--text-muted); margin-top:4px; text-align:right;">Last run: ${lastRun}</div>` : ''}
                     </td>
                 </tr>
             `}).join('');
@@ -1762,7 +1793,7 @@
             const container = document.getElementById('platformComparison');
 
             if (!platforms || Object.keys(platforms).length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">No data available</div>';
+                container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No data available</div>';
                 return;
             }
 
@@ -1807,7 +1838,7 @@
                                 <div class="stat-label">Previous</div>
                                 <div class="stat-value">${data.previous_pass_rate}%</div>
                             </div>
-                            <div style="font-size: 24px; color: #666;">→</div>
+                            <div style="font-size: 24px; color: var(--text-muted);">→</div>
                             <div class="stat-item">
                                 <div class="stat-label">Current</div>
                                 <div class="stat-value">${data.current_pass_rate}%</div>
@@ -1851,7 +1882,7 @@
             const tbody = document.getElementById('platformModalTests');
 
             if (!data.tests || data.tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#666;">No test data available for this platform</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No test data available for this platform</td></tr>';
                 document.getElementById('platformModalStats').innerHTML = '';
                 return;
             }
@@ -1865,30 +1896,30 @@
 
             // Render execution statistics at the top
             const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-            const deltaColor = delta > 0 ? '#059669' : delta < 0 ? '#dc2626' : '#666';
+            const deltaColor = delta > 0 ? 'var(--accent-green)' : delta < 0 ? 'var(--accent-red)' : 'var(--text-muted)';
 
             document.getElementById('platformModalStats').innerHTML = `
-                <div style="background: #f9fafb; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
+                <div style="background: var(--bg-surface); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--accent-blue);">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                         <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Unique Tests</div>
-                            <div style="font-size: 20px; font-weight: 600; color: #111;">${uniqueTests}</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Unique Tests</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${uniqueTests}</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Total Executions</div>
-                            <div style="font-size: 20px; font-weight: 600; color: #111;">${totalExecutions}</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Total Executions</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalExecutions}</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Passed</div>
-                            <div style="font-size: 20px; font-weight: 600; color: #059669;">${passedExecutions}</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Passed</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-green);">${passedExecutions}</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Failed</div>
-                            <div style="font-size: 20px; font-weight: 600; color: #dc2626;">${failedExecutions}</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Failed</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-red);">${failedExecutions}</div>
                         </div>
                         <div>
-                            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Execution Pass Rate</div>
-                            <div style="font-size: 20px; font-weight: 600; color: #3b82f6;">${executionPassRate}%</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Execution Pass Rate</div>
+                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-blue);">${executionPassRate}%</div>
                         </div>
                     </div>
                 </div>
@@ -1909,14 +1940,14 @@
             `;
 
             tbody.innerHTML = data.tests.map((test, index) => `
-                <tr style="border-bottom: 1px solid #f3f4f6;">
+                <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 12px;"><strong>${index + 1}</strong></td>
                     <td style="padding: 12px;">
                         <strong>${test.test_name}</strong>
-                        ${test.test_description ? `<br><span style="font-size:12px; color:#666;">${test.test_description}</span>` : ''}
+                        ${test.test_description ? `<br><span style="font-size:12px; color:var(--text-muted);">${test.test_description}</span>` : ''}
                     </td>
                     <td style="padding: 12px;">${test.version}</td>
-                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? '#dc2626' : test.pass_rate < 70 ? '#f59e0b' : '#666'}">${test.pass_rate.toFixed(1)}%</strong></td>
+                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
                     <td style="padding: 12px;">${test.total_runs}</td>
                     <td style="padding: 12px;">
                         <div class="pass-rate-bar">
@@ -1944,20 +1975,20 @@
             const tbody = document.getElementById('topFailingTests');
 
             if (!tests || tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:#666;">No failing tests found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No failing tests found</td></tr>';
                 return;
             }
 
             tbody.innerHTML = tests.map((test, index) => {
                 return `
-                <tr style="border-bottom: 1px solid #f3f4f6;">
+                <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 12px;"><strong>${index + 1}</strong></td>
                     <td style="padding: 12px;">
                         <strong>${test.test_name}</strong>
-                        ${test.test_description ? `<br><span style="font-size:12px; color:#666;">${test.test_description}</span>` : ''}
+                        ${test.test_description ? `<br><span style="font-size:12px; color:var(--text-muted);">${test.test_description}</span>` : ''}
                     </td>
                     <td style="padding: 12px;">${test.version}</td>
-                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? '#dc2626' : test.pass_rate < 70 ? '#f59e0b' : '#666'}">${test.pass_rate.toFixed(1)}%</strong></td>
+                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
                     <td style="padding: 12px;">${test.total_runs}</td>
                     <td style="padding: 12px;">
                         <div class="pass-rate-bar">
