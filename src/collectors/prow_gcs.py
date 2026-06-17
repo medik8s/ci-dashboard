@@ -322,6 +322,19 @@ class ProwGCSCollector(BaseCollector):
         logger.info(f"[prow_gcs] Total test results collected: {len(all_results)}")
         return all_results
 
+    def _derive_step_name(self, job_name: str) -> Optional[str]:
+        """Derive the Prow multi-stage test step name from the job name.
+
+        For medik8s periodic/presubmit jobs, the step name is the suffix
+        after the variant segment (e.g. '4.22-konflux-').
+        Example: periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws
+                 -> e2e-far-weekly-aws
+        """
+        match = re.search(r'\d+\.\d+-konflux-(.+)$', job_name)
+        if match:
+            return match.group(1)
+        return None
+
     def _fetch_test_results_for_job(
         self,
         job_run: JobRun,
@@ -331,24 +344,30 @@ class ProwGCSCollector(BaseCollector):
         results = []
 
         try:
+            base_url = f"{self.gcs_url}/logs/{job_run.job_name}/{job_run.build_id}/artifacts"
+
             # Extract GCS path from job_url to support both /logs/ and /pr-logs/ paths
             if job_run.job_url and '/view/gs/qe-private-deck/' in job_run.job_url:
-                # Extract path after /view/gs/qe-private-deck/
-                # Example: pr-logs/pull/openshift_release/76816/rehearse-76816-.../2037290229743751168
-                # or: logs/periodic-ci-.../build_id
                 gcs_path = job_run.job_url.split('/view/gs/qe-private-deck/')[-1]
-                artifacts_url = f"{self.gcs_url}/{gcs_path}/artifacts/"
-            else:
-                # Fallback to default /logs/ path for jobs without URL
-                artifacts_url = f"{self.gcs_url}/logs/{job_run.job_name}/{job_run.build_id}/artifacts/"
+                base_url = f"{self.gcs_url}/{gcs_path}/artifacts"
 
-            junit_files = self._find_junit_files(artifacts_url)
+            # Look for JUnit XML only under the e2e-test step to avoid
+            # picking up infrastructure/gather JUnit files from other steps.
+            step_name = self._derive_step_name(job_run.job_name)
+            if step_name:
+                e2e_url = f"{base_url}/{step_name}/e2e-test/"
+                junit_files = self._find_junit_files(e2e_url, max_depth=3)
+                if junit_files:
+                    for junit_url in junit_files:
+                        tests = self._parse_junit_xml(junit_url, job_run, test_names)
+                        results.extend(tests)
+                    return results
 
+            # Fallback: broad search (for non-medik8s jobs or unknown layout)
+            junit_files = self._find_junit_files(f"{base_url}/")
             for junit_url in junit_files:
                 tests = self._parse_junit_xml(junit_url, job_run, test_names)
                 results.extend(tests)
-
-            # JUnit XML already contains the test failure messages, no need to fetch build-log.txt
 
         except Exception as e:
             logger.error(f"[prow_gcs] Error fetching test results for {job_run.job_name}/{job_run.build_id}: {e}")
