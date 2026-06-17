@@ -83,9 +83,9 @@ class ProwGCSCollector(BaseCollector):
     def health_check(self) -> bool:
         """Check if Prow API is accessible"""
         try:
-            url = f"{self.prow_url}/prowjobs.js?var=allBuilds"
+            url = f"{self.prow_url}/"
             logger.info(f"[prow_gcs] Health check URL: {url}")
-            response = self.session.get(url, timeout=5)
+            response = self.session.head(url, timeout=10)
             logger.info(f"[prow_gcs] Health check response: status={response.status_code}")
 
             if response.status_code == 403:
@@ -164,128 +164,115 @@ class ProwGCSCollector(BaseCollector):
         platforms: Optional[List[str]] = None
     ) -> List[JobRun]:
         """
-        Collect job runs from Prow API
+        Collect job runs using per-job Prow job-history endpoint.
 
-        Fetches prowjobs.js and filters by job patterns, versions, platforms
+        Instead of downloading the massive prowjobs.js (all jobs across
+        all teams), queries each configured job name individually via
+        the lightweight job-history HTML endpoint.
         """
+        import json as json_mod
+
         job_runs = []
+        job_list = job_patterns if job_patterns else self.job_names
 
-        try:
-            # Fetch all Prow jobs
-            url = f"{self.prow_url}/prowjobs.js?var=allBuilds"
-            response = self.session.get(url, timeout=30)
-            response.raise_for_status()
+        if not job_list:
+            logger.warning("[prow_gcs] No job patterns configured")
+            return job_runs
 
-            # Parse JavaScript response: var allBuilds = {...};
-            import json
-            content = response.text
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        if end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
 
-            # Remove "var allBuilds = " from start (16 chars) and ";" from end
-            json_str = content[16:].rstrip('; \n\r\t')
-
-            data = json.loads(json_str)
-
-            all_jobs = data.get('items', [])
-            logger.info(f"[prow_gcs] Fetched {len(all_jobs)} total jobs from Prow API")
-
-            # Filter jobs
-            job_list = job_patterns if job_patterns else self.job_names
-
-            for job in all_jobs:
-                spec = job.get('spec', {})
-                status = job.get('status', {})
-                metadata = job.get('metadata', {})
-
-                job_name = spec.get('job', '')
-
-                # Match job patterns
-                if job_list:
-                    matched = False
-                    for pattern in job_list:
-                        # Simple wildcard matching
-                        pattern_re = pattern.replace('*', '.*')
-                        if re.match(pattern_re, job_name):
-                            matched = True
-                            break
-                    if not matched:
-                        continue
-
-                # Exclude unrelated test jobs by suffix
-                excluded_suffixes = ['-compliance', '-compliance-destructive', '-file-integrity']
-                if any(job_name.endswith(suffix) for suffix in excluded_suffixes):
+        for job_name in job_list:
+            try:
+                url = (
+                    f"{self.prow_url}/job-history/gs/"
+                    f"{self.bucket}/logs/{job_name}"
+                )
+                logger.info(f"[prow_gcs] Fetching history: {job_name}")
+                response = self.session.get(url, timeout=30)
+                if response.status_code != 200:
+                    logger.warning(
+                        f"[prow_gcs] job-history returned "
+                        f"{response.status_code} for {job_name}"
+                    )
                     continue
 
-                # Extract metadata
-                version, platform = self._extract_version_platform(job_name)
+                match = re.search(
+                    r'var allBuilds\s*=\s*(\[.*?\]);',
+                    response.text,
+                    re.DOTALL,
+                )
+                if not match:
+                    logger.warning(
+                        f"[prow_gcs] No build data in "
+                        f"job-history for {job_name}"
+                    )
+                    continue
 
-                # Filter by version/platform
+                builds = json_mod.loads(match.group(1))
+                logger.info(
+                    f"[prow_gcs] {job_name}: {len(builds)} builds"
+                )
+
+                version, platform = self._extract_version_platform(
+                    job_name
+                )
                 if versions and version not in versions:
                     continue
                 if platforms and platform not in platforms:
                     continue
 
-                # Parse timestamps
-                start_time_str = status.get('startTime')
-                completion_time_str = status.get('completionTime')
+                for build in builds:
+                    started_str = build.get('Started', '')
+                    if not started_str:
+                        continue
 
-                if not start_time_str:
-                    continue
+                    start_time = datetime.fromisoformat(
+                        started_str.replace('Z', '+00:00')
+                    )
+                    if start_time < start_date or start_time > end_date:
+                        continue
 
-                start_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                    result = build.get('Result', 'FAILURE')
+                    job_status = (
+                        TestStatus.PASSED
+                        if result == 'SUCCESS'
+                        else TestStatus.FAILED
+                    )
+                    build_id = str(build.get('ID', 'unknown'))
+                    duration = int(build.get('Duration', 0)) // 1_000_000_000
 
-                # Make start_date and end_date timezone-aware if they aren't
-                if start_date.tzinfo is None:
-                    start_date = start_date.replace(tzinfo=timezone.utc)
-                if end_date.tzinfo is None:
-                    end_date = end_date.replace(tzinfo=timezone.utc)
+                    job_url = (
+                        f"{self.prow_url}/view/gs/"
+                        f"{self.bucket}/logs/{job_name}/{build_id}"
+                    )
 
-                # Filter by date range
-                if start_time < start_date or start_time > end_date:
-                    continue
+                    job_runs.append(JobRun(
+                        job_name=job_name,
+                        build_id=build_id,
+                        status=job_status,
+                        timestamp=start_time,
+                        duration_seconds=duration,
+                        version=version,
+                        platform=platform,
+                        total_tests=0,
+                        passed_tests=0,
+                        failed_tests=0,
+                        skipped_tests=0,
+                        job_url=job_url,
+                    ))
 
-                completion_time = None
-                if completion_time_str:
-                    completion_time = datetime.fromisoformat(completion_time_str.replace('Z', '+00:00'))
-
-                # Calculate duration
-                duration = 0
-                if completion_time:
-                    duration = int((completion_time - start_time).total_seconds())
-
-                # Map state to status
-                state = status.get('state', 'unknown')
-                job_status = TestStatus.PASSED if state == 'success' else TestStatus.FAILED
-
-                # Build ID
-                build_id = status.get('build_id', metadata.get('name', 'unknown'))
-
-                # Job URL
-                job_url = status.get('url', f"{self.prow_url}/view/gs/qe-private-deck/logs/{job_name}/{build_id}")
-
-                job_run = JobRun(
-                    job_name=job_name,
-                    build_id=str(build_id),
-                    status=job_status,
-                    timestamp=start_time,
-                    duration_seconds=duration,
-                    version=version,
-                    platform=platform,
-                    total_tests=0,  # Will be filled from artifacts
-                    passed_tests=0,
-                    failed_tests=0,
-                    skipped_tests=0,
-                    job_url=job_url
+            except Exception as e:
+                logger.error(
+                    f"[prow_gcs] Error fetching {job_name}: {e}"
                 )
 
-                job_runs.append(job_run)
-
-            logger.info(f"[prow_gcs] Filtered to {len(job_runs)} matching job runs")
-
-        except Exception as e:
-            logger.error(f"[prow_gcs] Error collecting job runs: {e}")
-            import traceback
-            traceback.print_exc()
-
+        logger.info(
+            f"[prow_gcs] Collected {len(job_runs)} job runs "
+            f"across {len(job_list)} jobs"
+        )
         return job_runs
 
     def collect_test_results(
