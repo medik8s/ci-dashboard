@@ -290,7 +290,7 @@ class DashboardDatabase:
                 CAST(SUM(passed_tests) AS REAL) / SUM(total_tests) * 100 as avg_pass_rate
             FROM job_runs
             WHERE timestamp >= ? AND timestamp <= ?
-            AND total_tests >= 10
+            AND total_tests >= 1
         """
 
         params = [start_date.isoformat(), end_date.isoformat()]
@@ -406,7 +406,6 @@ class DashboardDatabase:
             FROM test_results
             WHERE timestamp >= ? AND timestamp <= ?
             AND status != 'skipped'
-            AND test_name LIKE 'OCP-%'
         """
 
         params = [start_date.isoformat(), end_date.isoformat(),
@@ -467,7 +466,7 @@ class DashboardDatabase:
                 AVG(total_tests) as avg_total_tests
             FROM job_runs
             WHERE timestamp >= ? AND timestamp <= ?
-            AND total_tests >= 10
+            AND total_tests >= 1
             GROUP BY version
             ORDER BY version
         """
