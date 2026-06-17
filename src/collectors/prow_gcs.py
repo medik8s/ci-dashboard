@@ -377,6 +377,13 @@ class ProwGCSCollector(BaseCollector):
 
             for match in xml_matches:
                 match = match.strip()
+
+                # Skip ci-operator step metadata (not real test results)
+                basename = match.rsplit('/', 1)[-1] if '/' in match else match
+                if basename == 'junit_operator.xml':
+                    logger.debug(f"[prow_gcs] Skipping ci-operator metadata: {match}")
+                    continue
+
                 # Build full URL for junit file
                 if match.startswith('http'):
                     junit_url = match
