@@ -357,11 +357,10 @@ class ProwGCSCollector(BaseCollector):
             if step_name:
                 e2e_url = f"{base_url}/{step_name}/e2e-test/"
                 junit_files = self._find_junit_files(e2e_url, max_depth=3)
-                if junit_files:
-                    for junit_url in junit_files:
-                        tests = self._parse_junit_xml(junit_url, job_run, test_names)
-                        results.extend(tests)
-                    return results
+                for junit_url in junit_files:
+                    tests = self._parse_junit_xml(junit_url, job_run, test_names)
+                    results.extend(tests)
+                return results
 
             # Fallback: broad search (for non-medik8s jobs or unknown layout)
             junit_files = self._find_junit_files(f"{base_url}/")
