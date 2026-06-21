@@ -711,6 +711,25 @@
         .detail-grid a { color: var(--accent-blue); text-decoration: none; }
         .detail-grid a:hover { text-decoration: underline; }
 
+        /* Variant badges */
+        .variant-badge {
+            font-size: 0.7rem;
+            padding: 2px 7px;
+            border-radius: 4px;
+            margin-left: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-muted);
+            font-family: monospace;
+            vertical-align: middle;
+        }
+        .variant-subheader td {
+            padding: 6px 12px 6px 2.5rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            border-left: 2px solid var(--border);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
         /* Donut chart container */
         .donut-container { max-width: 280px; margin: 0 auto; }
     </style>
@@ -2380,6 +2399,17 @@
             return '<a href="' + esc(url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>';
         }
 
+        function variantLabel(stepName, operator) {
+            if (!stepName) return '';
+            var prefix = 'e2e-' + (operator || '').toLowerCase() + '-';
+            var suffix = stepName.replace(prefix, '');
+            return suffix.replace(/-aws$|-gcp$|-azure$/, '') || '';
+        }
+        function variantBadge(stepName, operator) {
+            var label = variantLabel(stepName, operator);
+            return label ? '<span class="variant-badge">' + esc(label) + '</span>' : '';
+        }
+
         // ---- Operator filter ----
         var selectedOperator = '';
         document.getElementById('opFilterBar').addEventListener('click', function(e) {
@@ -2468,10 +2498,29 @@
                     return;
                 }
 
+                rows.sort(function(a, b) {
+                    var opCmp = (a.operator || '').localeCompare(b.operator || '');
+                    if (opCmp !== 0) return opCmp;
+                    var vA = variantLabel(a.step_name, a.operator);
+                    var vB = variantLabel(b.step_name, b.operator);
+                    return vA.localeCompare(vB);
+                });
+
+                var opVariants = {};
+                rows.forEach(function(r) {
+                    var op = r.operator || 'Unknown';
+                    if (!opVariants[op]) opVariants[op] = new Set();
+                    opVariants[op].add(variantLabel(r.step_name, r.operator) || 'default');
+                });
+
                 var html = '';
                 var lastOp = null;
+                var lastVariant = null;
                 rows.forEach(function(r, i) {
                     var op = r.operator || 'Unknown';
+                    var variant = variantLabel(r.step_name, r.operator) || 'default';
+                    var multiVariant = opVariants[op] && opVariants[op].size > 1;
+
                     if (op !== lastOp) {
                         if (lastOp !== null) {
                             html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555') + '33,transparent);"></td></tr>';
@@ -2479,12 +2528,20 @@
                         var count = rows.filter(function(x) { return (x.operator || 'Unknown') === op; }).length;
                         html += '<tr class="op-group-header"><td colspan="7">' + opChip(op) + ' <span style="margin-left:8px;color:var(--text-muted);font-size:0.75rem;">' + count + ' tests</span></td></tr>';
                         lastOp = op;
+                        lastVariant = null;
                     }
+
+                    if (multiVariant && variant !== lastVariant) {
+                        var vCount = rows.filter(function(x) { return (x.operator || 'Unknown') === op && (variantLabel(x.step_name, x.operator) || 'default') === variant; }).length;
+                        html += '<tr class="variant-subheader"><td colspan="7" style="border-left-color:' + (OP_COLORS[op] || '#555') + ';">' + esc(variant) + ' <span style="color:var(--text-muted);font-size:0.7rem;">(' + vCount + ')</span></td></tr>';
+                        lastVariant = variant;
+                    }
+
                     var rid = 'tr-detail-' + i;
                     html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'' + rid + '\').classList.toggle(\'open\')">';
                     html += '<td style="text-align:center;color:var(--text-muted);">&#9654;</td>';
                     html += '<td>' + esc(r.test_description || r.test_name) + '</td>';
-                    html += '<td>' + opChip(r.operator) + '</td>';
+                    html += '<td>' + opChip(r.operator) + variantBadge(r.step_name, r.operator) + '</td>';
                     html += '<td>' + resultBadge(r.result) + '</td>';
                     html += '<td style="font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.periodic_job || '') + '">' + esc((r.periodic_job || '-').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
                     html += '<td>' + fmtDate(r.run_date) + '</td>';
