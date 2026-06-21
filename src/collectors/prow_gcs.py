@@ -402,6 +402,10 @@ class ProwGCSCollector(BaseCollector):
                     logger.debug(f"[prow_gcs] Skipping ci-operator metadata: {match}")
                     continue
 
+                if basename == 'report_testrun.xml':
+                    logger.debug(f"[prow_gcs] Skipping Polarion report (duplicate of Ginkgo JUnit): {match}")
+                    continue
+
                 # Build full URL for junit file
                 if match.startswith('http'):
                     junit_url = match
