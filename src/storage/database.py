@@ -419,10 +419,21 @@ class DashboardDatabase:
                 platform,
                 COUNT(*) as total_runs,
                 SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed_runs,
-                CAST(SUM(passed_tests) AS REAL) / SUM(total_tests) * 100 as avg_pass_rate
+                CASE
+                    WHEN SUM(total_tests) > 0
+                    THEN CAST(SUM(passed_tests) AS REAL) / SUM(total_tests) * 100
+                    ELSE (
+                        SELECT CAST(SUM(CASE WHEN tr.status = 'passed' THEN 1 ELSE 0 END) AS REAL)
+                               / NULLIF(COUNT(*), 0) * 100
+                        FROM test_results tr
+                        WHERE DATE(tr.timestamp) = DATE(job_runs.timestamp)
+                        AND tr.version = job_runs.version
+                        AND tr.platform = job_runs.platform
+                        AND tr.status != 'skipped'
+                    )
+                END as avg_pass_rate
             FROM job_runs
             WHERE timestamp >= ? AND timestamp <= ?
-            AND total_tests >= 1
         """
 
         params = [start_date.isoformat(), end_date.isoformat()]

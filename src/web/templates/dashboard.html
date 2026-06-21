@@ -813,7 +813,7 @@
             <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div></div>
             <div class="stat-panel stat-panel--blue"><div class="sp-label">Jobs Run</div><div class="sp-value" id="spJobs">--</div></div>
             <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div></div>
-            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem;">--</div></div>
+            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.75rem; word-break:break-all; line-height:1.2;">--</div></div>
         </div>
 
         <div class="summary-cards">
@@ -1282,7 +1282,7 @@
             const metadataHtml = `
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
                     <div><strong>Timestamp:</strong> ${escapeHtml(formattedTimestamp)}</div>
-                    <div><strong>Platform:</strong> <span style="background: var(--accent-blue); color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${escapeHtml(metadata.platform || 'Unknown').toUpperCase()}</span></div>
+                    <div><strong>Platform:</strong> <span style="background: var(--accent-blue); color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">${escapeHtml(fmtPlatform(metadata.platform || 'Unknown'))}</span></div>
                     <div><strong>Job:</strong> ${escapeHtml(metadata.jobName || 'Unknown')}</div>
                     <div><strong>Build ID:</strong> ${escapeHtml(metadata.buildId || 'Unknown')}</div>
                     ${metadata.jobUrl ? `<div style="grid-column: 1 / -1;"><strong>Job URL:</strong> <a href="${escapeHtml(metadata.jobUrl)}" target="_blank" style="color: var(--accent-blue);">${escapeHtml(linkText)}</a></div>` : ''}
@@ -1953,7 +1953,7 @@
                     <div class="platform-card" onclick="showPlatformDetails('${platform}', ${data.current_runs}, ${data.current_pass_rate}, ${data.previous_pass_rate}, ${delta})">
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <span class="status-badge ${statusClass}">${statusText}</span>
-                            <span class="platform-name">${platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
+                            <span class="platform-name">${fmtPlatform(platform)}</span>
                         </div>
                         <div class="platform-stats">
                             <div class="stat-item">
@@ -1988,7 +1988,7 @@
             // Update modal title
             const versionText = version ? ` (${version})` : '';
             document.getElementById('platformModalTitle').textContent =
-                `${platform.charAt(0).toUpperCase() + platform.slice(1)} Platform Details${versionText}`;
+                `${fmtPlatform(platform)} Platform Details${versionText}`;
 
             // Show modal
             document.getElementById('platformModal').style.display = 'block';
@@ -2348,6 +2348,16 @@
             }
         }
 
+        // ---- Platform display names ----
+        const PLATFORM_LABELS = {
+            aws: 'AWS', gcp: 'GCP', azure: 'Azure', vsphere: 'vSphere',
+            openstack: 'OpenStack', baremetal: 'Bare Metal'
+        };
+        function fmtPlatform(p) {
+            if (!p) return '';
+            return PLATFORM_LABELS[p.toLowerCase()] || p.toUpperCase();
+        }
+
         // ---- Operator colors ----
         const OP_COLORS = {
             FAR: '#2563eb', SBR: '#f97316', SNR: '#22c55e',
@@ -2496,13 +2506,13 @@
 
                     html += '<tr id="' + rid + '" class="detail-row"><td colspan="7"><div class="detail-grid">';
                     html += '<div><strong>OCP Version</strong>' + esc(r.ocp_version || r.version || '-') + '</div>';
-                    html += '<div><strong>Platform</strong>' + esc((r.platform || '-').toUpperCase()) + '</div>';
+                    html += '<div><strong>Platform</strong>' + esc(fmtPlatform(r.platform || '-')) + '</div>';
                     html += '<div><strong>CSV Version</strong>' + esc(r.csv_version || '-') + '</div>';
                     html += '<div><strong>FBC Image</strong>' + (r.fbc_image_url ? linkEl(r.fbc_image_url, r.fbc_image_short || 'View') : (r.fbc_image_short || '-')) + '</div>';
                     html += '<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>';
                     html += '<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>';
-                    html += '<div><strong>Install Log</strong>' + linkEl(r.install_log_url, 'Install Log') + '</div>';
-                    html += '<div><strong>Subscribe Log</strong>' + linkEl(r.subscribe_log_url, 'Subscribe Log') + '</div>';
+                    html += '<div><strong>Cluster Install Log</strong>' + linkEl(r.install_log_url, 'IPI Install') + '</div>';
+                    html += '<div><strong>Operator Install Log</strong>' + linkEl(r.subscribe_log_url, 'OLM Subscribe') + '</div>';
                     html += '<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>';
                     html += '<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>';
                     html += '<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>';

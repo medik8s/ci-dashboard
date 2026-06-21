@@ -104,9 +104,7 @@ class MetricsCalculator:
             start_date, end_date, version=version, platform=platform, blocklist=self.blocklist
         )
 
-        # Filter tests with meaningful sample size
-        # Use lower threshold for platform filtering or short time periods (7 days)
-        min_runs = 1 if (platform or days <= 7) else 2
+        min_runs = 1
         meaningful_tests = [
             test for test in test_data
             if test['total_runs'] >= min_runs
