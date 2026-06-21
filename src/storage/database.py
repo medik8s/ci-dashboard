@@ -59,6 +59,10 @@ class DashboardDatabase:
                 skipped_tests INTEGER NOT NULL,
                 pass_rate REAL NOT NULL,
                 job_url TEXT,
+                ocp_version TEXT,
+                csv_version TEXT,
+                fbc_image TEXT,
+                step_name TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(job_name, build_id)
             )
@@ -80,6 +84,12 @@ class DashboardDatabase:
                 platform TEXT NOT NULL,
                 job_url TEXT,
                 log_url TEXT,
+                manual_classification TEXT,
+                classified_by TEXT,
+                classification_timestamp DATETIME,
+                jira_issue_key TEXT,
+                polarion_id TEXT,
+                operator TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(test_name, job_name, build_id)
             )
@@ -171,6 +181,22 @@ class DashboardDatabase:
             # Column already exists
             pass
 
+        # Add Polarion ID and operator columns
+        existing_cols = {row[1] for row in cursor.execute("PRAGMA table_info(test_results)")}
+        if 'polarion_id' not in existing_cols:
+            cursor.execute("ALTER TABLE test_results ADD COLUMN polarion_id TEXT")
+        if 'operator' not in existing_cols:
+            cursor.execute("ALTER TABLE test_results ADD COLUMN operator TEXT")
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_test_results_operator ON test_results(operator)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_test_results_polarion_id ON test_results(polarion_id)")
+
+        # Add enriched metadata columns to job_runs
+        jr_cols = {row[1] for row in cursor.execute("PRAGMA table_info(job_runs)")}
+        for col in ['ocp_version', 'csv_version', 'fbc_image', 'step_name']:
+            if col not in jr_cols:
+                cursor.execute(f"ALTER TABLE job_runs ADD COLUMN {col} TEXT")
+
         self.conn.commit()
 
     def insert_job_runs(self, job_runs: List[JobRun]) -> int:
@@ -189,11 +215,26 @@ class DashboardDatabase:
         for run in job_runs:
             try:
                 cursor.execute("""
-                    INSERT OR REPLACE INTO job_runs (
+                    INSERT INTO job_runs (
                         job_name, build_id, status, timestamp, duration_seconds,
                         version, platform, total_tests, passed_tests, failed_tests,
-                        skipped_tests, pass_rate, job_url
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        skipped_tests, pass_rate, job_url,
+                        ocp_version, csv_version, fbc_image, step_name
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(job_name, build_id) DO UPDATE SET
+                        status = excluded.status,
+                        timestamp = excluded.timestamp,
+                        duration_seconds = excluded.duration_seconds,
+                        total_tests = excluded.total_tests,
+                        passed_tests = excluded.passed_tests,
+                        failed_tests = excluded.failed_tests,
+                        skipped_tests = excluded.skipped_tests,
+                        pass_rate = excluded.pass_rate,
+                        job_url = excluded.job_url,
+                        ocp_version = COALESCE(excluded.ocp_version, job_runs.ocp_version),
+                        csv_version = COALESCE(excluded.csv_version, job_runs.csv_version),
+                        fbc_image = COALESCE(excluded.fbc_image, job_runs.fbc_image),
+                        step_name = COALESCE(excluded.step_name, job_runs.step_name)
                 """, (
                     run.job_name,
                     run.build_id,
@@ -207,7 +248,11 @@ class DashboardDatabase:
                     run.failed_tests,
                     run.skipped_tests,
                     run.pass_rate,
-                    run.job_url
+                    run.job_url,
+                    run.ocp_version,
+                    run.csv_version,
+                    run.fbc_image,
+                    run.step_name,
                 ))
                 inserted += 1
             except sqlite3.IntegrityError:
@@ -233,10 +278,23 @@ class DashboardDatabase:
         for result in test_results:
             try:
                 cursor.execute("""
-                    INSERT OR REPLACE INTO test_results (
+                    INSERT INTO test_results (
                         test_name, test_description, status, timestamp, duration_seconds, error_message,
-                        job_name, build_id, version, platform, job_url, log_url
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        job_name, build_id, version, platform, job_url, log_url,
+                        polarion_id, operator
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(test_name, job_name, build_id) DO UPDATE SET
+                        test_description = excluded.test_description,
+                        status = excluded.status,
+                        timestamp = excluded.timestamp,
+                        duration_seconds = excluded.duration_seconds,
+                        error_message = excluded.error_message,
+                        version = excluded.version,
+                        platform = excluded.platform,
+                        job_url = excluded.job_url,
+                        log_url = excluded.log_url,
+                        polarion_id = COALESCE(excluded.polarion_id, test_results.polarion_id),
+                        operator = COALESCE(excluded.operator, test_results.operator)
                 """, (
                     result.test_name,
                     result.test_description,
@@ -249,7 +307,9 @@ class DashboardDatabase:
                     result.version,
                     result.platform,
                     result.job_url,
-                    result.log_url
+                    result.log_url,
+                    result.polarion_id,
+                    result.operator,
                 ))
                 inserted += 1
             except sqlite3.IntegrityError:
@@ -729,6 +789,134 @@ class DashboardDatabase:
         """, (test_name, version, f'-{days}'))
 
         return [row[0] for row in cursor.fetchall()]
+
+    def get_enriched_test_results(
+        self,
+        days: int = 30,
+        operator: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get test results joined with job_runs metadata (16-column view)."""
+        cursor = self.conn.cursor()
+
+        query = """
+            SELECT
+                tr.test_name,
+                tr.test_description,
+                tr.operator,
+                tr.status AS result,
+                tr.polarion_id,
+                tr.error_message,
+                tr.duration_seconds AS test_duration,
+                tr.manual_classification,
+                tr.jira_issue_key,
+                jr.job_name AS periodic_job,
+                jr.timestamp AS run_date,
+                jr.duration_seconds AS job_duration,
+                jr.version,
+                jr.platform,
+                jr.ocp_version,
+                jr.csv_version,
+                jr.fbc_image,
+                jr.step_name,
+                jr.job_url,
+                jr.build_id
+            FROM test_results tr
+            JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
+            WHERE tr.timestamp >= datetime('now', ? || ' days')
+            AND tr.status != 'skipped'
+        """
+        params: list = [f'-{days}']
+
+        if operator:
+            query += " AND tr.operator = ?"
+            params.append(operator)
+        if version:
+            query += " AND tr.version = ?"
+            params.append(version)
+
+        query += " ORDER BY tr.operator, jr.timestamp DESC, tr.test_name"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_operator_stats(
+        self,
+        days: int = 30,
+        version: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get per-operator pass/fail counts for charts."""
+        cursor = self.conn.cursor()
+
+        query = """
+            SELECT
+                operator,
+                COUNT(*) AS total_tests,
+                SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) AS passed,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+                ROUND(CAST(SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) AS REAL) / COUNT(*) * 100, 1) AS pass_rate
+            FROM test_results
+            WHERE timestamp >= datetime('now', ? || ' days')
+            AND status != 'skipped'
+            AND operator IS NOT NULL
+        """
+        params: list = [f'-{days}']
+
+        if version:
+            query += " AND version = ?"
+            params.append(version)
+
+        query += " GROUP BY operator ORDER BY operator"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_job_run_history(
+        self,
+        days: int = 30,
+        operator: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get job run history with enriched metadata."""
+        cursor = self.conn.cursor()
+
+        query = """
+            SELECT
+                jr.job_name,
+                jr.build_id,
+                jr.status,
+                jr.timestamp AS run_date,
+                jr.duration_seconds,
+                jr.version,
+                jr.platform,
+                jr.total_tests,
+                jr.passed_tests,
+                jr.failed_tests,
+                jr.skipped_tests,
+                jr.pass_rate,
+                jr.job_url,
+                jr.ocp_version,
+                jr.csv_version,
+                jr.fbc_image,
+                jr.step_name
+            FROM job_runs jr
+            WHERE jr.timestamp >= datetime('now', ? || ' days')
+        """
+        params: list = [f'-{days}']
+
+        if version:
+            query += " AND jr.version = ?"
+            params.append(version)
+
+        if operator:
+            query += """ AND EXISTS (
+                SELECT 1 FROM test_results tr
+                WHERE tr.job_name = jr.job_name AND tr.build_id = jr.build_id
+                AND tr.operator = ?
+            )"""
+            params.append(operator)
+
+        query += " ORDER BY jr.timestamp DESC"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
 
     def close(self):
         """Close database connection"""
