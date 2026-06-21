@@ -2,12 +2,15 @@
 SQLite database for storing historical test results and metrics
 """
 
+import logging
 import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from collectors.base import JobRun, TestResult, TestStatus
+
+logger = logging.getLogger(__name__)
 
 
 class DashboardDatabase:
@@ -23,19 +26,86 @@ class DashboardDatabase:
         self.db_path = db_path
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
-        # Allow SQLite to be used across threads (safe for read-mostly workloads)
-        # Use longer timeout to handle concurrent access
-        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
-        self.conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+        self._check_integrity_and_recover(db_path)
 
-        # Try to enable WAL mode for better concurrent access (ignore if fails)
-        try:
-            self.conn.execute('PRAGMA journal_mode=WAL')
-        except sqlite3.OperationalError:
-            # WAL mode might fail if database is on read-only filesystem or other constraints
-            pass
+        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
+        self.conn.row_factory = sqlite3.Row
+
+        # Use DELETE journal mode (not WAL) for NFS compatibility.
+        # WAL requires shared-memory mmap which NFS does not support reliably,
+        # causing "database disk image is malformed" corruption.
+        mode = self.conn.execute('PRAGMA journal_mode=DELETE').fetchone()
+        current_mode = mode[0].lower() if mode and mode[0] else 'unknown'
+        if current_mode != 'delete':
+            self.conn.close()
+            if current_mode == 'wal':
+                raise RuntimeError(
+                    "SQLite remained in WAL mode, which is unsafe on NFS storage. "
+                    "Another process may be holding the database open."
+                )
+            raise RuntimeError(
+                f"SQLite must use DELETE journal mode for NFS safety, "
+                f"but got: {current_mode}"
+            )
+        self.conn.execute('PRAGMA synchronous=FULL')
 
         self._create_tables()
+
+    @staticmethod
+    def _check_integrity_and_recover(db_path: str):
+        """Check database integrity on startup; delete and recreate if corrupt."""
+        if not Path(db_path).exists():
+            return
+
+        def _purge_db_files():
+            for suffix in ('', '-wal', '-shm', '-journal'):
+                try:
+                    Path(f"{db_path}{suffix}").unlink(missing_ok=True)
+                except OSError as err:
+                    logger.warning("Could not delete %s%s: %s", db_path, suffix, err)
+
+        try:
+            conn = sqlite3.connect(db_path, timeout=5.0)
+            try:
+                jmode = conn.execute('PRAGMA journal_mode=DELETE').fetchone()
+                if not jmode or jmode[0].lower() != 'delete':
+                    logger.warning(
+                        "Integrity-check connection could not switch to DELETE mode "
+                        "(got: %s); proceeding anyway",
+                        jmode[0] if jmode else 'unknown',
+                    )
+                result = conn.execute('PRAGMA integrity_check').fetchone()
+            finally:
+                conn.close()
+        except sqlite3.OperationalError as e:
+            msg = str(e).lower()
+            if 'locked' in msg or 'busy' in msg:
+                logger.warning("Database locked during integrity check, skipping: %s", e)
+                return
+            if any(term in msg for term in ('malformed', 'corrupt', 'not a database')):
+                logger.warning("Corrupt database detected (%s), deleting and recreating", e)
+                _purge_db_files()
+                return
+            logger.warning("Database unavailable during integrity check: %s", e)
+            return
+        except sqlite3.DatabaseError as e:
+            msg = str(e).lower()
+            if any(term in msg for term in ('malformed', 'corrupt', 'not a database')):
+                logger.warning("Corrupt database detected (%s), deleting and recreating", e)
+                _purge_db_files()
+                return
+            logger.warning(
+                "Database error during integrity check, but corruption not confirmed; "
+                "leaving database in place: %s", e
+            )
+            return
+
+        if not result or result[0] != 'ok':
+            logger.warning(
+                "Corrupt database detected (integrity_check: %s), deleting and recreating",
+                result[0] if result else "no result",
+            )
+            _purge_db_files()
 
     def _create_tables(self):
         """Create database schema"""
