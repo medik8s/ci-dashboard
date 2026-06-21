@@ -13,7 +13,6 @@ import logging
 import io
 import csv
 from openpyxl import Workbook
-from openpyxl.chart import PieChart, Reference
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 
@@ -33,6 +32,66 @@ collection_status = {
     'completed_at': None,
     'lock': threading.Lock()
 }
+
+
+def _md_cell(val):
+    """Escape a value for use in a markdown table cell."""
+    return str(val or '').replace('|', '\\|').replace('\n', ' ').replace('\r', ' ').strip()
+
+
+def _fbc_short(fbc_image):
+    """Extract a short display label from an FBC catalog image reference."""
+    if not fbc_image:
+        return ''
+    if '@' in fbc_image:
+        return fbc_image.split('@')[-1][:15]
+    if ':' in fbc_image:
+        return fbc_image.split(':')[-1][:10]
+    return fbc_image
+
+
+def _format_export_row(row, empty_placeholder='-'):
+    """Shared row formatting for XLSX/CSV/Markdown exports."""
+    job_name = row.get('periodic_job') or ''
+    build_id = row.get('build_id') or ''
+    step_name = row.get('step_name') or ''
+    urls = _build_log_urls(job_name, build_id, step_name)
+    short_job = job_name.replace('periodic-ci-medik8s-system-tests-main-', '')
+    dur_secs = row.get('job_duration')
+    if dur_secs and dur_secs > 0:
+        h = int(dur_secs) // 3600
+        m = (int(dur_secs) % 3600) // 60
+        duration_str = f"{h}h {m}m" if h > 0 else f"{m}m"
+    else:
+        duration_str = empty_placeholder
+    run_date_raw = row.get('run_date') or ''
+    run_date = run_date_raw.split('T')[0] if run_date_raw else empty_placeholder
+    result = row.get('result') or ''
+    result_str = 'PASSED' if result == 'passed' else 'FAILED' if result == 'failed' else (result.upper() or '-')
+    return {
+        'short_job': short_job, 'duration_str': duration_str,
+        'run_date': run_date, 'result_str': result_str, **urls,
+    }
+
+
+GCS_BUCKET = 'test-platform-results'
+GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
+
+
+def _build_log_urls(job_name, build_id, step_name):
+    """Build GCS and gcsweb log URLs from job metadata."""
+    has_job = bool(job_name and build_id)
+    gcs_base = f"https://storage.googleapis.com/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
+    artifacts_base = f"{gcs_base}/artifacts/{step_name}" if (has_job and step_name) else ''
+    gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
+    return {
+        'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if (has_job and step_name) else '',
+        'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
+        'subscribe_log_url': f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if (has_job and step_name) else '',
+        'catalog_log_url': f"{artifacts_base}/medik8s-catalogsource/build-log.txt" if (has_job and step_name) else '',
+        'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if (has_job and step_name) else '',
+        'build_log_url': f"{gcs_base}/build-log.txt" if has_job else '',
+    }
 
 
 def run_collection_background(db_path: str, config_file: str = 'config.yaml', days: int = 30):
@@ -429,7 +488,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     @app.route('/api/test-results')
     def api_test_results():
-        """Get enriched test results with all 16 spreadsheet columns"""
+        """Get enriched test results with all 17 spreadsheet columns"""
         days = request.args.get('days', 30, type=int)
         operator = request.args.get('operator')
         version = normalize_version(request.args.get('version'))
@@ -441,23 +500,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('periodic_job') or ''
             build_id = row.get('build_id') or ''
-            gcs_base = f"https://storage.googleapis.com/test-platform-results/logs/{job_name}/{build_id}"
-            artifacts_base = f"{gcs_base}/artifacts/{step_name}" if step_name else gcs_base
-            gcsweb_base = f"https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}"
+            urls = _build_log_urls(job_name, build_id, step_name)
 
             fbc_image = row.get('fbc_image') or ''
-            fbc_short = ''
+            fbc_short_val = _fbc_short(fbc_image)
             fbc_tag_url = ''
-            if fbc_image:
-                if '@' in fbc_image:
-                    fbc_short = fbc_image.split('@')[-1][:15]
-                elif ':' in fbc_image:
-                    fbc_short = fbc_image.split(':')[-1][:8]
-                else:
-                    fbc_short = fbc_image
-                if 'quay.io/' in fbc_image:
-                    repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
-                    fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
+            if fbc_image and 'quay.io/' in fbc_image:
+                repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
+                fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
 
             polarion_id = row.get('polarion_id') or ''
             polarion_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}" if polarion_id else ''
@@ -475,14 +525,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'ocp_version': row.get('ocp_version'),
                 'csv_version': row.get('csv_version'),
                 'fbc_image': fbc_image,
-                'fbc_image_short': fbc_short,
+                'fbc_image_short': fbc_short_val,
                 'fbc_image_url': fbc_tag_url,
                 'prow_url': row.get('job_url') or '',
-                'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if step_name else '',
-                'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if step_name else '',
-                'subscribe_log_url': f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if step_name else '',
-                'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if step_name else '',
-                'build_log_url': f"{gcs_base}/build-log.txt",
+                **urls,
                 'polarion_id': polarion_id,
                 'polarion_url': polarion_url,
                 'classification': row.get('manual_classification'),
@@ -512,8 +558,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            gcs_base = f"https://storage.googleapis.com/test-platform-results/logs/{job_name}/{build_id}"
-            gcsweb_base = f"https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}"
+            urls = _build_log_urls(job_name, build_id, step_name)
 
             runs.append({
                 'job_name': job_name,
@@ -532,8 +577,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'failed_tests': row.get('failed_tests'),
                 'pass_rate': row.get('pass_rate'),
                 'prow_url': row.get('job_url') or '',
-                'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if step_name else '',
-                'build_log_url': f"{gcs_base}/build-log.txt",
+                **urls,
             })
 
         return jsonify({'job_runs': runs})
@@ -982,7 +1026,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             return jsonify({'error': 'Invalid format. Use xlsx, csv, or md'}), 400
 
     def export_to_xlsx_enriched(enriched_rows, filename, version, days):
-        """Export to Excel matching the reference Google Sheet 16-column structure"""
+        """Export to Excel matching the reference Google Sheet 17-column structure"""
         wb = Workbook()
         ws = wb.active
         ws.title = 'Test Results'
@@ -1001,9 +1045,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             'Test Name', 'Operator', 'Result', 'Periodic Job', 'Run Date',
             'Job Duration', 'OCP Version', 'Platform', 'Operator CSV Version',
             'FBC Catalog Image', 'Prow Job', 'E2E Test Log',
-            'Operator Install Log', 'Artifacts', 'Build Log', 'Polarion ID'
+            'Operator Install Log', 'CatalogSource Log', 'Artifacts', 'Build Log', 'Polarion ID'
         ]
-        col_widths = [48, 11, 10, 30, 14, 14, 44, 11, 37, 42, 13, 16, 24, 15, 13, 15]
+        col_widths = [48, 11, 10, 30, 14, 14, 44, 11, 37, 42, 13, 16, 24, 24, 15, 13, 15]
 
         for col_num, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_num, value=header)
@@ -1018,35 +1062,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             ws.column_dimensions[get_column_letter(col_num)].width = width
 
         for row_idx, row in enumerate(enriched_rows, 2):
-            step_name = row.get('step_name') or ''
-            job_name = row.get('periodic_job') or ''
-            build_id = row.get('build_id') or ''
-            gcs_base = f"https://storage.googleapis.com/test-platform-results/logs/{job_name}/{build_id}"
-            artifacts_base = f"{gcs_base}/artifacts/{step_name}" if step_name else gcs_base
-            gcsweb_base = f"https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}"
-
-            short_job = (job_name or '').replace('periodic-ci-medik8s-system-tests-main-', '')
-
-            dur_secs = row.get('job_duration')
-            if dur_secs and dur_secs > 0:
-                h = int(dur_secs) // 3600
-                m = (int(dur_secs) % 3600) // 60
-                duration_str = f"{h}h {m}m" if h > 0 else f"{m}m"
-            else:
-                duration_str = '-'
-
-            run_date_raw = row.get('run_date') or ''
-            run_date = run_date_raw.split('T')[0] if run_date_raw else '-'
-
-            result_str = 'PASSED' if row.get('result') == 'passed' else 'FAILED' if row.get('result') == 'failed' else (row.get('result') or '').upper()
+            fmt = _format_export_row(row)
+            short_job = fmt['short_job']
+            duration_str = fmt['duration_str']
+            run_date = fmt['run_date']
+            result_str = fmt['result_str']
 
             fbc_image = row.get('fbc_image') or ''
-            fbc_short = ''
-            if fbc_image:
-                if ':' in fbc_image:
-                    fbc_short = fbc_image.split(':')[-1][:10]
-                elif '@' in fbc_image:
-                    fbc_short = fbc_image.split('@')[-1][:15]
+            fbc_short = _fbc_short(fbc_image)
 
             polarion_id = row.get('polarion_id') or ''
 
@@ -1090,35 +1113,42 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 prow_cell.hyperlink = prow_url
                 prow_cell.font = link_font
 
-            e2e_url = f"{artifacts_base}/e2e-test/build-log.txt" if step_name else ''
+            e2e_url = fmt['e2e_log_url']
             e2e_cell = ws.cell(row=row_idx, column=12, value='Test Log' if e2e_url else '-')
             e2e_cell.alignment = Alignment(horizontal='center')
             if e2e_url:
                 e2e_cell.hyperlink = e2e_url
                 e2e_cell.font = link_font
 
-            sub_url = f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if step_name else ''
+            sub_url = fmt['subscribe_log_url']
             sub_cell = ws.cell(row=row_idx, column=13, value='Install Log' if sub_url else '-')
             sub_cell.alignment = Alignment(horizontal='center')
             if sub_url:
                 sub_cell.hyperlink = sub_url
                 sub_cell.font = link_font
 
-            art_url = f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if step_name else ''
-            art_cell = ws.cell(row=row_idx, column=14, value='Artifacts' if art_url else '-')
+            cat_url = fmt['catalog_log_url']
+            cat_cell = ws.cell(row=row_idx, column=14, value='Catalog Log' if cat_url else '-')
+            cat_cell.alignment = Alignment(horizontal='center')
+            if cat_url:
+                cat_cell.hyperlink = cat_url
+                cat_cell.font = link_font
+
+            art_url = fmt['artifacts_url']
+            art_cell = ws.cell(row=row_idx, column=15, value='Artifacts' if art_url else '-')
             art_cell.alignment = Alignment(horizontal='center')
             if art_url:
                 art_cell.hyperlink = art_url
                 art_cell.font = link_font
 
-            bld_url = f"{gcs_base}/build-log.txt"
-            bld_cell = ws.cell(row=row_idx, column=15, value='Build Log' if bld_url else '-')
+            bld_url = fmt['build_log_url']
+            bld_cell = ws.cell(row=row_idx, column=16, value='Build Log' if bld_url else '-')
             bld_cell.alignment = Alignment(horizontal='center')
             if bld_url:
                 bld_cell.hyperlink = bld_url
                 bld_cell.font = link_font
 
-            pol_cell = ws.cell(row=row_idx, column=16, value=polarion_id or '-')
+            pol_cell = ws.cell(row=row_idx, column=17, value=polarion_id or '-')
             pol_cell.alignment = Alignment(horizontal='center')
             if polarion_id:
                 pol_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}"
@@ -1126,12 +1156,12 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 pol_cell.font = link_font
 
             if is_alt:
-                for c in range(1, 17):
-                    existing = ws.cell(row=row_idx, column=c)
-                    if existing.fill == PatternFill() or (existing.fill.start_color and existing.fill.start_color.index == '00000000'):
-                        existing.fill = alt_fill
+                for c in range(1, 18):
+                    if c == 3:  # skip Result column to preserve pass/fail coloring
+                        continue
+                    ws.cell(row=row_idx, column=c).fill = alt_fill
 
-        ws.auto_filter.ref = f"A1:P{len(enriched_rows) + 1}"
+        ws.auto_filter.ref = f"A1:Q{len(enriched_rows) + 1}"
 
         output = io.BytesIO()
         wb.save(output)
@@ -1145,7 +1175,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         )
 
     def export_to_csv_enriched(enriched_rows, filename, version, days):
-        """Export enriched test results to CSV with 16-column structure"""
+        """Export enriched test results to CSV with 17-column structure"""
         output = io.StringIO()
         writer = csv.writer(output)
 
@@ -1153,46 +1183,30 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             'Test Name', 'Operator', 'Result', 'Periodic Job', 'Run Date',
             'Job Duration', 'OCP Version', 'Platform', 'Operator CSV Version',
             'FBC Catalog Image', 'Prow Job URL', 'E2E Test Log URL',
-            'Operator Install Log URL', 'Artifacts URL', 'Build Log URL', 'Polarion ID'
+            'Operator Install Log URL', 'CatalogSource Log URL', 'Artifacts URL', 'Build Log URL', 'Polarion ID'
         ]
         writer.writerow(headers)
 
         for row in enriched_rows:
-            step_name = row.get('step_name') or ''
-            job_name = row.get('periodic_job') or ''
-            build_id = row.get('build_id') or ''
-            gcs_base = f"https://storage.googleapis.com/test-platform-results/logs/{job_name}/{build_id}"
-            artifacts_base = f"{gcs_base}/artifacts/{step_name}" if step_name else gcs_base
-            gcsweb_base = f"https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}"
-
-            short_job = (job_name or '').replace('periodic-ci-medik8s-system-tests-main-', '')
-            dur_secs = row.get('job_duration')
-            if dur_secs and dur_secs > 0:
-                h = int(dur_secs) // 3600
-                m = (int(dur_secs) % 3600) // 60
-                duration_str = f"{h}h {m}m" if h > 0 else f"{m}m"
-            else:
-                duration_str = ''
-            run_date_raw = row.get('run_date') or ''
-            run_date = run_date_raw.split('T')[0] if run_date_raw else ''
-            result_str = 'PASSED' if row.get('result') == 'passed' else 'FAILED' if row.get('result') == 'failed' else (row.get('result') or '').upper()
+            fmt = _format_export_row(row, empty_placeholder='')
 
             writer.writerow([
                 row.get('test_description') or row.get('test_name'),
                 row.get('operator') or '',
-                result_str,
-                short_job,
-                run_date,
-                duration_str,
+                fmt['result_str'],
+                fmt['short_job'],
+                fmt['run_date'],
+                fmt['duration_str'],
                 row.get('ocp_version') or row.get('version') or '',
                 (row.get('platform') or '').upper(),
                 row.get('csv_version') or '',
                 row.get('fbc_image') or '',
                 row.get('job_url') or '',
-                f"{artifacts_base}/e2e-test/build-log.txt" if step_name else '',
-                f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if step_name else '',
-                f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if step_name else '',
-                f"{gcs_base}/build-log.txt",
+                fmt['e2e_log_url'],
+                fmt['subscribe_log_url'],
+                fmt['catalog_log_url'],
+                fmt['artifacts_url'],
+                fmt['build_log_url'],
                 row.get('polarion_id') or '',
             ])
 
@@ -1205,7 +1219,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         )
 
     def export_to_markdown_enriched(enriched_rows, filename, version, days):
-        """Export enriched test results to Markdown"""
+        """Export enriched test results to Markdown (8-column format for readability; full 17 columns via XLSX/CSV)"""
         output = io.StringIO()
         output.write(f'# Dashboard Export - {version}\n\n')
         output.write(f'**Time Range:** {days} days | **Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n\n')
@@ -1214,14 +1228,13 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         output.write('|-----------|----------|--------|-----|----------|-------------|----------|----------|\n')
 
         for row in enriched_rows:
-            short_job = (row.get('periodic_job') or '').replace('periodic-ci-medik8s-system-tests-main-', '')
-            run_date = (row.get('run_date') or '').split('T')[0]
-            result_str = 'PASSED' if row.get('result') == 'passed' else 'FAILED'
-            name = (row.get('test_description') or row.get('test_name') or '').replace('|', '\\|')
+            fmt = _format_export_row(row)
+            name = _md_cell(row.get('test_description') or row.get('test_name'))
             prow_url = row.get('job_url') or ''
-            job_link = f'[{short_job}]({prow_url})' if prow_url else short_job
+            job_link = f'[{_md_cell(fmt["short_job"])}]({prow_url})' if prow_url else _md_cell(fmt['short_job'])
+            ocp_ver = row.get('ocp_version') or row.get('version') or ''
 
-            output.write(f'| {name} | {row.get("operator") or ""} | {result_str} | {job_link} | {run_date} | {row.get("ocp_version") or ""} | {(row.get("platform") or "").upper()} | {row.get("polarion_id") or ""} |\n')
+            output.write(f'| {name} | {_md_cell(row.get("operator"))} | {fmt["result_str"]} | {job_link} | {fmt["run_date"]} | {ocp_ver} | {(row.get("platform") or "").upper()} | {_md_cell(row.get("polarion_id"))} |\n')
 
         output.seek(0)
         return send_file(

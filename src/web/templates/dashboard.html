@@ -2513,6 +2513,7 @@
                     html += '<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>';
                     html += '<div><strong>Cluster Install Log</strong>' + linkEl(r.install_log_url, 'IPI Install') + '</div>';
                     html += '<div><strong>Operator Install Log</strong>' + linkEl(r.subscribe_log_url, 'OLM Subscribe') + '</div>';
+                    html += '<div><strong>CatalogSource Log</strong>' + linkEl(r.catalog_log_url, 'CatalogSource') + '</div>';
                     html += '<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>';
                     html += '<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>';
                     html += '<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>';
@@ -2554,7 +2555,15 @@
                     html += '<td>' + fmtDuration(r.duration) + '</td>';
                     html += '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>';
                     html += '<td>' + (r.passed_tests || 0) + '/' + (r.failed_tests || 0) + '</td>';
-                    html += '<td>' + linkEl(r.prow_url, 'Prow') + ' ' + linkEl(r.build_log_url, 'Log') + '</td>';
+                    html += '<td style="font-size:0.75rem; white-space:nowrap;">'
+                        + linkEl(r.prow_url, 'Prow') + ' '
+                        + linkEl(r.build_log_url, 'Build') + ' '
+                        + linkEl(r.e2e_log_url, 'E2E') + ' '
+                        + linkEl(r.catalog_log_url, 'Catalog') + ' '
+                        + linkEl(r.subscribe_log_url, 'Subscribe') + ' '
+                        + linkEl(r.install_log_url, 'Install') + ' '
+                        + linkEl(r.artifacts_url, 'Artifacts')
+                        + '</td>';
                     html += '</tr>';
                 });
                 tbody.innerHTML = html;

@@ -412,43 +412,61 @@ class DashboardDatabase:
         """
         cursor = self.conn.cursor()
 
-        query = """
-            SELECT
-                DATE(timestamp) as date,
-                version,
-                platform,
-                COUNT(*) as total_runs,
-                SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed_runs,
-                CASE
-                    WHEN SUM(total_tests) > 0
-                    THEN CAST(SUM(passed_tests) AS REAL) / SUM(total_tests) * 100
-                    ELSE (
-                        SELECT CAST(SUM(CASE WHEN tr.status = 'passed' THEN 1 ELSE 0 END) AS REAL)
-                               / NULLIF(COUNT(*), 0) * 100
-                        FROM test_results tr
-                        WHERE DATE(tr.timestamp) = DATE(job_runs.timestamp)
-                        AND tr.version = job_runs.version
-                        AND tr.platform = job_runs.platform
-                        AND tr.status != 'skipped'
-                    )
-                END as avg_pass_rate
-            FROM job_runs
-            WHERE timestamp >= ? AND timestamp <= ?
+        cte = """
+            WITH tr_agg AS (
+                SELECT DATE(timestamp) as date, version, platform,
+                       CAST(SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) AS REAL)
+                            / NULLIF(COUNT(*), 0) * 100 as pass_rate
+                FROM test_results
+                WHERE status != 'skipped'
+                AND timestamp >= ? AND timestamp <= ?
         """
-
-        params = [start_date.isoformat(), end_date.isoformat()]
+        cte_params = [start_date.isoformat(), end_date.isoformat()]
 
         if version:
-            query += " AND version = ?"
-            params.append(version)
-
+            cte += " AND version = ?"
+            cte_params.append(version)
         if platform:
-            query += " AND platform = ?"
-            params.append(platform)
+            cte += " AND platform = ?"
+            cte_params.append(platform)
 
-        query += " GROUP BY DATE(timestamp), version, platform ORDER BY date"
+        cte += " GROUP BY DATE(timestamp), version, platform)"
 
-        cursor.execute(query, params)
+        main = """
+            SELECT
+                DATE(jr.timestamp) as date,
+                jr.version,
+                jr.platform,
+                SUM(CASE WHEN jr.total_tests > 0 THEN 1 ELSE 0 END) as total_runs,
+                -- Primary: test-weighted from job_runs; fallback: per-row from test_results
+                COALESCE(
+                    CASE WHEN SUM(jr.total_tests) > 0
+                         THEN CAST(SUM(jr.passed_tests) AS REAL) / SUM(jr.total_tests) * 100
+                    END,
+                    MAX(tr_agg.pass_rate)
+                ) as avg_pass_rate
+            FROM job_runs jr
+            -- tr_agg: 1 row per (date, version, platform). Multiple job_runs per group are collapsed by GROUP BY.
+            LEFT JOIN tr_agg ON DATE(jr.timestamp) = tr_agg.date
+                AND jr.version = tr_agg.version
+                AND jr.platform = tr_agg.platform
+            WHERE jr.timestamp >= ? AND jr.timestamp <= ?
+        """
+        main_params = [start_date.isoformat(), end_date.isoformat()]
+
+        if version:
+            main += " AND jr.version = ?"
+            main_params.append(version)
+        if platform:
+            main += " AND jr.platform = ?"
+            main_params.append(platform)
+
+        main += """ GROUP BY DATE(jr.timestamp), jr.version, jr.platform
+            HAVING SUM(CASE WHEN jr.total_tests > 0 THEN 1 ELSE 0 END) > 0
+                OR MAX(tr_agg.pass_rate) IS NOT NULL
+            ORDER BY date"""
+
+        cursor.execute(cte + main, cte_params + main_params)
         return [dict(row) for row in cursor.fetchall()]
 
     def get_test_pass_rates(

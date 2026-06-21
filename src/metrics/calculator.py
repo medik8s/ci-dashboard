@@ -104,11 +104,16 @@ class MetricsCalculator:
             start_date, end_date, version=version, platform=platform, blocklist=self.blocklist
         )
 
-        min_runs = 1
+        min_runs = 1 if (platform or days <= 7) else 2
         meaningful_tests = [
             test for test in test_data
             if test['total_runs'] >= min_runs
         ]
+        if not meaningful_tests and min_runs > 1:
+            meaningful_tests = [
+                test for test in test_data
+                if test['total_runs'] >= 1
+            ]
 
         # Sort by pass rate (ascending - worst first)
         ranked = sorted(meaningful_tests, key=lambda x: x['pass_rate'])
