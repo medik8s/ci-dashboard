@@ -632,6 +632,87 @@
             font-weight: bold;
             color: var(--accent-blue);
         }
+
+        /* Operator chips */
+        .op-chip {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        .op-chip--far { background: #2563eb; }
+        .op-chip--sbr { background: #f97316; }
+        .op-chip--snr { background: #22c55e; }
+        .op-chip--nhc { background: #a855f7; }
+        .op-chip--mdr { background: #eab308; color: #111; }
+        .op-chip--nmo { background: #06b6d4; }
+
+        /* Operator filter chips */
+        .op-filter-bar { display: flex; gap: 6px; align-items: center; margin-left: 16px; }
+        .op-filter-chip {
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            transition: all 0.15s;
+        }
+        .op-filter-chip.active { border-color: var(--accent-blue); color: var(--text-primary); background: rgba(87,148,242,0.15); }
+        .op-filter-chip:hover { border-color: var(--text-muted); }
+
+        /* Operator group rows */
+        .op-group-header td {
+            background: #1a1d24;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 10px 12px;
+            border-top: 2px solid var(--border);
+            color: var(--text-heading);
+        }
+        .op-group-sep td {
+            height: 4px;
+            padding: 0;
+            border: none;
+        }
+
+        /* Result badges */
+        .result-pass { color: #22c55e; font-weight: 600; }
+        .result-fail { color: #ef4444; font-weight: 600; }
+
+        /* Stat panels */
+        .stat-panels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
+        .stat-panel {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+        .stat-panel .sp-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-panel .sp-value { font-size: 1.6rem; font-weight: 700; line-height: 1.3; color: var(--text-heading); }
+        .stat-panel .sp-unit { font-size: 0.75rem; color: var(--text-muted); }
+        .stat-panel--green .sp-value { color: var(--accent-green); }
+        .stat-panel--red .sp-value { color: var(--accent-red); }
+        .stat-panel--blue .sp-value { color: var(--accent-blue); }
+        .stat-panel--purple .sp-value { color: var(--accent-purple); }
+
+        /* Expandable detail rows */
+        .detail-row { display: none; }
+        .detail-row.open { display: table-row; }
+        .detail-row td { background: #14161a; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; font-size: 0.8rem; }
+        .detail-grid strong { color: var(--text-muted); font-size: 0.7rem; display: block; margin-bottom: 2px; }
+        .detail-grid a { color: var(--accent-blue); text-decoration: none; }
+        .detail-grid a:hover { text-decoration: underline; }
+
+        /* Donut chart container */
+        .donut-container { max-width: 280px; margin: 0 auto; }
     </style>
 </head>
 <body>
@@ -650,6 +731,8 @@
             </div>
             <div class="header-tabs" role="tablist" aria-label="Dashboard views">
                 <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
             </div>
         </header>
@@ -724,6 +807,15 @@
                 </div>
             </div>
 
+        <div class="stat-panels" id="statPanels">
+            <div class="stat-panel"><div class="sp-label">Total Tests</div><div class="sp-value" id="spTotal">--</div></div>
+            <div class="stat-panel stat-panel--green"><div class="sp-label">Pass Rate</div><div class="sp-value" id="spPassRate">--</div><div class="sp-unit" id="spPassUnit"></div></div>
+            <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div></div>
+            <div class="stat-panel stat-panel--blue"><div class="sp-label">Jobs Run</div><div class="sp-value" id="spJobs">--</div></div>
+            <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div></div>
+            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem;">--</div></div>
+        </div>
+
         <div class="summary-cards">
             <div class="card">
                 <h3>Test Pass Rate</h3>
@@ -754,9 +846,9 @@
             </div>
 
             <div class="chart-container">
-                <h2>Pass Rate by Version</h2>
-                <div class="chart-wrapper">
-                    <canvas id="versionChart"></canvas>
+                <h2>Test Results by Operator</h2>
+                <div class="chart-wrapper donut-container">
+                    <canvas id="operatorDonutChart"></canvas>
                 </div>
             </div>
         </div>
@@ -778,6 +870,70 @@
                 </tbody>
             </table>
         </div>
+        </div>
+
+        <!-- Test Results Tab -->
+        <div id="test-results-tab" class="tab-content">
+            <div class="controls" style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label>Operator:</label>
+                    <div class="op-filter-bar" id="opFilterBar">
+                        <button class="op-filter-chip active" data-op="">All</button>
+                        <button class="op-filter-chip" data-op="FAR" style="border-color:#2563eb;">FAR</button>
+                        <button class="op-filter-chip" data-op="SBR" style="border-color:#f97316;">SBR</button>
+                        <button class="op-filter-chip" data-op="SNR" style="border-color:#22c55e;">SNR</button>
+                        <button class="op-filter-chip" data-op="NHC" style="border-color:#a855f7;">NHC</button>
+                        <button class="op-filter-chip" data-op="MDR" style="border-color:#eab308;">MDR</button>
+                        <button class="op-filter-chip" data-op="NMO" style="border-color:#06b6d4;">NMO</button>
+                    </div>
+                </div>
+                <button class="refresh-button" onclick="exportTestResultsXlsx()" style="display:flex; align-items:center; gap:6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Export XLSX
+                </button>
+            </div>
+            <div class="test-list">
+                <h2>Test Results <span id="trCount" style="font-size:0.8rem; color:var(--text-muted);"></span></h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:30px;"></th>
+                            <th>Test Name</th>
+                            <th>Operator</th>
+                            <th>Result</th>
+                            <th>Periodic Job</th>
+                            <th>Run Date</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="testResultsBody">
+                        <tr><td colspan="7" class="loading">Select the Test Results tab to load data</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Job Runs Tab -->
+        <div id="job-runs-tab" class="tab-content">
+            <div class="test-list">
+                <h2>Job Run History</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Job Name</th>
+                            <th>Status</th>
+                            <th>Run Date</th>
+                            <th>Duration</th>
+                            <th>OCP Version</th>
+                            <th>Tests (P/F)</th>
+                            <th>Links</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobRunsBody">
+                        <tr><td colspan="7" class="loading">Select the Job Runs tab to load data</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Weekly Report Tab -->
@@ -968,7 +1124,7 @@
 
         const accentBlue = cssVar('--accent-blue');
 
-        let trendChart, versionChart;
+        let trendChart;
         let currentLogData = {}; // Store current log data for AI analysis and Jira creation
 
         function showTab(tabName) {
@@ -986,16 +1142,23 @@
             });
 
             // Show selected tab
-            if (tabName === 'overview') {
-                document.getElementById('overview-tab').classList.add('active');
-                tabs[0].classList.add('active');
-                tabs[0].setAttribute('aria-selected', 'true');
-            } else if (tabName === 'weekly-report') {
-                document.getElementById('weekly-report-tab').classList.add('active');
-                tabs[1].classList.add('active');
-                tabs[1].setAttribute('aria-selected', 'true');
-                refreshWeeklyReport();
+            var tabEl = document.getElementById(tabName + '-tab');
+            if (tabEl) {
+                tabEl.classList.add('active');
             }
+            tabs.forEach(btn => {
+                if (btn.textContent.trim().toLowerCase().replace(/\s+/g, '-') === tabName ||
+                    (tabName === 'overview' && btn.textContent.trim() === 'Overview') ||
+                    (tabName === 'test-results' && btn.textContent.trim() === 'Test Results') ||
+                    (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
+                    (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report')) {
+                    btn.classList.add('active');
+                    btn.setAttribute('aria-selected', 'true');
+                }
+            });
+            if (tabName === 'weekly-report') refreshWeeklyReport();
+            if (tabName === 'test-results') loadTestResults();
+            if (tabName === 'job-runs') loadJobRuns();
         }
 
         async function fetchData(endpoint, params = {}) {
@@ -1623,9 +1786,6 @@
                 // Update trend chart
                 updateTrendChart(trend);
 
-                // Update version comparison chart
-                updateVersionChart(versionComp);
-
                 // Update test rankings table
                 updateTestRankings(testRankings, days, version);
             } finally {
@@ -1652,46 +1812,6 @@
                         backgroundColor: accentBlue + '26',
                         tension: 0.4,
                         fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function updateVersionChart(data) {
-            const ctx = document.getElementById('versionChart').getContext('2d');
-
-            if (versionChart) {
-                versionChart.destroy();
-            }
-
-            versionChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: data.versions,
-                    datasets: [{
-                        label: 'Pass Rate %',
-                        data: data.pass_rates,
-                        backgroundColor: accentBlue
                     }]
                 },
                 options: {
@@ -2228,6 +2348,226 @@
                 button.innerHTML = originalContent;
             }
         }
+
+        // ---- Operator colors ----
+        const OP_COLORS = {
+            FAR: '#2563eb', SBR: '#f97316', SNR: '#22c55e',
+            NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4'
+        };
+        function opChip(op) {
+            return op ? '<span class="op-chip op-chip--' + op.toLowerCase() + '">' + op + '</span>' : '';
+        }
+        function resultBadge(r) {
+            if (r === 'passed') return '<span class="result-pass">PASSED</span>';
+            if (r === 'failed') return '<span class="result-fail">FAILED</span>';
+            return r || '';
+        }
+        function fmtDuration(s) {
+            if (!s && s !== 0) return '-';
+            var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+            return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+        }
+        function fmtDate(d) {
+            if (!d) return '-';
+            return d.split('T')[0];
+        }
+        function esc(s) {
+            if (s == null) return '';
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function linkEl(url, label) {
+            if (!url) return '-';
+            return '<a href="' + esc(url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>';
+        }
+
+        // ---- Operator filter ----
+        var selectedOperator = '';
+        document.getElementById('opFilterBar').addEventListener('click', function(e) {
+            var chip = e.target.closest('[data-op]');
+            if (!chip) return;
+            selectedOperator = chip.dataset.op;
+            document.querySelectorAll('#opFilterBar .op-filter-chip').forEach(function(c) {
+                c.classList.toggle('active', c === chip);
+            });
+            loadTestResults();
+        });
+
+        // ---- Stat panels + donut chart ----
+        var donutChart = null;
+        async function loadOperatorStats() {
+            try {
+                var days = document.getElementById('timeRange').value;
+                var version = document.getElementById('versionFilter').value;
+                var params = {days: days};
+                if (version) params.version = version;
+                var resp = await fetch('/api/operator-stats?' + new URLSearchParams(params));
+                var data = await resp.json();
+                var ops = data.operators || [];
+
+                var total = 0, passed = 0, failed = 0;
+                ops.forEach(function(o) { total += o.total_tests; passed += o.passed; failed += o.failed; });
+
+                document.getElementById('spTotal').textContent = total;
+                document.getElementById('spPassRate').textContent = total > 0 ? Math.round(passed / total * 100) + '%' : '-';
+                document.getElementById('spFails').textContent = failed;
+
+                // Populate Jobs Run, Last Run, OCP Version from job-runs API
+                try {
+                    var jrResp = await fetch('/api/job-runs?' + new URLSearchParams(params));
+                    var jrData = await jrResp.json();
+                    var jrRuns = jrData.job_runs || [];
+                    document.getElementById('spJobs').textContent = jrRuns.length;
+                    if (jrRuns.length > 0) {
+                        document.getElementById('spLastRun').textContent = fmtDate(jrRuns[0].run_date);
+                        document.getElementById('spOcp').textContent = jrRuns[0].ocp_version || jrRuns[0].version || '-';
+                    }
+                } catch (jrErr) { console.error('job-runs stats error:', jrErr); }
+
+                // Donut chart
+                var ctx = document.getElementById('operatorDonutChart');
+                if (ctx) {
+                    if (donutChart) donutChart.destroy();
+                    donutChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ops.map(function(o) { return o.operator; }),
+                            datasets: [{
+                                data: ops.map(function(o) { return o.total_tests; }),
+                                backgroundColor: ops.map(function(o) { return OP_COLORS[o.operator] || '#6b7280'; }),
+                                borderWidth: 1, borderColor: '#111217'
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: true,
+                            plugins: { legend: { position: 'bottom', labels: { color: '#d8d9da', boxWidth: 12, padding: 12 } } }
+                        }
+                    });
+                }
+            } catch (e) { console.error('operator-stats error:', e); }
+        }
+
+        // ---- Test Results tab ----
+        async function loadTestResults() {
+            var tbody = document.getElementById('testResultsBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
+
+            var days = document.getElementById('timeRange').value;
+            var version = document.getElementById('versionFilter').value;
+            var params = {days: days};
+            if (selectedOperator) params.operator = selectedOperator;
+            if (version) params.version = version;
+
+            try {
+                var resp = await fetch('/api/test-results?' + new URLSearchParams(params));
+                var data = await resp.json();
+                var rows = data.results || [];
+                document.getElementById('trCount').textContent = '(' + rows.length + ' results)';
+
+                if (rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">No test results found</td></tr>';
+                    return;
+                }
+
+                var html = '';
+                var lastOp = null;
+                rows.forEach(function(r, i) {
+                    var op = r.operator || 'Unknown';
+                    if (op !== lastOp) {
+                        if (lastOp !== null) {
+                            html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555') + '33,transparent);"></td></tr>';
+                        }
+                        var count = rows.filter(function(x) { return (x.operator || 'Unknown') === op; }).length;
+                        html += '<tr class="op-group-header"><td colspan="7">' + opChip(op) + ' <span style="margin-left:8px;color:var(--text-muted);font-size:0.75rem;">' + count + ' tests</span></td></tr>';
+                        lastOp = op;
+                    }
+                    var rid = 'tr-detail-' + i;
+                    html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'' + rid + '\').classList.toggle(\'open\')">';
+                    html += '<td style="text-align:center;color:var(--text-muted);">&#9654;</td>';
+                    html += '<td>' + esc(r.test_description || r.test_name) + '</td>';
+                    html += '<td>' + opChip(r.operator) + '</td>';
+                    html += '<td>' + resultBadge(r.result) + '</td>';
+                    html += '<td style="font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.periodic_job || '') + '">' + esc((r.periodic_job || '-').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
+                    html += '<td>' + fmtDate(r.run_date) + '</td>';
+                    html += '<td>' + fmtDuration(r.job_duration) + '</td>';
+                    html += '</tr>';
+
+                    html += '<tr id="' + rid + '" class="detail-row"><td colspan="7"><div class="detail-grid">';
+                    html += '<div><strong>OCP Version</strong>' + esc(r.ocp_version || r.version || '-') + '</div>';
+                    html += '<div><strong>Platform</strong>' + esc((r.platform || '-').toUpperCase()) + '</div>';
+                    html += '<div><strong>CSV Version</strong>' + esc(r.csv_version || '-') + '</div>';
+                    html += '<div><strong>FBC Image</strong>' + (r.fbc_image_url ? linkEl(r.fbc_image_url, r.fbc_image_short || 'View') : (r.fbc_image_short || '-')) + '</div>';
+                    html += '<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>';
+                    html += '<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>';
+                    html += '<div><strong>Install Log</strong>' + linkEl(r.install_log_url, 'Install Log') + '</div>';
+                    html += '<div><strong>Subscribe Log</strong>' + linkEl(r.subscribe_log_url, 'Subscribe Log') + '</div>';
+                    html += '<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>';
+                    html += '<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>';
+                    html += '<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>';
+                    html += '</div></td></tr>';
+                });
+                tbody.innerHTML = html;
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error loading test results: ' + e.message + '</td></tr>';
+            }
+        }
+
+        // ---- Job Runs tab ----
+        async function loadJobRuns() {
+            var tbody = document.getElementById('jobRunsBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
+
+            var days = document.getElementById('timeRange').value;
+            var version = document.getElementById('versionFilter').value;
+            var params = {days: days};
+            if (version) params.version = version;
+
+            try {
+                var resp = await fetch('/api/job-runs?' + new URLSearchParams(params));
+                var data = await resp.json();
+                var runs = data.job_runs || [];
+
+                if (runs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">No job runs found</td></tr>';
+                    return;
+                }
+
+                var html = '';
+                runs.forEach(function(r) {
+                    var statusCls = r.status === 'passed' ? 'result-pass' : 'result-fail';
+                    html += '<tr>';
+                    html += '<td style="font-size:0.8rem;">' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
+                    html += '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>';
+                    html += '<td>' + fmtDate(r.run_date) + '</td>';
+                    html += '<td>' + fmtDuration(r.duration) + '</td>';
+                    html += '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>';
+                    html += '<td>' + (r.passed_tests || 0) + '/' + (r.failed_tests || 0) + '</td>';
+                    html += '<td>' + linkEl(r.prow_url, 'Prow') + ' ' + linkEl(r.build_log_url, 'Log') + '</td>';
+                    html += '</tr>';
+                });
+                tbody.innerHTML = html;
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
+            }
+        }
+
+        // ---- XLSX export ----
+        function exportTestResultsXlsx() {
+            var days = document.getElementById('timeRange').value;
+            var version = document.getElementById('versionFilter').value;
+            var params = {days: days, format: 'xlsx'};
+            if (selectedOperator) params.operator = selectedOperator;
+            if (version) params.version = version;
+            window.location = '/api/export?' + new URLSearchParams(params);
+        }
+
+        // Wire stat panel loading into dashboard refresh
+        var _origRefreshDashboard = typeof refreshDashboard === 'function' ? refreshDashboard : null;
+        refreshDashboard = async function() {
+            if (_origRefreshDashboard) {
+                await _origRefreshDashboard();
+            }
+            await loadOperatorStats();
+        };
 
         // Initial load
         loadMetadata().then(() => {

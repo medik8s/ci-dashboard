@@ -187,8 +187,6 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
         logger.info("Job runs updated with test counts")
 
         # Close connection after write
-        db.conn.close()
-
         db.close()
 
         logger.info(f"Collection complete! Inserted {inserted_jobs} job runs and {inserted_tests} test results")
@@ -428,6 +426,110 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         platform = request.args.get('platform')
         stats = calculator.get_summary_stats(days=days, version=version, platform=platform)
         return jsonify(stats)
+
+    @app.route('/api/test-results')
+    def api_test_results():
+        """Get enriched test results with all 16 spreadsheet columns"""
+        days = request.args.get('days', 30, type=int)
+        operator = request.args.get('operator')
+        version = normalize_version(request.args.get('version'))
+
+        rows = db.get_enriched_test_results(days=days, operator=operator, version=version)
+
+        results = []
+        for row in rows:
+            step_name = row.get('step_name') or ''
+            job_name = row.get('periodic_job') or ''
+            build_id = row.get('build_id') or ''
+            gcs_base = f"https://storage.googleapis.com/test-platform-results/logs/{job_name}/{build_id}"
+            artifacts_base = f"{gcs_base}/artifacts/{step_name}" if step_name else gcs_base
+            gcsweb_base = f"https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}"
+
+            fbc_image = row.get('fbc_image') or ''
+            fbc_short = fbc_image.split(':')[-1][:8] if ':' in fbc_image else fbc_image
+            fbc_tag_url = ''
+            if 'quay.io/' in fbc_image and ':' in fbc_image:
+                repo_path = fbc_image.split('quay.io/')[-1].split(':')[0]
+                fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
+
+            polarion_id = row.get('polarion_id') or ''
+            polarion_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}" if polarion_id else ''
+
+            results.append({
+                'test_name': row.get('test_name'),
+                'test_description': row.get('test_description'),
+                'operator': row.get('operator'),
+                'result': row.get('result'),
+                'periodic_job': job_name,
+                'run_date': row.get('run_date'),
+                'job_duration': row.get('job_duration'),
+                'version': row.get('version'),
+                'platform': row.get('platform'),
+                'ocp_version': row.get('ocp_version'),
+                'csv_version': row.get('csv_version'),
+                'fbc_image': fbc_image,
+                'fbc_image_short': fbc_short,
+                'fbc_image_url': fbc_tag_url,
+                'prow_url': row.get('job_url') or '',
+                'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if step_name else '',
+                'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if step_name else '',
+                'subscribe_log_url': f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if step_name else '',
+                'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if step_name else '',
+                'build_log_url': f"{gcs_base}/build-log.txt",
+                'polarion_id': polarion_id,
+                'polarion_url': polarion_url,
+                'classification': row.get('manual_classification'),
+                'jira_key': row.get('jira_issue_key'),
+            })
+
+        return jsonify({'results': results, 'total': len(results)})
+
+    @app.route('/api/operator-stats')
+    def api_operator_stats():
+        """Get per-operator pass/fail counts"""
+        days = request.args.get('days', 30, type=int)
+        version = normalize_version(request.args.get('version'))
+        stats = db.get_operator_stats(days=days, version=version)
+        return jsonify({'operators': stats})
+
+    @app.route('/api/job-runs')
+    def api_job_runs():
+        """Get job run history with enriched metadata"""
+        days = request.args.get('days', 30, type=int)
+        operator = request.args.get('operator')
+        version = normalize_version(request.args.get('version'))
+        rows = db.get_job_run_history(days=days, operator=operator, version=version)
+
+        runs = []
+        for row in rows:
+            step_name = row.get('step_name') or ''
+            job_name = row.get('job_name') or ''
+            build_id = row.get('build_id') or ''
+            gcs_base = f"https://storage.googleapis.com/test-platform-results/logs/{job_name}/{build_id}"
+            gcsweb_base = f"https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/{job_name}/{build_id}"
+
+            runs.append({
+                'job_name': job_name,
+                'build_id': build_id,
+                'status': row.get('status'),
+                'run_date': row.get('run_date'),
+                'duration': row.get('duration_seconds'),
+                'version': row.get('version'),
+                'platform': row.get('platform'),
+                'ocp_version': row.get('ocp_version'),
+                'csv_version': row.get('csv_version'),
+                'fbc_image': row.get('fbc_image'),
+                'step_name': step_name,
+                'total_tests': row.get('total_tests'),
+                'passed_tests': row.get('passed_tests'),
+                'failed_tests': row.get('failed_tests'),
+                'pass_rate': row.get('pass_rate'),
+                'prow_url': row.get('job_url') or '',
+                'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if step_name else '',
+                'build_log_url': f"{gcs_base}/build-log.txt",
+            })
+
+        return jsonify({'job_runs': runs})
 
     @app.route('/api/trend')
     def api_trend():
@@ -854,9 +956,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         days = request.args.get('days', 30, type=int)
         version_param = request.args.get('version')
         version = normalize_version(version_param)
+        operator = request.args.get('operator')
 
         # Debug logging
-        logger.info(f"[EXPORT] Received: format={export_format}, days={days}, version_param={version_param}, normalized_version={version}")
+        logger.info(f"[EXPORT] Received: format={export_format}, days={days}, version_param={version_param}, normalized_version={version}, operator={operator}")
 
         # Get metadata to get all platforms
         query = "SELECT DISTINCT platform FROM test_results WHERE platform IS NOT NULL ORDER BY platform"
@@ -868,8 +971,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         pass_rates = {}
 
         for platform in platforms:
-            logger.info(f"[EXPORT] Fetching {platform} data: days={days}, version={version}")
+            logger.info(f"[EXPORT] Fetching {platform} data: days={days}, version={version}, operator={operator}")
             tests = calculator.get_test_rankings(days=days, version=version, platform=platform, limit=1000)
+            if operator:
+                tests = [t for t in tests if (t.get('operator') or 'Unknown') == operator]
             logger.info(f"[EXPORT] {platform}: Found {len(tests)} tests")
             all_data[platform] = tests
 
