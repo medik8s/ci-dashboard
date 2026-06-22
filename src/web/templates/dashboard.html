@@ -941,14 +941,16 @@
         <div id="presubmit-tab" class="tab-content">
             <div class="controls">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span>Operator:</span>
-                    <button class="chip-button active" onclick="filterPresubmit('all', this)">All</button>
-                    <button class="chip-button" onclick="filterPresubmit('FAR', this)">FAR</button>
-                    <button class="chip-button" onclick="filterPresubmit('SBR', this)">SBR</button>
-                    <button class="chip-button" onclick="filterPresubmit('SNR', this)">SNR</button>
-                    <button class="chip-button" onclick="filterPresubmit('NHC', this)">NHC</button>
-                    <button class="chip-button" onclick="filterPresubmit('MDR', this)">MDR</button>
-                    <button class="chip-button" onclick="filterPresubmit('NMO', this)">NMO</button>
+                    <label>Operator:</label>
+                    <div class="op-filter-bar" id="presubmitFilterBar">
+                        <button class="op-filter-chip active" onclick="filterPresubmit('all', this)">All</button>
+                        <button class="op-filter-chip" onclick="filterPresubmit('FAR', this)" style="border-color:#2563eb;">FAR</button>
+                        <button class="op-filter-chip" onclick="filterPresubmit('SBR', this)" style="border-color:#f97316;">SBR</button>
+                        <button class="op-filter-chip" onclick="filterPresubmit('SNR', this)" style="border-color:#22c55e;">SNR</button>
+                        <button class="op-filter-chip" onclick="filterPresubmit('NHC', this)" style="border-color:#a855f7;">NHC</button>
+                        <button class="op-filter-chip" onclick="filterPresubmit('MDR', this)" style="border-color:#eab308;">MDR</button>
+                        <button class="op-filter-chip" onclick="filterPresubmit('NMO', this)" style="border-color:#06b6d4;">NMO</button>
+                    </div>
                 </div>
             </div>
             <div class="card">
@@ -2655,8 +2657,7 @@
 
         function filterPresubmit(operator, btn) {
             presubmitOperatorFilter = operator === 'all' ? '' : operator;
-            var container = btn.closest('.controls');
-            container.querySelectorAll('.chip-button').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('#presubmitFilterBar .op-filter-chip').forEach(function(b) { b.classList.remove('active'); });
             btn.classList.add('active');
             loadPresubmitResults();
         }
