@@ -19,7 +19,8 @@ collector:
     job_patterns:
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
-      # Add SNR, NHC, NMO, MDR weekly jobs here when created
+      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-weekly-aws"
+      # Add NHC, NMO, MDR weekly jobs here when created
 
   # ReportPortal (disabled - uncomment and set values)
   # reportportal:

@@ -1810,12 +1810,17 @@
                         borderColor: accentBlue,
                         backgroundColor: accentBlue + '26',
                         tension: 0.4,
-                        fill: true
+                        fill: true,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    layout: {
+                        padding: { top: 15, right: 15 }
+                    },
                     plugins: {
                         legend: {
                             display: false
@@ -1824,10 +1829,10 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            max: 100,
+                            suggestedMax: 105,
                             ticks: {
                                 callback: function(value) {
-                                    return value + '%';
+                                    return value <= 100 ? value + '%' : '';
                                 }
                             }
                         }
@@ -1853,16 +1858,25 @@
                 return;
             }
 
-            tbody.innerHTML = rankings.map(test => {
-                // Only show logs for tests with failures (pass rate < 100%)
+            const hasFailures = rankings.some(t => t.pass_rate < 100);
+            if (!hasFailures) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--accent-green);">All tests passing at 100%</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = rankings.filter(t => t.pass_rate < 100).map(test => {
                 const showLogs = test.pass_rate < 100 && test.sample_error;
                 const lastRun = formatLastRun(test.last_run_timestamp);
+                const op = test.operator || deriveOperator(test.test_name);
+                const displayName = cleanTestName(test.test_name);
+                const cleanedDesc = cleanTestName(test.test_description || '');
+                const showDesc = cleanedDesc && cleanedDesc !== displayName;
 
                 return `
                 <tr>
                     <td style="vertical-align: top;">
-                        <div><strong>${test.test_name}</strong></div>
-                        ${test.test_description ? `<div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${test.test_description}</div>` : ''}
+                        <div>${opChip(op)} <strong>${esc(displayName)}</strong></div>
+                        ${showDesc ? `<div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${esc(cleanedDesc)}</div>` : ''}
                         ${showLogs ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">${formatError(test.sample_error, test.test_name, test.test_description, test.failed_platforms, test.sample_error_timestamp, test.sample_error_platform, test.sample_error_job_name, test.sample_error_build_id, test.sample_error_job_url, test.version, days)}</div>` : ''}
                     </td>
                     <td style="vertical-align: top;">${test.version}</td>
@@ -1958,7 +1972,7 @@
                         <div class="platform-stats">
                             <div class="stat-item">
                                 <div class="stat-label">Previous</div>
-                                <div class="stat-value">${data.previous_pass_rate}%</div>
+                                <div class="stat-value">${data.previous_runs > 0 ? data.previous_pass_rate + '%' : '<span style="color:var(--text-muted);">N/A</span>'}</div>
                             </div>
                             <div style="font-size: 24px; color: var(--text-muted);">→</div>
                             <div class="stat-item">
@@ -1967,7 +1981,7 @@
                             </div>
                             <div class="stat-item">
                                 <div class="stat-label">Change</div>
-                                <div class="delta ${deltaClass}">${arrow}${Math.abs(delta)}%</div>
+                                <div class="delta ${data.previous_runs > 0 ? deltaClass : 'neutral'}">${data.previous_runs > 0 ? arrow + Math.abs(delta) + '%' : '<span style="color:var(--text-muted);">-</span>'}</div>
                             </div>
                             <div class="stat-item">
                                 <div class="stat-label">Runs</div>
@@ -2101,13 +2115,23 @@
                 return;
             }
 
-            tbody.innerHTML = tests.map((test, index) => {
+            const failing = tests.filter(t => t.pass_rate < 100);
+            if (failing.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--accent-green);">All tests passing at 100%</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = failing.map((test, index) => {
+                const op = test.operator || deriveOperator(test.test_name);
+                const displayName = cleanTestName(test.test_name);
+                const cleanedDesc = cleanTestName(test.test_description || '');
+                const showDesc = cleanedDesc && cleanedDesc !== displayName;
                 return `
                 <tr style="border-bottom: 1px solid var(--border);">
                     <td style="padding: 12px;"><strong>${index + 1}</strong></td>
                     <td style="padding: 12px;">
-                        <strong>${test.test_name}</strong>
-                        ${test.test_description ? `<br><span style="font-size:12px; color:var(--text-muted);">${test.test_description}</span>` : ''}
+                        ${opChip(op)} <strong>${esc(displayName)}</strong>
+                        ${showDesc ? `<br><span style="font-size:12px; color:var(--text-muted);">${esc(cleanedDesc)}</span>` : ''}
                     </td>
                     <td style="padding: 12px;">${test.version}</td>
                     <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
@@ -2364,7 +2388,23 @@
             NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4'
         };
         function opChip(op) {
-            return op ? '<span class="op-chip op-chip--' + op.toLowerCase() + '">' + op + '</span>' : '';
+            if (!op) return '';
+            var safeClass = op.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            return '<span class="op-chip op-chip--' + safeClass + '">' + esc(op) + '</span>';
+        }
+        function deriveOperator(name) {
+            if (!name) return '';
+            if (name.match(/^FAR\b|far-operator|far-weekly/i)) return 'FAR';
+            if (name.match(/^SBR\b|sbr-operator|sbr-weekly/i)) return 'SBR';
+            if (name.match(/^SNR\b|snr-operator|snr-weekly/i)) return 'SNR';
+            if (name.match(/^NHC\b|nhc-operator|nhc-weekly/i)) return 'NHC';
+            if (name.match(/^MDR\b|mdr-operator|mdr-weekly/i)) return 'MDR';
+            if (name.match(/^NMO\b|nmo-operator|nmo-weekly/i)) return 'NMO';
+            return '';
+        }
+        function cleanTestName(name) {
+            if (!name) return '';
+            return name.replace(/\s*\[[^\]]+\]\s*$/, '');
         }
         function resultBadge(r) {
             if (r === 'passed') return '<span class="result-pass">PASSED</span>';
@@ -2549,12 +2589,16 @@
                 runs.forEach(function(r) {
                     var statusCls = r.status === 'passed' ? 'result-pass' : 'result-fail';
                     html += '<tr>';
-                    html += '<td style="font-size:0.8rem;">' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
+                    var jobOp = deriveOperator(r.step_name || r.job_name || '');
+                    html += '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
                     html += '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>';
                     html += '<td>' + fmtDate(r.run_date) + '</td>';
                     html += '<td>' + fmtDuration(r.duration) + '</td>';
                     html += '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>';
-                    html += '<td>' + (r.passed_tests || 0) + '/' + (r.failed_tests || 0) + '</td>';
+                    var testsDisplay = (r.total_tests == null || r.total_tests === 0)
+                        ? '<span style="color:var(--text-muted);">N/A</span>'
+                        : (r.passed_tests || 0) + '/' + (r.failed_tests || 0);
+                    html += '<td>' + testsDisplay + '</td>';
                     html += '<td style="font-size:0.75rem; white-space:nowrap;">'
                         + linkEl(r.prow_url, 'Prow') + ' '
                         + linkEl(r.build_log_url, 'Build') + ' '
