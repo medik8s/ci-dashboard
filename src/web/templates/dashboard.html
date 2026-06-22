@@ -813,7 +813,7 @@
             <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div></div>
             <div class="stat-panel stat-panel--blue"><div class="sp-label">Jobs Run</div><div class="sp-value" id="spJobs">--</div></div>
             <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div></div>
-            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.75rem; word-break:break-all; line-height:1.2;">--</div></div>
+            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem; line-height:1.4; overflow-wrap:break-word;">--</div></div>
         </div>
 
         <div class="summary-cards">
@@ -2468,7 +2468,16 @@
                     document.getElementById('spJobs').textContent = jrRuns.length;
                     if (jrRuns.length > 0) {
                         document.getElementById('spLastRun').textContent = fmtDate(jrRuns[0].run_date);
-                        document.getElementById('spOcp').textContent = jrRuns[0].ocp_version || jrRuns[0].version || '-';
+                        var ocpEl = document.getElementById('spOcp');
+                        var ocpVer = String(jrRuns[0].ocp_version || jrRuns[0].version || '-');
+                        var nightlyMatch = ocpVer.match(/^(\d+\.\d+\.\d+-\d+)\.(nightly(?:-[a-z0-9]+)*)-(\d{4}-.+)$/);
+                        if (nightlyMatch) {
+                            var streamName = nightlyMatch[1] + '.nightly';
+                            var releaseUrl = 'https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/releasestream/' + encodeURIComponent(streamName) + '/release/' + encodeURIComponent(ocpVer);
+                            ocpEl.innerHTML = '<a href="' + releaseUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple); text-decoration:none;">' + esc(nightlyMatch[1]) + '<br><span style="font-size:0.75rem; color:var(--text-muted);">' + esc(nightlyMatch[2] + '-' + nightlyMatch[3]) + '</span></a>';
+                        } else {
+                            ocpEl.textContent = ocpVer;
+                        }
                     } else {
                         document.getElementById('spLastRun').textContent = '-';
                         document.getElementById('spOcp').textContent = '-';
