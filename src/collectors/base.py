@@ -34,9 +34,13 @@ class TestResult:
     build_id: str
     version: str  # e.g., "4.21", "4.22"
     platform: str  # e.g., "aws", "gcp", "azure"
-    test_description: Optional[str] = None  # Human-readable test description
-    polarion_id: Optional[str] = None  # Polarion test case ID (e.g., OCP-66026)
-    operator: Optional[str] = None  # Operator name (e.g., FAR, SBR)
+    test_description: Optional[str] = None
+    polarion_id: Optional[str] = None
+    operator: Optional[str] = None
+
+    # Job classification
+    job_type: str = "periodic"
+    pr_number: Optional[int] = None
 
     # Links
     job_url: Optional[str] = None
@@ -65,6 +69,13 @@ class JobRun:
     csv_version: Optional[str] = None
     fbc_image: Optional[str] = None
     step_name: Optional[str] = None
+
+    # Job classification
+    job_type: str = "periodic"
+    pr_number: Optional[int] = None
+    pr_author: Optional[str] = None
+    pr_repo: Optional[str] = None
+    gcs_prefix: Optional[str] = None
 
     # Links
     job_url: Optional[str] = None

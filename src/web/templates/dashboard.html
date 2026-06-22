@@ -733,6 +733,7 @@
                 <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
             </div>
         </header>
@@ -933,6 +934,28 @@
                         <tr><td colspan="7" class="loading">Select the Job Runs tab to load data</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Presubmit Tab -->
+        <div id="presubmit-tab" class="tab-content">
+            <div class="controls">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span>Operator:</span>
+                    <button class="chip-button active" onclick="filterPresubmit('all', this)">All</button>
+                    <button class="chip-button" onclick="filterPresubmit('FAR', this)">FAR</button>
+                    <button class="chip-button" onclick="filterPresubmit('SBR', this)">SBR</button>
+                    <button class="chip-button" onclick="filterPresubmit('SNR', this)">SNR</button>
+                    <button class="chip-button" onclick="filterPresubmit('NHC', this)">NHC</button>
+                    <button class="chip-button" onclick="filterPresubmit('MDR', this)">MDR</button>
+                    <button class="chip-button" onclick="filterPresubmit('NMO', this)">NMO</button>
+                </div>
+            </div>
+            <div class="card">
+                <h2>Presubmit E2E Results</h2>
+                <div id="presubmit-content">
+                    <p style="color:var(--text-muted); text-align:center; padding:30px;">Loading presubmit results...</p>
+                </div>
             </div>
         </div>
 
@@ -1151,6 +1174,7 @@
                     (tabName === 'overview' && btn.textContent.trim() === 'Overview') ||
                     (tabName === 'test-results' && btn.textContent.trim() === 'Test Results') ||
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
+                    (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
                     (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report')) {
                     btn.classList.add('active');
                     btn.setAttribute('aria-selected', 'true');
@@ -1159,6 +1183,7 @@
             if (tabName === 'weekly-report') refreshWeeklyReport();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') loadJobRuns();
+            if (tabName === 'presubmit') loadPresubmitResults();
         }
 
         async function fetchData(endpoint, params = {}) {
@@ -2622,6 +2647,118 @@
                 tbody.innerHTML = html;
             } catch (e) {
                 tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
+            }
+        }
+
+        // ---- Presubmit tab ----
+        var presubmitOperatorFilter = 'all';
+
+        function filterPresubmit(operator, btn) {
+            presubmitOperatorFilter = operator === 'all' ? '' : operator;
+            var container = btn.closest('.controls');
+            container.querySelectorAll('.chip-button').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            loadPresubmitResults();
+        }
+
+        async function loadPresubmitResults() {
+            var container = document.getElementById('presubmit-content');
+            container.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:30px;">Loading...</p>';
+
+            var days = document.getElementById('timeRange').value;
+            var version = document.getElementById('versionFilter').value;
+            var params = {days: days};
+            if (version) params.version = version;
+            if (presubmitOperatorFilter) params.operator = presubmitOperatorFilter;
+
+            try {
+                var resp = await fetch('/api/presubmit-results?' + new URLSearchParams(params));
+                var data = await resp.json();
+                var results = data.results || [];
+
+                if (results.length === 0) {
+                    container.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:30px;">No presubmit results found</p>';
+                    return;
+                }
+
+                var byPR = {};
+                results.forEach(function(r) {
+                    var pr = r.pr_number || 'unknown';
+                    if (!byPR[pr]) byPR[pr] = [];
+                    byPR[pr].push(r);
+                });
+
+                var html = '';
+                var prKeys = Object.keys(byPR).sort(function(a, b) { return Number(b) - Number(a); });
+
+                prKeys.forEach(function(pr) {
+                    var prResults = byPR[pr];
+                    var passed = prResults.filter(function(r) { return r.result === 'passed'; }).length;
+                    var failed = prResults.filter(function(r) { return r.result === 'failed'; }).length;
+                    var prRepo = prResults[0].pr_repo || 'medik8s/system-tests';
+                    var prLink = pr !== 'unknown'
+                        ? '<a href="https://github.com/' + esc(prRepo) + '/pull/' + esc(String(pr)) + '" target="_blank" style="color:var(--accent-blue);">' + esc(prRepo) + '#' + esc(String(pr)) + '</a>'
+                        : '<span style="color:var(--text-muted);">Unknown PR</span>';
+                    var latestDate = prResults[0].run_date ? prResults[0].run_date.split('T')[0] : '-';
+                    var prAuthor = prResults[0].pr_author || '';
+                    var authorLink = prAuthor
+                        ? '<a href="https://github.com/' + esc(prAuthor) + '" target="_blank" style="color:var(--text-muted); font-size:0.85rem;">@' + esc(prAuthor) + '</a>'
+                        : '';
+                    var statusBadge = failed > 0
+                        ? '<span class="result-fail">FAILED</span>'
+                        : '<span class="result-pass">PASSED</span>';
+
+                    html += '<div style="margin-bottom:16px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">';
+                    html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--bg-table-header);">';
+                    html += '<div style="display:flex; align-items:center; gap:12px;">';
+                    html += '<strong style="font-size:1.1rem;">' + prLink + '</strong>';
+                    if (authorLink) html += authorLink;
+                    html += statusBadge;
+                    html += '<span style="color:var(--text-muted); font-size:0.85rem;">' + passed + ' passed, ' + failed + ' failed</span>';
+                    html += '</div>';
+                    html += '<span style="color:var(--text-muted); font-size:0.85rem;">' + latestDate + '</span>';
+                    html += '</div>';
+
+                    html += '<table style="width:100%;"><thead><tr>';
+                    html += '<th>TEST NAME</th><th>OPERATOR</th><th>REPO</th><th>RESULT</th><th>JOB</th><th>RUN DATE</th><th>DURATION</th><th>LINKS</th>';
+                    html += '</tr></thead><tbody>';
+
+                    prResults.forEach(function(r) {
+                        var op = r.operator || deriveOperator(r.test_name || '');
+                        var displayName = cleanTestName(r.test_name || '');
+                        var statusCls = r.result === 'passed' ? 'result-pass' : 'result-fail';
+                        var shortJob = (r.job_name || '').replace(/^pull-ci-medik8s-[\w-]+-main-/, '');
+                        var repoName = (r.pr_repo || '').replace('medik8s/', '');
+                        var repoLink = r.pr_repo
+                            ? '<a href="https://github.com/' + esc(r.pr_repo) + '" target="_blank" style="color:var(--accent-blue); font-size:0.8rem;">' + esc(repoName) + '</a>'
+                            : '<span style="color:var(--text-muted); font-size:0.8rem;">-</span>';
+
+                        html += '<tr>';
+                        html += '<td>' + opChip(op) + ' ' + esc(displayName) + '</td>';
+                        html += '<td style="text-align:center;">' + opChip(op) + '</td>';
+                        html += '<td>' + repoLink + '</td>';
+                        html += '<td><span class="' + statusCls + '">' + esc((r.result || '').toUpperCase()) + '</span></td>';
+                        html += '<td style="font-size:0.8rem;">' + esc(shortJob) + '</td>';
+                        html += '<td>' + fmtDate(r.run_date) + '</td>';
+                        html += '<td>' + fmtDuration(r.duration) + '</td>';
+                        html += '<td style="font-size:0.75rem; white-space:nowrap;">'
+                            + linkEl(r.prow_url, 'Prow') + ' '
+                            + linkEl(r.build_log_url, 'Build') + ' '
+                            + linkEl(r.e2e_log_url, 'E2E') + ' '
+                            + linkEl(r.catalog_log_url, 'Catalog') + ' '
+                            + linkEl(r.subscribe_log_url, 'Subscribe') + ' '
+                            + linkEl(r.install_log_url, 'Install') + ' '
+                            + linkEl(r.artifacts_url, 'Artifacts')
+                            + '</td>';
+                        html += '</tr>';
+                    });
+
+                    html += '</tbody></table></div>';
+                });
+
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<p style="color:var(--accent-red); text-align:center; padding:20px;">Error: ' + esc(String(e.message || e)) + '</p>';
             }
         }
 
