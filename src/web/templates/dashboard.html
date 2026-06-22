@@ -2474,7 +2474,7 @@
                         if (nightlyMatch) {
                             var streamName = nightlyMatch[1] + '.nightly';
                             var releaseUrl = 'https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/releasestream/' + encodeURIComponent(streamName) + '/release/' + encodeURIComponent(ocpVer);
-                            ocpEl.innerHTML = '<a href="' + releaseUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple); text-decoration:none;">' + esc(nightlyMatch[1]) + '<br><span style="font-size:0.75rem; color:var(--text-muted);">' + esc(nightlyMatch[2] + '-' + nightlyMatch[3]) + '</span></a>';
+                            ocpEl.innerHTML = '<a href="' + releaseUrl + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple); text-decoration:none;">' + esc(nightlyMatch[1]) + '<br><span style="font-size:0.75rem; opacity:0.7;">' + esc(nightlyMatch[2] + '-' + nightlyMatch[3]) + '</span></a>';
                         } else {
                             ocpEl.textContent = ocpVer;
                         }
