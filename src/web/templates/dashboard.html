@@ -706,6 +706,14 @@
         .detail-row { display: none; }
         .detail-row.open { display: table-row; }
         .detail-row td { background: #14161a; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+        .expand-arrow { display: inline-block; transition: transform 0.15s ease; }
+        tr:has(+ .detail-row.open) .expand-arrow { transform: rotate(90deg); }
+
+        /* Collapsible PR sections */
+        .pr-section .pr-section-body { display: none; }
+        .pr-section.open .pr-section-body { display: block; }
+        .pr-toggle { transition: transform 0.15s ease; display: inline-block; margin-right: 8px; font-size: 0.85rem; }
+        .pr-section.open .pr-toggle { transform: rotate(90deg); }
         .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; font-size: 0.8rem; }
         .detail-grid strong { color: var(--text-muted); font-size: 0.7rem; display: block; margin-bottom: 2px; }
         .detail-grid a { color: var(--accent-blue); text-decoration: none; }
@@ -732,8 +740,8 @@
             <div class="header-tabs" role="tablist" aria-label="Dashboard views">
                 <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
             </div>
         </header>
@@ -2564,14 +2572,14 @@
                     var op = r.operator || 'Unknown';
                     if (op !== lastOp) {
                         if (lastOp !== null) {
-                            html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555') + '33,transparent);"></td></tr>';
+                            html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555555') + '33,transparent);"></td></tr>';
                         }
                         html += '<tr class="op-group-header"><td colspan="7">' + opChip(op) + ' <span style="margin-left:8px;color:var(--text-muted);font-size:0.75rem;">' + opCounts[op] + ' tests</span></td></tr>';
                         lastOp = op;
                     }
                     var rid = 'tr-detail-' + i;
                     html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'' + rid + '\').classList.toggle(\'open\')">';
-                    html += '<td style="text-align:center;color:var(--text-muted);">&#9654;</td>';
+                    html += '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>';
                     html += '<td>' + esc(r.test_description || r.test_name) + '</td>';
                     html += '<td>' + opChip(r.operator) + '</td>';
                     html += '<td>' + resultBadge(r.result) + '</td>';
@@ -2667,6 +2675,8 @@
 
         async function loadPresubmitResults() {
             var container = document.getElementById('presubmit-content');
+            var countEl = document.getElementById('presubmitCount');
+            countEl.textContent = '';
             container.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:30px;">Loading...</p>';
 
             var days = document.getElementById('timeRange').value;
@@ -2682,31 +2692,40 @@
 
                 if (results.length === 0) {
                     container.innerHTML = '<p style="color:var(--text-muted); text-align:center; padding:30px;">No presubmit results found</p>';
-                    document.getElementById('presubmitCount').textContent = '';
+                    countEl.textContent = '';
                     return;
                 }
 
-                document.getElementById('presubmitCount').textContent = '(' + results.length + ' results)';
+                countEl.textContent = '(' + results.length + ' results)';
 
                 var byPR = {};
                 results.forEach(function(r) {
-                    var pr = r.pr_number || 'unknown';
-                    if (!byPR[pr]) byPR[pr] = [];
-                    byPR[pr].push(r);
+                    var prKey = (r.pr_repo || 'unknown') + '#' + (r.pr_number || 'unknown');
+                    if (!byPR[prKey]) byPR[prKey] = [];
+                    byPR[prKey].push(r);
                 });
 
                 var html = '';
-                var prKeys = Object.keys(byPR).sort(function(a, b) { return Number(b) - Number(a); });
+                var prKeys = Object.keys(byPR).sort(function(a, b) {
+                    var na = parseInt(a.split('#')[1], 10) || 0, nb = parseInt(b.split('#')[1], 10) || 0;
+                    if (nb !== na) return nb - na;
+                    return a.localeCompare(b);
+                });
 
-                prKeys.forEach(function(prNum) {
-                    var prResults = byPR[prNum];
+                prKeys.forEach(function(prKey) {
+                    var prResults = byPR[prKey];
+                    var prNum = prResults[0].pr_number || 'unknown';
                     var passed = prResults.filter(function(r) { return r.result === 'passed'; }).length;
                     var failed = prResults.filter(function(r) { return r.result === 'failed'; }).length;
                     var prRepo = prResults[0].pr_repo || 'medik8s/system-tests';
                     var prLink = prNum !== 'unknown'
                         ? '<a href="https://github.com/' + esc(prRepo) + '/pull/' + esc(String(prNum)) + '" target="_blank" style="color:var(--accent-blue);">' + esc(prRepo) + '#' + esc(String(prNum)) + '</a>'
                         : '<span style="color:var(--text-muted);">Unknown PR</span>';
-                    var latestDate = prResults[0].run_date ? prResults[0].run_date.split('T')[0] : '-';
+                    var latestDate = prResults.reduce(function(best, r) {
+                        if (!r.run_date) return best;
+                        return (!best || r.run_date > best) ? r.run_date : best;
+                    }, null);
+                    latestDate = latestDate ? latestDate.split('T')[0] : '-';
                     var prAuthor = prResults[0].pr_author || '';
                     var authorLink = prAuthor
                         ? '<a href="https://github.com/' + esc(prAuthor) + '" target="_blank" style="color:var(--text-muted); font-size:0.85rem;">@' + esc(prAuthor) + '</a>'
@@ -2715,9 +2734,10 @@
                         ? '<span class="result-fail">FAILED</span>'
                         : '<span class="result-pass">PASSED</span>';
 
-                    html += '<div style="margin-bottom:20px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">';
-                    html += '<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--bg-table-header);">';
+                    html += '<div class="pr-section" style="margin-bottom:20px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">';
+                    html += '<div class="pr-section-header" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--bg-table-header); cursor:pointer;" onclick="if(event.target.closest(\'a\'))return;this.closest(\'.pr-section\').classList.toggle(\'open\');">';
                     html += '<div style="display:flex; align-items:center; gap:12px;">';
+                    html += '<span class="pr-toggle">&#9654;</span>';
                     html += '<strong style="font-size:1.05rem;">' + prLink + '</strong>';
                     if (authorLink) html += authorLink;
                     html += statusBadge;
@@ -2733,6 +2753,7 @@
                         opCounts[o] = (opCounts[o] || 0) + 1;
                     });
 
+                    html += '<div class="pr-section-body">';
                     html += '<table style="width:100%;border-collapse:collapse;">';
                     html += '<thead><tr>';
                     html += '<th style="width:30px;"></th>';
@@ -2747,27 +2768,33 @@
                     var lastOp = null;
                     // Sort results by operator for consistent grouping
                     var sorted = prResults.slice().sort(function(a, b) {
-                        var oa = a.operator || deriveOperator(a.test_name || a.job_name || '') || 'ZZZ';
-                        var ob = b.operator || deriveOperator(b.test_name || b.job_name || '') || 'ZZZ';
+                        var oa = a.operator || deriveOperator(a.test_name || a.job_name || '') || 'Unknown';
+                        var ob = b.operator || deriveOperator(b.test_name || b.job_name || '') || 'Unknown';
                         return oa.localeCompare(ob);
                     });
+
+                    var prSlug = String(prKey).replace(/[^a-zA-Z0-9_-]/g, '-');
 
                     sorted.forEach(function(r, i) {
                         var op = r.operator || deriveOperator(r.test_name || r.job_name || '') || 'Unknown';
                         if (op !== lastOp) {
                             if (lastOp !== null) {
-                                html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555') + '33,transparent);"></td></tr>';
+                                html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[lastOp] || '#555555') + '33,transparent);"></td></tr>';
                             }
                             html += '<tr class="op-group-header"><td colspan="7">' + opChip(op) + ' <span style="margin-left:8px;color:var(--text-muted);font-size:0.75rem;">' + (opCounts[op] || 0) + ' tests</span></td></tr>';
                             lastOp = op;
                         }
 
-                        var rid = 'ps-detail-' + prNum + '-' + i;
+                        var rid = 'ps-detail-' + prSlug + '-' + i;
                         var displayName = cleanTestName(r.test_name || r.test_description || '');
-                        var shortJob = (r.job_name || '').replace(/^pull-ci-medik8s-[\w-]+-main-/, '');
+                        var shortJob = r.job_name || '';
+                        if (r.pr_repo) {
+                            var repoSlug = r.pr_repo.replace(/\//g, '-').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            shortJob = shortJob.replace(new RegExp('^pull-ci-' + repoSlug + '-(main|master|release-\\S+)-'), '');
+                        }
 
                         html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'' + rid + '\').classList.toggle(\'open\')">';
-                        html += '<td style="text-align:center;color:var(--text-muted);">&#9654;</td>';
+                        html += '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>';
                         html += '<td>' + esc(displayName) + '</td>';
                         html += '<td>' + opChip(op) + '</td>';
                         html += '<td>' + resultBadge(r.result) + '</td>';
@@ -2777,7 +2804,7 @@
                         html += '</tr>';
 
                         // Expandable detail row
-                        var repoName = (r.pr_repo || '').replace('medik8s/', '');
+                        var repoName = (r.pr_repo || '').replace(/^[^/]+\//, '');
                         html += '<tr id="' + rid + '" class="detail-row"><td colspan="7"><div class="detail-grid">';
                         html += '<div><strong>Repository</strong>' + (r.pr_repo ? linkEl('https://github.com/' + r.pr_repo, repoName) : '-') + '</div>';
                         html += '<div><strong>Full Job Name</strong><span style="font-size:0.75rem;">' + esc(r.job_name || '-') + '</span></div>';
@@ -2792,11 +2819,12 @@
                         html += '</div></td></tr>';
                     });
 
-                    html += '</tbody></table></div>';
+                    html += '</tbody></table></div></div>';
                 });
 
                 container.innerHTML = html;
             } catch (e) {
+                countEl.textContent = '';
                 container.innerHTML = '<p style="color:var(--accent-red); text-align:center; padding:20px;">Error: ' + esc(String(e.message || e)) + '</p>';
             }
         }
