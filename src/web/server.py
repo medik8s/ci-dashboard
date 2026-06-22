@@ -78,12 +78,16 @@ GCS_BUCKET = 'test-platform-results'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
 
 
-def _build_log_urls(job_name, build_id, step_name):
+def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None):
     """Build GCS and gcsweb log URLs from job metadata."""
     has_job = bool(job_name and build_id)
-    gcs_base = f"https://storage.googleapis.com/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
+    if gcs_prefix:
+        gcs_base = f"https://storage.googleapis.com/{GCS_BUCKET}/{gcs_prefix}"
+        gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/{gcs_prefix}"
+    else:
+        gcs_base = f"https://storage.googleapis.com/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
+        gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
     artifacts_base = f"{gcs_base}/artifacts/{step_name}" if (has_job and step_name) else ''
-    gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
     return {
         'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if (has_job and step_name) else '',
         'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
@@ -576,6 +580,83 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'passed_tests': row.get('passed_tests'),
                 'failed_tests': row.get('failed_tests'),
                 'pass_rate': row.get('pass_rate'),
+                'prow_url': row.get('job_url') or '',
+                **urls,
+            })
+
+        return jsonify({'job_runs': runs})
+
+    @app.route('/api/presubmit-results')
+    def api_presubmit_results():
+        """Get presubmit test results"""
+        days = request.args.get('days', 30, type=int)
+        operator = request.args.get('operator')
+        version = normalize_version(request.args.get('version'))
+        rows = db.get_presubmit_test_results(days=days, operator=operator, version=version)
+
+        results = []
+        for row in rows:
+            step_name = row.get('step_name') or ''
+            job_name = row.get('job_name') or ''
+            build_id = row.get('build_id') or ''
+            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
+            pr_number = row.get('pr_number') or row.get('jr_pr_number')
+
+            results.append({
+                'test_name': row.get('test_name'),
+                'test_description': row.get('test_description'),
+                'operator': row.get('operator'),
+                'result': row.get('result'),
+                'polarion_id': row.get('polarion_id'),
+                'pr_number': pr_number,
+                'pr_author': row.get('pr_author'),
+                'pr_repo': row.get('pr_repo'),
+                'job_name': job_name,
+                'build_id': build_id,
+                'run_date': row.get('run_date'),
+                'duration': row.get('job_duration'),
+                'version': row.get('version'),
+                'platform': row.get('platform'),
+                'ocp_version': row.get('ocp_version'),
+                'step_name': step_name,
+                'prow_url': row.get('job_url') or '',
+                **urls,
+            })
+
+        return jsonify({'results': results})
+
+    @app.route('/api/presubmit-job-runs')
+    def api_presubmit_job_runs():
+        """Get presubmit job run history"""
+        days = request.args.get('days', 30, type=int)
+        operator = request.args.get('operator')
+        version = normalize_version(request.args.get('version'))
+        rows = db.get_presubmit_job_runs(days=days, operator=operator, version=version)
+
+        runs = []
+        for row in rows:
+            step_name = row.get('step_name') or ''
+            job_name = row.get('job_name') or ''
+            build_id = row.get('build_id') or ''
+            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
+
+            runs.append({
+                'job_name': job_name,
+                'build_id': build_id,
+                'status': row.get('status'),
+                'run_date': row.get('run_date'),
+                'duration': row.get('duration_seconds'),
+                'version': row.get('version'),
+                'platform': row.get('platform'),
+                'ocp_version': row.get('ocp_version'),
+                'step_name': step_name,
+                'total_tests': row.get('total_tests'),
+                'passed_tests': row.get('passed_tests'),
+                'failed_tests': row.get('failed_tests'),
+                'pass_rate': row.get('pass_rate'),
+                'pr_number': row.get('pr_number'),
+                'pr_author': row.get('pr_author'),
+                'pr_repo': row.get('pr_repo'),
                 'prow_url': row.get('job_url') or '',
                 **urls,
             })

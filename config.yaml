@@ -22,6 +22,18 @@ collector:
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-weekly-aws"
       # Add NHC, NMO, MDR weekly jobs here when created
 
+    # Presubmit E2E jobs (triggered on system-tests PRs)
+    presubmit_job_patterns:
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-aws"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-odf"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-aws"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-aws"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-aws"
+      # Dev repo E2E presubmit jobs (triggered on operator PRs)
+      - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
+      - "pull-ci-medik8s-storage-based-remediation-main-4.20-openshift-e2e"
+      - "pull-ci-medik8s-self-node-remediation-main-4.22-openshift-e2e"
+
   # ReportPortal (disabled - uncomment and set values)
   # reportportal:
   #   url: "https://your-reportportal.example.com"

@@ -186,6 +186,39 @@ def collect(ctx, days, dry_run):
 
     console.print(f"[green]✓ Collected {len(test_results)} test results[/green]")
 
+    # Collect presubmit jobs (if configured)
+    presubmit_patterns = config.get('collector', {}).get('prow_gcs', {}).get('presubmit_job_patterns', [])
+    presubmit_job_runs = []
+    presubmit_test_results = []
+
+    if presubmit_patterns and collector_type in ['prow-gcs', 'prow_gcs']:
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Collecting presubmit job runs...", total=None)
+            presubmit_job_runs = collector.collect_presubmit_job_runs(
+                start_date=start_date,
+                end_date=end_date,
+                job_patterns=presubmit_patterns,
+                versions=versions,
+                platforms=platforms
+            )
+            progress.update(task, completed=True)
+
+        console.print(f"[green]✓ Collected {len(presubmit_job_runs)} presubmit job runs[/green]")
+
+        with Progress() as progress:
+            task = progress.add_task("[cyan]Collecting presubmit test results...", total=None)
+            presubmit_test_results = collector.collect_presubmit_test_results(
+                start_date=start_date,
+                end_date=end_date,
+                job_patterns=presubmit_patterns,
+                versions=versions,
+                platforms=platforms,
+                job_runs=presubmit_job_runs,
+            )
+            progress.update(task, completed=True)
+
+        console.print(f"[green]✓ Collected {len(presubmit_test_results)} presubmit test results[/green]")
+
     # Update job runs with actual test counts from test_results (excluding skipped)
     from collections import defaultdict
     job_test_counts = defaultdict(lambda: {'total': 0, 'passed': 0, 'failed': 0})
@@ -202,15 +235,25 @@ def collect(ctx, days, dry_run):
         else:
             job_test_counts[key]['failed'] += 1
 
+    # Count presubmit test results too
+    for test in presubmit_test_results:
+        if test.status.value == 'skipped':
+            continue
+        key = (test.job_name, test.build_id)
+        job_test_counts[key]['total'] += 1
+        if test.status.value == 'passed':
+            job_test_counts[key]['passed'] += 1
+        else:
+            job_test_counts[key]['failed'] += 1
+
     # Update JobRun objects with actual counts
-    for job_run in job_runs:
+    for job_run in job_runs + presubmit_job_runs:
         key = (job_run.job_name, job_run.build_id)
         if key in job_test_counts:
             counts = job_test_counts[key]
             job_run.total_tests = counts['total']
             job_run.passed_tests = counts['passed']
             job_run.failed_tests = counts['failed']
-            # pass_rate is a calculated property, no need to set it
 
     if dry_run:
         # Show sample data
@@ -242,6 +285,14 @@ def collect(ctx, days, dry_run):
 
         inserted_tests = db.insert_test_results(test_results)
         console.print(f"[green]✓ Saved {inserted_tests} test results[/green]")
+
+        if presubmit_job_runs:
+            inserted_pre = db.insert_job_runs(presubmit_job_runs)
+            console.print(f"[green]✓ Saved {inserted_pre} presubmit job runs[/green]")
+
+        if presubmit_test_results:
+            inserted_pre_tests = db.insert_test_results(presubmit_test_results)
+            console.print(f"[green]✓ Saved {inserted_pre_tests} presubmit test results[/green]")
 
         db.close()
 

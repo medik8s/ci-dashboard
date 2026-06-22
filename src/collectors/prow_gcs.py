@@ -25,6 +25,11 @@ from .base import BaseCollector, TestResult, JobRun, TestStatus
 
 logger = logging.getLogger(__name__)
 
+PROW_PR_PATH_RE = re.compile(
+    r"pr-logs/pull/(?P<repo>[^/]+/[^/]+)/(?P<pr_number>\d+)/"
+    r"(?P<job_name>[^/]+)/(?P<build_id>\d+)"
+)
+
 
 class ProwGCSCollector(BaseCollector):
     """Collector that accesses Prow data directly via GCS"""
@@ -202,6 +207,19 @@ class ProwGCSCollector(BaseCollector):
             logger.debug(f"[prow_gcs] Could not fetch {url}: {e}")
         return None
 
+    def _artifact_base(self, job_run: JobRun) -> Optional[str]:
+        """Build the GCS artifact base URL for a job run.
+
+        Uses gcs_prefix (from SpyglassLink) when available, falling
+        back to the standard periodic logs/ path.
+        """
+        step_name = self._derive_step_name(job_run.job_name)
+        if not step_name:
+            return None
+        if job_run.gcs_prefix:
+            return f"{self.gcs_url}/{job_run.gcs_prefix}/artifacts/{step_name}"
+        return f"{self.gcs_url}/logs/{job_run.job_name}/{job_run.build_id}/artifacts/{step_name}"
+
     def _enrich_job_run(self, job_run: JobRun) -> JobRun:
         """Enrich a JobRun with metadata parsed from GCS step logs."""
         step_name = self._derive_step_name(job_run.job_name)
@@ -209,7 +227,9 @@ class ProwGCSCollector(BaseCollector):
         if not step_name:
             return job_run
 
-        base = f"{self.gcs_url}/logs/{job_run.job_name}/{job_run.build_id}/artifacts/{step_name}"
+        base = self._artifact_base(job_run)
+        if not base:
+            return job_run
 
         install_log = self._fetch_gcs_text(f"{base}/ipi-install-install/build-log.txt")
         if install_log:
@@ -366,6 +386,121 @@ class ProwGCSCollector(BaseCollector):
         )
         return job_runs
 
+    def collect_presubmit_job_runs(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        job_patterns: Optional[List[str]] = None,
+        versions: Optional[List[str]] = None,
+        platforms: Optional[List[str]] = None
+    ) -> List[JobRun]:
+        """Collect presubmit job runs using the pr-logs/directory/ endpoint."""
+        import json as json_mod
+
+        job_runs = []
+        job_list = job_patterns or []
+        if not job_list:
+            return job_runs
+
+        if start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
+        if end_date.tzinfo is None:
+            end_date = end_date.replace(tzinfo=timezone.utc)
+
+        for job_name in job_list:
+            try:
+                url = (
+                    f"{self.prow_url}/job-history/gs/"
+                    f"{self.bucket}/pr-logs/directory/{job_name}"
+                )
+                logger.info(f"[prow_gcs] Fetching presubmit history: {job_name}")
+                response = self.session.get(url, timeout=30)
+                if response.status_code != 200:
+                    logger.warning(f"[prow_gcs] job-history returned {response.status_code} for {job_name}")
+                    continue
+
+                match = re.search(r'var allBuilds\s*=\s*(\[.*?\]);', response.text, re.DOTALL)
+                if not match:
+                    logger.warning(f"[prow_gcs] No build data in job-history for {job_name}")
+                    continue
+
+                builds = json_mod.loads(match.group(1))
+                logger.info(f"[prow_gcs] {job_name}: {len(builds)} presubmit builds")
+
+                version, platform = self._extract_version_platform(job_name)
+                if versions and version not in versions:
+                    continue
+                if platforms and platform not in platforms:
+                    continue
+
+                for build in builds:
+                    started_str = build.get('Started', '')
+                    if not started_str:
+                        continue
+
+                    start_time = datetime.fromisoformat(started_str.replace('Z', '+00:00'))
+                    if start_time < start_date or start_time > end_date:
+                        continue
+
+                    result = build.get('Result', 'FAILURE')
+                    job_status = TestStatus.PASSED if result == 'SUCCESS' else TestStatus.FAILED
+                    build_id = str(build.get('ID', 'unknown'))
+                    duration = int(build.get('Duration', 0)) // 1_000_000_000
+
+                    pr_number = None
+                    pr_author = None
+                    gcs_prefix = None
+                    spyglass_link = build.get('SpyglassLink', '')
+                    pr_match = PROW_PR_PATH_RE.search(spyglass_link)
+                    if pr_match:
+                        pr_number = int(pr_match.group('pr_number'))
+                        gcs_prefix = pr_match.group(0)
+
+                    refs = build.get('Refs', {})
+                    pulls = refs.get('pulls', [])
+                    pr_repo = None
+                    refs_org = refs.get('org')
+                    refs_repo = refs.get('repo')
+                    if refs_org and refs_repo:
+                        pr_repo = f"{refs_org}/{refs_repo}"
+                    if pulls:
+                        pr_author = pulls[0].get('author')
+                        if not pr_number:
+                            pr_number = pulls[0].get('number')
+
+                    job_url = f"{self.prow_url}{spyglass_link}" if spyglass_link else ""
+
+                    run = JobRun(
+                        job_name=job_name,
+                        build_id=build_id,
+                        status=job_status,
+                        timestamp=start_time,
+                        duration_seconds=duration,
+                        version=version,
+                        platform=platform,
+                        total_tests=0,
+                        passed_tests=0,
+                        failed_tests=0,
+                        skipped_tests=0,
+                        job_type="presubmit",
+                        pr_number=pr_number,
+                        pr_author=pr_author,
+                        pr_repo=pr_repo,
+                        gcs_prefix=gcs_prefix,
+                        job_url=job_url,
+                    )
+                    try:
+                        self._enrich_job_run(run)
+                    except Exception as e:
+                        logger.warning(f"[prow_gcs] Enrichment failed for presubmit {job_name}/{build_id}: {e}")
+                    job_runs.append(run)
+
+            except Exception as e:
+                logger.error(f"[prow_gcs] Error fetching presubmit {job_name}: {e}")
+
+        logger.info(f"[prow_gcs] Collected {len(job_runs)} presubmit job runs across {len(job_list)} jobs")
+        return job_runs
+
     def collect_test_results(
         self,
         start_date: datetime,
@@ -410,6 +545,38 @@ class ProwGCSCollector(BaseCollector):
         logger.info(f"[prow_gcs] Total test results collected: {len(all_results)}")
         return all_results
 
+    def collect_presubmit_test_results(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        job_patterns: Optional[List[str]] = None,
+        test_names: Optional[List[str]] = None,
+        versions: Optional[List[str]] = None,
+        platforms: Optional[List[str]] = None,
+        job_runs: Optional[List[JobRun]] = None,
+    ) -> List[TestResult]:
+        """Collect test results from presubmit job runs."""
+        if job_runs is None:
+            job_runs = self.collect_presubmit_job_runs(start_date, end_date, job_patterns, versions, platforms)
+
+        all_results = []
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(self._fetch_test_results_for_job, job_run, test_names): job_run
+                for job_run in job_runs
+            }
+            for future in as_completed(futures):
+                job_run = futures[future]
+                try:
+                    results = future.result()
+                    all_results.extend(results)
+                    logger.info(f"[prow_gcs] Collected {len(results)} presubmit tests from {job_run.job_name}/{job_run.build_id}")
+                except Exception as e:
+                    logger.error(f"[prow_gcs] Error fetching presubmit tests for {job_run.job_name}: {e}")
+
+        logger.info(f"[prow_gcs] Total presubmit test results collected: {len(all_results)}")
+        return all_results
+
     def _derive_step_name(self, job_name: str) -> Optional[str]:
         """Derive the Prow multi-stage test step name from the job name.
 
@@ -432,18 +599,10 @@ class ProwGCSCollector(BaseCollector):
         results = []
 
         try:
-            base_url = f"{self.gcs_url}/logs/{job_run.job_name}/{job_run.build_id}/artifacts"
+            artifact_base = self._artifact_base(job_run)
 
-            # Extract GCS path from job_url to support both /logs/ and /pr-logs/ paths
-            if job_run.job_url and '/view/gs/qe-private-deck/' in job_run.job_url:
-                gcs_path = job_run.job_url.split('/view/gs/qe-private-deck/')[-1]
-                base_url = f"{self.gcs_url}/{gcs_path}/artifacts"
-
-            # Look for JUnit XML only under the e2e-test step to avoid
-            # picking up infrastructure/gather JUnit files from other steps.
-            step_name = self._derive_step_name(job_run.job_name)
-            if step_name:
-                e2e_url = f"{base_url}/{step_name}/e2e-test/"
+            if artifact_base:
+                e2e_url = f"{artifact_base}/e2e-test/"
                 junit_files = self._find_junit_files(e2e_url, max_depth=3)
                 for junit_url in junit_files:
                     tests = self._parse_junit_xml(junit_url, job_run, test_names)
@@ -451,7 +610,11 @@ class ProwGCSCollector(BaseCollector):
                 return results
 
             # Fallback: broad search (for non-medik8s jobs or unknown layout)
-            junit_files = self._find_junit_files(f"{base_url}/")
+            if job_run.gcs_prefix:
+                fallback_url = f"{self.gcs_url}/{job_run.gcs_prefix}/artifacts/"
+            else:
+                fallback_url = f"{self.gcs_url}/logs/{job_run.job_name}/{job_run.build_id}/artifacts/"
+            junit_files = self._find_junit_files(fallback_url)
             for junit_url in junit_files:
                 tests = self._parse_junit_xml(junit_url, job_run, test_names)
                 results.extend(tests)
@@ -661,6 +824,8 @@ class ProwGCSCollector(BaseCollector):
                         test_description=test_description,
                         polarion_id=polarion_id,
                         operator=operator,
+                        job_type=job_run.job_type,
+                        pr_number=job_run.pr_number,
                         job_url=job_run.job_url,
                         log_url=log_url
                     )
