@@ -86,6 +86,26 @@
             line-height: 1.2;
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .header-actions .refresh-button {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-sync {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
         h1 {
             font-size: 28px;
             margin-bottom: 10px;
@@ -593,7 +613,8 @@
             box-shadow: 0 4px 6px rgba(220, 38, 38, 0.1);
         }
 
-        .refresh-button {
+        .refresh-button,
+        .export-button {
             background: var(--bg-surface);
             color: var(--accent-blue);
             border: none;
@@ -604,7 +625,8 @@
             font-size: 13px;
         }
 
-        .refresh-button:hover {
+        .refresh-button:hover,
+        .export-button:hover {
             opacity: 0.9;
         }
 
@@ -736,6 +758,17 @@
                     <h1>medik8s CI Dashboard</h1>
                     <p class="subtitle">medik8s QE - OpenShift CI Test Results</p>
                 </div>
+                <div class="header-actions">
+                    <span class="header-sync" id="headerLastSync">Last sync: checking...</span>
+                    <button class="refresh-button" id="headerRefreshBtn" onclick="triggerCollection()" title="Collect latest test results from Prow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M23 20V14H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M20.49 9C19.9828 7.56678 19.1209 6.28542 17.9845 5.27542C16.8482 4.26541 15.4745 3.55976 13.9917 3.22426C12.5089 2.88875 10.9652 2.93434 9.50481 3.35677C8.04437 3.77921 6.71475 4.56471 5.64 5.64L1 10M23 14L18.36 18.36C17.2853 19.4353 15.9556 20.2208 14.4952 20.6432C13.0348 21.0657 11.4911 21.1112 10.0083 20.7757C8.52547 20.4402 7.1518 19.7346 6.01547 18.7246C4.87913 17.7146 4.01717 16.4332 3.51 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Refresh Data
+                    </button>
+                </div>
             </div>
             <div class="header-tabs" role="tablist" aria-label="Dashboard views">
                 <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
@@ -787,32 +820,22 @@
                     <select id="versionFilter" onchange="refreshDashboard()">
                     </select>
                 </div>
-                <div style="display: flex; gap: 10px;">
-                    <div style="position: relative; display: inline-block;">
-                        <button class="refresh-button" onclick="toggleExportMenu()" title="Export test results" style="display: flex; align-items: center; gap: 6px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                            Export
-                        </button>
-                        <div id="exportMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 1000; min-width: 150px;">
-                            <div style="padding: 8px 0;">
-                                <a onclick="exportData('xlsx')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">Excel (.xlsx)</a>
-                                <a onclick="exportData('csv')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">CSV (.csv)</a>
-                                <a onclick="exportData('md')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">Markdown (.md)</a>
-                            </div>
+                <div style="position: relative; display: inline-block;">
+                    <button class="export-button" onclick="toggleExportMenu()" title="Export test results" style="display: flex; align-items: center; gap: 6px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Export
+                    </button>
+                    <div id="exportMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 5px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.4); z-index: 1000; min-width: 150px;">
+                        <div style="padding: 8px 0;">
+                            <a onclick="exportData('xlsx')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">Excel (.xlsx)</a>
+                            <a onclick="exportData('csv')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">CSV (.csv)</a>
+                            <a onclick="exportData('md')" style="display: block; padding: 10px 16px; cursor: pointer; text-decoration: none; color: var(--text-primary); font-weight: 500;">Markdown (.md)</a>
                         </div>
                     </div>
-                    <button class="refresh-button" onclick="triggerCollection()" title="Collect latest test results from Prow" style="display: flex; align-items: center; gap: 6px;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M23 20V14H17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M20.49 9C19.9828 7.56678 19.1209 6.28542 17.9845 5.27542C16.8482 4.26541 15.4745 3.55976 13.9917 3.22426C12.5089 2.88875 10.9652 2.93434 9.50481 3.35677C8.04437 3.77921 6.71475 4.56471 5.64 5.64L1 10M23 14L18.36 18.36C17.2853 19.4353 15.9556 20.2208 14.4952 20.6432C13.0348 21.0657 11.4911 21.1112 10.0083 20.7757C8.52547 20.4402 7.1518 19.7346 6.01547 18.7246C4.87913 17.7146 4.01717 16.4332 3.51 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Refresh Data
-                    </button>
                 </div>
             </div>
 
@@ -1159,6 +1182,33 @@
 
         let trendChart;
         let currentLogData = {}; // Store current log data for AI analysis and Jira creation
+        let lastSyncTime = null;
+
+        function timeAgo(date) {
+            if (!date || isNaN(date.getTime())) return 'unknown';
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return 'just now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ago';
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + 'h ago';
+            const days = Math.floor(hours / 24);
+            return days + 'd ago';
+        }
+
+        function updateSyncLabel() {
+            var el = document.getElementById('headerLastSync');
+            if (!el) return;
+            if (lastSyncTime && !isNaN(lastSyncTime.getTime())) {
+                el.textContent = 'Last sync: ' + timeAgo(lastSyncTime);
+                el.title = lastSyncTime.toISOString();
+            } else {
+                el.textContent = 'Last sync: never';
+                el.title = '';
+            }
+        }
+
+        var syncLabelInterval = setInterval(updateSyncLabel, 60000);
 
         function showTab(tabName) {
             var tabs = document.querySelectorAll('.header-tabs .tab-button');
@@ -2195,8 +2245,11 @@
                 const message = document.getElementById('collectionMessage');
                 const refreshButton = document.getElementById('refreshButton');
 
+                var headerRefreshBtn = document.getElementById('headerRefreshBtn');
+
                 if (status.running) {
                     wasRunning = true;
+                    if (headerRefreshBtn) headerRefreshBtn.disabled = true;
                     banner.classList.add('show');
                     banner.classList.remove('error', 'success');
                     message.textContent = status.progress || 'Collecting data...';
@@ -2207,6 +2260,7 @@
                         collectionPolling = setInterval(checkCollectionStatus, 2000);
                     }
                 } else if (status.error) {
+                    if (headerRefreshBtn) headerRefreshBtn.disabled = false;
                     // Check if it's an authentication error
                     const isAuthError = status.error.toLowerCase().includes('authentication') ||
                                        status.error.toLowerCase().includes('token') ||
@@ -2245,6 +2299,10 @@
                 } else if (wasRunning && status.completed_at) {
                     // Collection just completed successfully
                     wasRunning = false;
+                    if (headerRefreshBtn) headerRefreshBtn.disabled = false;
+                    var completed = new Date(status.completed_at);
+                    lastSyncTime = !isNaN(completed.getTime()) ? completed : new Date();
+                    updateSyncLabel();
                     banner.classList.add('show', 'success');
                     banner.classList.remove('error');
                     message.textContent = status.progress || 'Data collection completed! Refreshing data...';
@@ -2265,6 +2323,16 @@
                     }, 3000);
                 } else {
                     // No collection running
+                    if (headerRefreshBtn) headerRefreshBtn.disabled = false;
+                    if (status && status.completed_at) {
+                        var serverTime = new Date(status.completed_at);
+                        if (!isNaN(serverTime.getTime()) && (!lastSyncTime || serverTime > lastSyncTime)) {
+                            lastSyncTime = serverTime;
+                            updateSyncLabel();
+                        }
+                    } else if (!lastSyncTime) {
+                        updateSyncLabel();
+                    }
                     banner.classList.remove('show');
                     wasRunning = false;
 
