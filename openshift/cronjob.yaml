@@ -1,0 +1,42 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: dashboard-collect
+  labels:
+    app: ci-dashboard
+    paas.redhat.com/appcode: ISVD-001
+spec:
+  schedule: "0 8 * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app: ci-dashboard
+            paas.redhat.com/appcode: ISVD-001
+        spec:
+          containers:
+          - name: collect
+            image: quay.io/medik8s-qe/ci-dashboard:latest
+            command: ["python", "dashboard.py", "collect"]
+            workingDir: /app
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+            volumeMounts:
+            - name: data
+              mountPath: /data
+          restartPolicy: OnFailure
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: dashboard-data
