@@ -2574,8 +2574,8 @@
                     html += '<td>' + opChip(r.operator) + '</td>';
                     html += '<td>' + resultBadge(r.result) + '</td>';
                     html += '<td style="font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.periodic_job || '') + '">' + esc((r.periodic_job || '-').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
-                    html += '<td>' + fmtDate(r.run_date) + '</td>';
-                    html += '<td>' + fmtDuration(r.job_duration) + '</td>';
+                    html += '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>';
+                    html += '<td style="white-space:nowrap;">' + fmtDuration(r.job_duration) + '</td>';
                     html += '</tr>';
 
                     html += '<tr id="' + rid + '" class="detail-row"><td colspan="7"><div class="detail-grid">';
@@ -2626,8 +2626,8 @@
                     var jobOp = deriveOperator(r.step_name || r.job_name || '');
                     html += '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
                     html += '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>';
-                    html += '<td>' + fmtDate(r.run_date) + '</td>';
-                    html += '<td>' + fmtDuration(r.duration) + '</td>';
+                    html += '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>';
+                    html += '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>';
                     html += '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>';
                     var testsDisplay = (r.total_tests == null || r.total_tests === 0)
                         ? '<span style="color:var(--text-muted);">N/A</span>'
@@ -2739,8 +2739,8 @@
                         html += '<td>' + repoLink + '</td>';
                         html += '<td><span class="' + statusCls + '">' + esc((r.result || '').toUpperCase()) + '</span></td>';
                         html += '<td style="font-size:0.8rem;">' + esc(shortJob) + '</td>';
-                        html += '<td>' + fmtDate(r.run_date) + '</td>';
-                        html += '<td>' + fmtDuration(r.duration) + '</td>';
+                        html += '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>';
+                        html += '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>';
                         html += '<td style="font-size:0.75rem; white-space:nowrap;">'
                             + linkEl(r.prow_url, 'Prow') + ' '
                             + linkEl(r.build_log_url, 'Build') + ' '
