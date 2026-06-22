@@ -2734,8 +2734,7 @@
                         ? '<span class="result-fail">FAILED</span>'
                         : '<span class="result-pass">PASSED</span>';
 
-                    var sectionClass = 'pr-section' + (failed > 0 ? ' open' : '');
-                    html += '<div class="' + sectionClass + '" style="margin-bottom:20px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">';
+                    html += '<div class="pr-section" style="margin-bottom:20px; border:1px solid var(--border); border-radius:8px; overflow:hidden;">';
                     html += '<div class="pr-section-header" style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--bg-table-header); cursor:pointer;" onclick="if(event.target.closest(\'a\'))return;this.closest(\'.pr-section\').classList.toggle(\'open\');">';
                     html += '<div style="display:flex; align-items:center; gap:12px;">';
                     html += '<span class="pr-toggle">&#9654;</span>';
