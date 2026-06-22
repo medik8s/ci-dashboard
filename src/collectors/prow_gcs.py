@@ -26,7 +26,7 @@ from .base import BaseCollector, TestResult, JobRun, TestStatus
 logger = logging.getLogger(__name__)
 
 PROW_PR_PATH_RE = re.compile(
-    r"pr-logs/pull/(?P<repo>[^/]+/[^/]+)/(?P<pr_number>\d+)/"
+    r"pr-logs/pull/(?P<repo>[^/]+)/(?P<pr_number>\d+)/"
     r"(?P<job_name>[^/]+)/(?P<build_id>\d+)"
 )
 
@@ -581,11 +581,14 @@ class ProwGCSCollector(BaseCollector):
         """Derive the Prow multi-stage test step name from the job name.
 
         For medik8s periodic/presubmit jobs, the step name is the suffix
-        after the variant segment (e.g. '4.22-konflux-').
-        Example: periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws
-                 -> e2e-far-weekly-aws
+        after the variant segment (e.g. '4.22-konflux-' or '4.22-openshift-').
+        Examples:
+          periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws
+              -> e2e-far-weekly-aws
+          pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e
+              -> e2e
         """
-        match = re.search(r'\d+\.\d+-konflux-(.+)$', job_name)
+        match = re.search(r'\d+\.\d+-(?:konflux|openshift)-(.+)$', job_name)
         if match:
             return match.group(1)
         return None
