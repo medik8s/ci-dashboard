@@ -6,14 +6,14 @@ metadata:
     app: ci-dashboard
     paas.redhat.com/appcode: ISVD-001
 spec:
-  schedule: "0 8 * * *"
+  schedule: "0 */4 * * *"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      activeDeadlineSeconds: 7200
+      activeDeadlineSeconds: 300
       template:
         metadata:
           labels:
@@ -21,22 +21,29 @@ spec:
             paas.redhat.com/appcode: ISVD-001
         spec:
           containers:
-          - name: collect
-            image: quay.io/medik8s-qe/ci-dashboard:latest
-            command: ["python", "dashboard.py", "collect"]
-            workingDir: /app
+          - name: trigger
+            image: quay.io/curl/curl:8.20.0
+            command:
+            - /bin/sh
+            - -c
+            - |
+              URL=http://ci-dashboard:8080
+              CODE=$(curl -sS -o /dev/null \
+                -w '%{http_code}' \
+                --connect-timeout 10 \
+                --max-time 30 \
+                -X POST \
+                "${URL}/api/trigger-collection")
+              case "$CODE" in
+                200|202|409) exit 0 ;;
+                *) echo "HTTP $CODE" >&2
+                   exit 1 ;;
+              esac
             resources:
               requests:
-                cpu: 100m
-                memory: 256Mi
+                cpu: 10m
+                memory: 16Mi
               limits:
-                cpu: 500m
-                memory: 512Mi
-            volumeMounts:
-            - name: data
-              mountPath: /data
+                cpu: 50m
+                memory: 32Mi
           restartPolicy: OnFailure
-          volumes:
-          - name: data
-            persistentVolumeClaim:
-              claimName: dashboard-data

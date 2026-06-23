@@ -52,11 +52,20 @@ oc get route ci-dashboard
 
 ## Data Collection
 
-The dashboard uses **manual on-demand data collection** (no scheduled CronJobs):
+The dashboard uses **automatic scheduled collection** plus **manual on-demand refresh**:
+
+### Automatic Collection (CronJob)
+
+A Kubernetes CronJob (`dashboard-collect`) triggers data collection every 4
+hours by sending an HTTP POST to the Flask app's
+`/api/trigger-collection` endpoint. The app then collects the latest test
+results from Prow GCS in a background thread. This keeps presubmit and
+periodic job data fresh without manual intervention.
 
 ### Manual Refresh
 
-Click the **"Refresh Data"** button in the dashboard to collect test results.
+Click the **"Refresh Data"** button in the dashboard header to trigger an
+immediate data refresh between scheduled collections.
 
 **Collection process:**
 1. Fetches latest test results from Prow GCS (last 90 days)
@@ -127,20 +136,20 @@ oc rollout restart deployment/ci-dashboard
 ## Architecture
 
 ```
-Internet
-   |
-Route (HTTPS, shard: internal)
-   |
-Service (port 8080)
-   |
-Deployment (gunicorn + Flask)
-   |-- On-demand data collection (background thread)
-   '-- PersistentVolumeClaim (SQLite database)
+Internet                CronJob (every 4h)
+   |                       |
+Route (HTTPS, internal)    | HTTP POST
+   |                       | /api/trigger-collection
+   '--> Service (8080) <---'
+           |
+   Deployment (gunicorn + Flask)
+      |-- Background data collection thread
+      '-- PersistentVolumeClaim (SQLite DB)
 ```
 
 **Data Flow:**
 1. User accesses dashboard via HTTPS route
-2. Flask app checks database for recent data
-3. If needed, background thread collects data from Prow GCS
+2. CronJob triggers collection via HTTP POST every 4 hours (or user clicks "Refresh Data")
+3. Flask background thread collects data from Prow GCS
 4. Results stored in SQLite database on persistent volume
 5. Dashboard displays analytics and reports
