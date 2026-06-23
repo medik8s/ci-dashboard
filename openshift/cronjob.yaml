@@ -32,6 +32,8 @@ spec:
                 -w '%{http_code}' \
                 --connect-timeout 10 \
                 --max-time 30 \
+                -H 'Content-Type: application/json' \
+                -d '{}' \
                 -X POST \
                 "${URL}/api/trigger-collection")
               case "$CODE" in

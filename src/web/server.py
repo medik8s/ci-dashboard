@@ -483,7 +483,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         """Manually trigger data collection"""
         global collection_status
 
-        days = request.json.get('days', 30) if request.json else 30
+        json_data = request.get_json(silent=True) or {}
+        days = json_data.get('days', 30)
 
         with collection_status['lock']:
             if collection_status['running']:
