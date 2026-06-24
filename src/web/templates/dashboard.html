@@ -741,6 +741,57 @@
         .detail-grid a { color: var(--accent-blue); text-decoration: none; }
         .detail-grid a:hover { text-decoration: underline; }
 
+        /* FBC Image group headers */
+        .fbc-group-header td {
+            background: #1a2332;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 12px 16px;
+            border-top: 2px solid var(--accent-blue);
+            border-bottom: 1px solid var(--border);
+            color: var(--text-heading);
+            cursor: pointer;
+            user-select: none;
+        }
+        .fbc-group-header:hover td { background: #1f2937; }
+        .fbc-group.collapsed tr:not(.fbc-group-header) { display: none; }
+        .fbc-chevron {
+            display: inline-block;
+            transition: transform 0.15s ease;
+            margin-right: 8px;
+            font-size: 0.8rem;
+        }
+        .fbc-group.collapsed .fbc-chevron { transform: rotate(-90deg); }
+        .fbc-link {
+            font-family: ui-monospace, 'Consolas', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-blue);
+            text-decoration: none;
+            max-width: 50ch;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .fbc-link:hover { text-decoration: underline; }
+        .fbc-no-image { color: var(--text-muted); font-style: italic; }
+        .fbc-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .fbc-badge--total { background: rgba(255,255,255,0.08); color: var(--text-muted); }
+        .fbc-badge--pass { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .fbc-badge--fail { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .fbc-date { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; }
+        .fbc-missing-marker tr td:first-child { border-left: 3px solid #f59e0b; }
+
         /* Donut chart container */
         .donut-container { max-width: 280px; margin: 0 auto; }
     </style>
@@ -2617,7 +2668,11 @@
 
         // ---- Test Results tab ----
         async function loadTestResults() {
+            var table = document.getElementById('testResultsBody').closest('table');
+            var existingBodies = table.querySelectorAll('tbody.fbc-group');
+            existingBodies.forEach(function(b) { b.remove(); });
             var tbody = document.getElementById('testResultsBody');
+            tbody.style.display = '';
             tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
 
             var days = document.getElementById('timeRange').value;
@@ -2637,48 +2692,145 @@
                     return;
                 }
 
-                var html = '';
-                var lastOp = null;
-                var opCounts = {};
-                rows.forEach(function(r) { var o = r.operator || 'Unknown'; opCounts[o] = (opCounts[o] || 0) + 1; });
-                rows.forEach(function(r, i) {
-                    var op = r.operator || 'Unknown';
-                    if (op !== lastOp) {
-                        if (lastOp !== null) {
-                            html += '<tr class="op-group-sep"><td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555555') + '33,transparent);"></td></tr>';
-                        }
-                        html += '<tr class="op-group-header"><td colspan="7">' + opChip(op) + ' <span style="margin-left:8px;color:var(--text-muted);font-size:0.75rem;">' + opCounts[op] + ' tests</span></td></tr>';
-                        lastOp = op;
+                // Group rows by FBC image
+                var fbcGroups = {};
+                rows.forEach(function(r) {
+                    var key = r.fbc_image || '__no_fbc__';
+                    if (!fbcGroups[key]) {
+                        fbcGroups[key] = {
+                            fbc_image: r.fbc_image || '',
+                            fbc_short: r.fbc_image_short || '',
+                            fbc_url: r.fbc_image_url || '',
+                            latestRunDate: null,
+                            total: 0, passed: 0, failed: 0,
+                            byOperator: {}
+                        };
                     }
-                    var rid = 'tr-detail-' + i;
-                    html += '<tr style="cursor:pointer;" onclick="document.getElementById(\'' + rid + '\').classList.toggle(\'open\')">';
-                    html += '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>';
-                    html += '<td>' + esc(r.test_description || r.test_name) + '</td>';
-                    html += '<td>' + opChip(r.operator) + '</td>';
-                    html += '<td>' + resultBadge(r.result) + '</td>';
-                    html += '<td style="font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.periodic_job || '') + '">' + esc((r.periodic_job || '-').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
-                    html += '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>';
-                    html += '<td style="white-space:nowrap;">' + fmtDuration(r.job_duration) + '</td>';
-                    html += '</tr>';
-
-                    html += '<tr id="' + rid + '" class="detail-row"><td colspan="7"><div class="detail-grid">';
-                    html += '<div><strong>OCP Version</strong>' + esc(r.ocp_version || r.version || '-') + '</div>';
-                    html += '<div><strong>Platform</strong>' + esc(fmtPlatform(r.platform || '-')) + '</div>';
-                    html += '<div><strong>CSV Version</strong>' + esc(r.csv_version || '-') + '</div>';
-                    html += '<div><strong>FBC Image</strong>' + (r.fbc_image_url ? linkEl(r.fbc_image_url, r.fbc_image_short || 'View') : (r.fbc_image_short || '-')) + '</div>';
-                    html += '<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>';
-                    html += '<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>';
-                    html += '<div><strong>Cluster Install Log</strong>' + linkEl(r.install_log_url, 'IPI Install') + '</div>';
-                    html += '<div><strong>Operator Install Log</strong>' + linkEl(r.subscribe_log_url, 'OLM Subscribe') + '</div>';
-                    html += '<div><strong>CatalogSource Log</strong>' + linkEl(r.catalog_log_url, 'CatalogSource') + '</div>';
-                    html += '<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>';
-                    html += '<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>';
-                    html += '<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>';
-                    html += '</div></td></tr>';
+                    var g = fbcGroups[key];
+                    if (!g.fbc_short && r.fbc_image_short) g.fbc_short = r.fbc_image_short;
+                    if (!g.fbc_url && r.fbc_image_url) g.fbc_url = r.fbc_image_url;
+                    g.total++;
+                    if (r.result === 'passed') g.passed++;
+                    else if (r.result === 'failed') g.failed++;
+                    var rd = r.run_date ? new Date(r.run_date) : null;
+                    if (rd && !isNaN(rd.getTime()) && (!g.latestRunDate || rd > g.latestRunDate)) {
+                        g.latestRunDate = rd;
+                        g.latestRunDateStr = r.run_date;
+                    }
+                    var op = r.operator || 'Unknown';
+                    if (!g.byOperator[op]) g.byOperator[op] = [];
+                    g.byOperator[op].push(r);
                 });
-                tbody.innerHTML = html;
+
+                // Sort groups: latest run date descending, "No FBC" last
+                var sortedKeys = Object.keys(fbcGroups).sort(function(a, b) {
+                    if (a === '__no_fbc__') return 1;
+                    if (b === '__no_fbc__') return -1;
+                    var da = fbcGroups[a].latestRunDate || new Date(0);
+                    var db = fbcGroups[b].latestRunDate || new Date(0);
+                    if (db - da !== 0) return db - da;
+                    return a.localeCompare(b);
+                });
+
+                // Clear the default tbody placeholder
+                tbody.innerHTML = '';
+                tbody.style.display = 'none';
+
+                var globalIdx = 0;
+                sortedKeys.forEach(function(key, gIdx) {
+                    var g = fbcGroups[key];
+                    var gbody = document.createElement('tbody');
+                    gbody.className = 'fbc-group' + (gIdx > 0 ? ' collapsed' : '');
+                    if (key === '__no_fbc__') gbody.classList.add('fbc-missing-marker');
+
+                    // FBC group header
+                    var fbcLabel = '';
+                    if (g.fbc_image) {
+                        if (g.fbc_url) {
+                            fbcLabel = '<a href="' + esc(g.fbc_url) + '" target="_blank" rel="noopener noreferrer" class="fbc-link" title="' + esc(g.fbc_image) + '" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</a>';
+                        } else {
+                            fbcLabel = '<span class="fbc-link" style="cursor:default;" title="' + esc(g.fbc_image) + '">' + esc(g.fbc_short || g.fbc_image) + '</span>';
+                        }
+                    } else {
+                        fbcLabel = '<span class="fbc-no-image">No FBC Image</span>';
+                    }
+                    var dateStr = g.latestRunDateStr ? fmtDate(g.latestRunDateStr) : '-';
+
+                    var hdr = document.createElement('tr');
+                    hdr.className = 'fbc-group-header';
+                    hdr.innerHTML = '<td colspan="7">'
+                        + '<span class="fbc-chevron">&#9660;</span>'
+                        + fbcLabel
+                        + '<span class="fbc-badge fbc-badge--total">' + g.total + ' tests</span>'
+                        + '<span class="fbc-badge fbc-badge--pass">' + g.passed + ' passed</span>'
+                        + (g.failed > 0 ? '<span class="fbc-badge fbc-badge--fail">' + g.failed + ' failed</span>' : '')
+                        + '<span class="fbc-date" style="float:right;">Latest: ' + dateStr + '</span>'
+                        + '</td>';
+                    hdr.addEventListener('click', function(e) {
+                        if (e.target.closest('a')) return;
+                        gbody.classList.toggle('collapsed');
+                    });
+                    gbody.appendChild(hdr);
+
+                    // Operator sub-groups within this FBC group
+                    var ops = Object.keys(g.byOperator).sort();
+                    ops.forEach(function(op, opIdx) {
+                        var opRows = g.byOperator[op];
+                        if (ops.length > 1) {
+                            if (opIdx > 0) {
+                                var sep = document.createElement('tr');
+                                sep.className = 'op-group-sep';
+                                sep.innerHTML = '<td colspan="7" style="background:linear-gradient(90deg,' + (OP_COLORS[op] || '#555555') + '33,transparent);"></td>';
+                                gbody.appendChild(sep);
+                            }
+                            var opHdr = document.createElement('tr');
+                            opHdr.className = 'op-group-header';
+                            opHdr.innerHTML = '<td colspan="7">' + opChip(op) + ' <span style="margin-left:8px;color:var(--text-muted);font-size:0.75rem;">' + opRows.length + ' tests</span></td>';
+                            gbody.appendChild(opHdr);
+                        }
+
+                        opRows.forEach(function(r) {
+                            var rid = 'tr-detail-' + globalIdx;
+                            var tr = document.createElement('tr');
+                            tr.style.cursor = 'pointer';
+                            tr.onclick = function() { document.getElementById(rid).classList.toggle('open'); };
+                            tr.innerHTML = '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>'
+                                + '<td>' + esc(r.test_description || r.test_name) + '</td>'
+                                + '<td>' + opChip(r.operator) + '</td>'
+                                + '<td>' + resultBadge(r.result) + '</td>'
+                                + '<td style="font-size:0.75rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(r.periodic_job || '') + '">' + esc((r.periodic_job || '-').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>'
+                                + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
+                                + '<td style="white-space:nowrap;">' + fmtDuration(r.job_duration) + '</td>';
+                            gbody.appendChild(tr);
+
+                            var detail = document.createElement('tr');
+                            detail.id = rid;
+                            detail.className = 'detail-row';
+                            detail.innerHTML = '<td colspan="7"><div class="detail-grid">'
+                                + '<div><strong>OCP Version</strong>' + esc(r.ocp_version || r.version || '-') + '</div>'
+                                + '<div><strong>Platform</strong>' + esc(fmtPlatform(r.platform || '-')) + '</div>'
+                                + '<div><strong>CSV Version</strong>' + esc(r.csv_version || '-') + '</div>'
+                                + '<div><strong>FBC Image</strong>' + (r.fbc_image_url ? linkEl(r.fbc_image_url, r.fbc_image_short || 'View') : esc(r.fbc_image_short || r.fbc_image || '-')) + '</div>'
+                                + '<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>'
+                                + '<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>'
+                                + '<div><strong>Cluster Install Log</strong>' + linkEl(r.install_log_url, 'IPI Install') + '</div>'
+                                + '<div><strong>Operator Install Log</strong>' + linkEl(r.subscribe_log_url, 'OLM Subscribe') + '</div>'
+                                + '<div><strong>CatalogSource Log</strong>' + linkEl(r.catalog_log_url, 'CatalogSource') + '</div>'
+                                + '<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>'
+                                + '<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>'
+                                + '<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>'
+                                + '</div></td>';
+                            gbody.appendChild(detail);
+                            globalIdx++;
+                        });
+                    });
+
+                    table.appendChild(gbody);
+                });
             } catch (e) {
-                tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error loading test results: ' + e.message + '</td></tr>';
+                table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
+                tbody.style.display = '';
+                tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error loading test results: ' + esc(String(e.message || e)) + '</td></tr>';
             }
         }
 
