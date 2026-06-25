@@ -51,6 +51,14 @@ def _fbc_short(fbc_image):
     return fbc_image
 
 
+POLARION_BASE = 'https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id='
+
+
+def _polarion_url(polarion_id):
+    """Build Polarion work item URL from ID."""
+    return f"{POLARION_BASE}{polarion_id}" if polarion_id else ''
+
+
 def _build_fbc_urls(fbc_image, gitlab_fbc_project='dragonfly/rhwa-fbc'):
     """Build Quay, Konflux, and GitLab URLs from an FBC image reference."""
     fbc_tag_url = ''
@@ -584,7 +592,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             fbc_urls = _build_fbc_urls(fbc_image)
 
             polarion_id = row.get('polarion_id') or ''
-            polarion_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}" if polarion_id else ''
+            polarion_url = _polarion_url(polarion_id)
 
             results.append({
                 'test_name': row.get('test_name'),
@@ -673,12 +681,19 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
             pr_number = row.get('pr_number') or row.get('jr_pr_number')
 
+            fbc_image = row.get('fbc_image') or ''
+            fbc_urls = _build_fbc_urls(fbc_image)
+
+            polarion_id = row.get('polarion_id') or ''
+            polarion_url = _polarion_url(polarion_id)
+
             results.append({
                 'test_name': row.get('test_name'),
                 'test_description': row.get('test_description'),
                 'operator': row.get('operator'),
                 'result': row.get('result'),
-                'polarion_id': row.get('polarion_id'),
+                'polarion_id': polarion_id,
+                'polarion_url': polarion_url,
                 'pr_number': pr_number,
                 'pr_author': row.get('pr_author'),
                 'pr_repo': row.get('pr_repo'),
@@ -689,6 +704,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'version': row.get('version'),
                 'platform': row.get('platform'),
                 'ocp_version': row.get('ocp_version'),
+                'csv_version': row.get('csv_version'),
+                'fbc_image': fbc_image,
+                **fbc_urls,
                 'step_name': step_name,
                 'prow_url': row.get('job_url') or '',
                 **urls,
@@ -1303,8 +1321,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             pol_cell = ws.cell(row=row_idx, column=17, value=polarion_id or '-')
             pol_cell.alignment = Alignment(horizontal='center')
             if polarion_id:
-                pol_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}"
-                pol_cell.hyperlink = pol_url
+                pol_cell.hyperlink = _polarion_url(polarion_id)
                 pol_cell.font = link_font
 
             if is_alt:
