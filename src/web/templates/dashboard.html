@@ -776,6 +776,26 @@
         }
         .fbc-link:hover { text-decoration: underline; }
         .fbc-no-image { color: var(--text-muted); font-style: italic; }
+        .copy-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 2px 6px;
+            margin-left: 6px;
+            font-size: 0.7rem;
+            vertical-align: middle;
+            transition: all 0.15s;
+            gap: 3px;
+        }
+        .copy-btn:hover { background: rgba(255,255,255,0.15); color: var(--text-primary); border-color: var(--accent-blue); }
+        .copy-btn.copied { background: rgba(34,197,94,0.2); color: #22c55e; border-color: #22c55e; }
+        .github-link { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); text-decoration: none; font-size: 13px; font-weight: 500; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.15s; }
+        .github-link:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
         .fbc-badge {
             display: inline-flex;
             align-items: center;
@@ -810,6 +830,10 @@
                     <p class="subtitle">medik8s QE - OpenShift CI Test Results</p>
                 </div>
                 <div class="header-actions">
+                    <a href="https://github.com/medik8s/ci-dashboard" target="_blank" rel="noopener noreferrer" title="View source on GitHub" class="github-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                        GitHub
+                    </a>
                     <span class="header-sync" id="headerLastSync">Last sync: checking...</span>
                     <button class="refresh-button" id="headerRefreshBtn" onclick="triggerCollection()" title="Collect latest test results from Prow">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2587,6 +2611,58 @@
             if (!url) return '-';
             return '<a href="' + esc(url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>';
         }
+        function copyBtn(text, label) {
+            if (!text) return '';
+            var el = document.createElement('button');
+            el.type = 'button';
+            el.className = 'copy-btn';
+            el.title = 'Copy to clipboard';
+            el.setAttribute('data-copy-text', text);
+            el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' + (label ? ' ' + esc(label) : '');
+            return el.outerHTML;
+        }
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.copy-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            if (btn.classList.contains('copied') || btn.classList.contains('copy-failed')) return;
+            var text = btn.getAttribute('data-copy-text');
+            if (!text) return;
+            var origHTML = btn.innerHTML;
+            var doFeedback = function() {
+                btn.classList.add('copied');
+                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg> Copied';
+                setTimeout(function() { btn.classList.remove('copied'); btn.innerHTML = origHTML; }, 1500);
+            };
+            var doFailFeedback = function() {
+                btn.classList.add('copy-failed');
+                btn.style.borderColor = '#ef4444';
+                btn.innerHTML = 'Failed';
+                setTimeout(function() { btn.classList.remove('copy-failed'); btn.style.borderColor = ''; btn.innerHTML = origHTML; }, 1500);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(doFeedback).catch(function() {
+                    if (fallbackCopy(text)) doFeedback();
+                    else doFailFeedback();
+                });
+            } else if (fallbackCopy(text)) {
+                doFeedback();
+            } else {
+                doFailFeedback();
+            }
+        });
+        function fallbackCopy(text) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch(e) {}
+            document.body.removeChild(ta);
+            return ok;
+        }
 
         // ---- Operator filter ----
         var selectedOperator = '';
@@ -2701,6 +2777,8 @@
                             fbc_image: r.fbc_image || '',
                             fbc_short: r.fbc_image_short || '',
                             fbc_url: r.fbc_image_url || '',
+                            fbc_quay_url: r.fbc_quay_url || '',
+                            fbc_konflux_url: r.fbc_konflux_url || '',
                             latestRunDate: null,
                             total: 0, passed: 0, failed: 0,
                             byOperator: {}
@@ -2709,6 +2787,8 @@
                     var g = fbcGroups[key];
                     if (!g.fbc_short && r.fbc_image_short) g.fbc_short = r.fbc_image_short;
                     if (!g.fbc_url && r.fbc_image_url) g.fbc_url = r.fbc_image_url;
+                    if (!g.fbc_quay_url && r.fbc_quay_url) g.fbc_quay_url = r.fbc_quay_url;
+                    if (!g.fbc_konflux_url && r.fbc_konflux_url) g.fbc_konflux_url = r.fbc_konflux_url;
                     g.total++;
                     if (r.result === 'passed') g.passed++;
                     else if (r.result === 'failed') g.failed++;
@@ -2743,14 +2823,19 @@
                     gbody.className = 'fbc-group' + (gIdx > 0 ? ' collapsed' : '');
                     if (key === '__no_fbc__') gbody.classList.add('fbc-missing-marker');
 
-                    // FBC group header
+                    // FBC group header - link to Konflux snapshots, with copy button for full image ref
                     var fbcLabel = '';
                     if (g.fbc_image) {
-                        if (g.fbc_url) {
-                            fbcLabel = '<a href="' + esc(g.fbc_url) + '" target="_blank" rel="noopener noreferrer" class="fbc-link" title="' + esc(g.fbc_image) + '" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</a>';
+                        var quayUrl = g.fbc_quay_url || g.fbc_url;
+                        if (quayUrl) {
+                            fbcLabel = '<a href="' + esc(quayUrl) + '" target="_blank" rel="noopener noreferrer" class="fbc-link" title="' + esc(g.fbc_image) + '" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</a>';
                         } else {
                             fbcLabel = '<span class="fbc-link" style="cursor:default;" title="' + esc(g.fbc_image) + '">' + esc(g.fbc_short || g.fbc_image) + '</span>';
                         }
+                        if (g.fbc_konflux_url) {
+                            fbcLabel += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;vertical-align:middle;" title="View Konflux Snapshots">Konflux</a>';
+                        }
+                        fbcLabel += copyBtn(g.fbc_image, 'Copy');
                     } else {
                         fbcLabel = '<span class="fbc-no-image">No FBC Image</span>';
                     }
@@ -2767,7 +2852,7 @@
                         + '<span class="fbc-date" style="float:right;">Latest: ' + dateStr + '</span>'
                         + '</td>';
                     hdr.addEventListener('click', function(e) {
-                        if (e.target.closest('a')) return;
+                        if (e.target.closest('a') || e.target.closest('.copy-btn')) return;
                         gbody.classList.toggle('collapsed');
                     });
                     gbody.appendChild(hdr);
@@ -2810,7 +2895,7 @@
                                 + '<div><strong>OCP Version</strong>' + esc(r.ocp_version || r.version || '-') + '</div>'
                                 + '<div><strong>Platform</strong>' + esc(fmtPlatform(r.platform || '-')) + '</div>'
                                 + '<div><strong>CSV Version</strong>' + esc(r.csv_version || '-') + '</div>'
-                                + '<div><strong>FBC Image</strong>' + (r.fbc_image_url ? linkEl(r.fbc_image_url, r.fbc_image_short || 'View') : esc(r.fbc_image_short || r.fbc_image || '-')) + '</div>'
+                                + '<div><strong>FBC Image (Quay)</strong>' + (r.fbc_quay_url ? linkEl(r.fbc_quay_url, r.fbc_image_short || 'View') : (r.fbc_image_url ? linkEl(r.fbc_image_url, r.fbc_image_short || 'View') : esc(r.fbc_image_short || r.fbc_image || '-'))) + (r.fbc_konflux_url ? ' <a href="' + esc(r.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View Konflux Snapshots">Konflux</a>' : '') + copyBtn(r.fbc_image || '', '') + '</div>'
                                 + '<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>'
                                 + '<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>'
                                 + '<div><strong>Cluster Install Log</strong>' + linkEl(r.install_log_url, 'IPI Install') + '</div>'
