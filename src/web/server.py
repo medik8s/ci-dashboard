@@ -5,6 +5,7 @@ Flask web server for dashboard
 from flask import Flask, render_template, jsonify, request, send_file
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import re
 import yaml
 import threading
 import sys
@@ -549,13 +550,16 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             fbc_tag_url = ''
             fbc_quay_url = ''
             fbc_konflux_url = ''
+            fbc_gitlab_url = ''
             if fbc_image and 'quay.io/' in fbc_image:
                 repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
                 fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
-                # Direct Quay link to the actual image (with digest or tag)
                 if '@' in fbc_image:
                     digest = fbc_image.split('@')[-1]
                     fbc_quay_url = f"https://quay.io/repository/{repo_path}/manifest/{digest}"
+                elif ':' in fbc_image:
+                    tag = fbc_image.split(':')[-1]
+                    fbc_quay_url = f"https://quay.io/repository/{repo_path}/tag/{tag}"
                 else:
                     fbc_quay_url = fbc_tag_url
                 # Konflux snapshots URL (extract app name from repo path)
@@ -565,6 +569,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                     tenant = parts[1]  # e.g. "rhwa-tenant"
                     app_name = parts[-1]  # e.g. "rhwa-fbc-422"
                     fbc_konflux_url = f"https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/{tenant}/applications/{app_name}/snapshots"
+                if '@' not in fbc_image and ':' in fbc_image:
+                    commit_sha = fbc_image.split(':')[-1]
+                    if re.fullmatch(r'[0-9a-fA-F]{7,40}', commit_sha):
+                        fbc_gitlab_url = f"https://gitlab.cee.redhat.com/dragonfly/rhwa-fbc/-/commit/{commit_sha}"
 
             polarion_id = row.get('polarion_id') or ''
             polarion_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}" if polarion_id else ''
@@ -586,6 +594,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'fbc_image_url': fbc_tag_url,
                 'fbc_quay_url': fbc_quay_url,
                 'fbc_konflux_url': fbc_konflux_url,
+                'fbc_gitlab_url': fbc_gitlab_url,
                 'prow_url': row.get('job_url') or '',
                 **urls,
                 'polarion_id': polarion_id,
