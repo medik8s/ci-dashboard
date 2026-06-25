@@ -2755,7 +2755,7 @@
                     // FBC group header: selectable FBC image ID with optional Quay/Konflux links
                     var fbcLabel = '';
                     if (g.fbc_image) {
-                        fbcLabel = '<span class="fbc-id-text" title="' + esc(g.fbc_image) + '" onclick="event.stopPropagation()">' + esc(g.fbc_image) + '</span>';
+                        fbcLabel = '<span class="fbc-id-text" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</span>';
                         var quayUrl = g.fbc_quay_url || g.fbc_url;
                         if (quayUrl) {
                             fbcLabel += ' <a href="' + esc(quayUrl) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;vertical-align:middle;" title="View on Quay">Quay</a>';
