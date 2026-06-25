@@ -2779,8 +2779,10 @@
                         + '</td>';
                     hdr.addEventListener('click', function(e) {
                         if (e.target.closest('a')) return;
-                        var sel = window.getSelection();
-                        if (sel && sel.toString() && sel.anchorNode && hdr.contains(sel.anchorNode)) return;
+                        if (!e.target.closest('.fbc-chevron')) {
+                            var sel = window.getSelection();
+                            if (sel && sel.toString() && sel.anchorNode && hdr.contains(sel.anchorNode)) return;
+                        }
                         gbody.classList.toggle('collapsed');
                     });
                     gbody.appendChild(hdr);
@@ -2849,7 +2851,10 @@
 
         // ---- Job Runs tab ----
         async function loadJobRuns() {
+            var table = document.getElementById('jobRunsBody').closest('table');
+            table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
             var tbody = document.getElementById('jobRunsBody');
+            tbody.style.display = '';
             tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
 
             var days = document.getElementById('timeRange').value;
@@ -2867,33 +2872,119 @@
                     return;
                 }
 
-                var html = '';
+                var fbcGroups = {};
                 runs.forEach(function(r) {
-                    var statusCls = r.status === 'passed' ? 'result-pass' : 'result-fail';
-                    html += '<tr>';
-                    var jobOp = deriveOperator(r.step_name || r.job_name || '');
-                    html += '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>';
-                    html += '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>';
-                    html += '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>';
-                    html += '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>';
-                    html += '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>';
-                    var testsDisplay = (r.total_tests == null || r.total_tests === 0)
-                        ? '<span style="color:var(--text-muted);">N/A</span>'
-                        : (r.passed_tests || 0) + '/' + (r.failed_tests || 0);
-                    html += '<td>' + testsDisplay + '</td>';
-                    html += '<td style="font-size:0.75rem; white-space:nowrap;">'
-                        + linkEl(r.prow_url, 'Prow') + ' '
-                        + linkEl(r.build_log_url, 'Build') + ' '
-                        + linkEl(r.e2e_log_url, 'E2E') + ' '
-                        + linkEl(r.catalog_log_url, 'Catalog') + ' '
-                        + linkEl(r.subscribe_log_url, 'Subscribe') + ' '
-                        + linkEl(r.install_log_url, 'Install') + ' '
-                        + linkEl(r.artifacts_url, 'Artifacts')
-                        + '</td>';
-                    html += '</tr>';
+                    var key = r.fbc_image || '__no_fbc__';
+                    if (!fbcGroups[key]) {
+                        fbcGroups[key] = {
+                            fbc_image: r.fbc_image || '',
+                            fbc_short: r.fbc_image_short || '',
+                            fbc_quay_url: r.fbc_quay_url || '',
+                            fbc_konflux_url: r.fbc_konflux_url || '',
+                            fbc_gitlab_url: r.fbc_gitlab_url || '',
+                            latestRunDate: null,
+                            total: 0, passed: 0, failed: 0,
+                            runs: []
+                        };
+                    }
+                    var g = fbcGroups[key];
+                    if (!g.fbc_short && r.fbc_image_short) g.fbc_short = r.fbc_image_short;
+                    if (!g.fbc_quay_url && r.fbc_quay_url) g.fbc_quay_url = r.fbc_quay_url;
+                    if (!g.fbc_konflux_url && r.fbc_konflux_url) g.fbc_konflux_url = r.fbc_konflux_url;
+                    if (!g.fbc_gitlab_url && r.fbc_gitlab_url) g.fbc_gitlab_url = r.fbc_gitlab_url;
+                    g.total++;
+                    if (r.status === 'passed') g.passed++;
+                    else if (r.status === 'failed') g.failed++;
+                    var rd = r.run_date ? new Date(r.run_date) : null;
+                    if (rd && !isNaN(rd.getTime()) && (!g.latestRunDate || rd > g.latestRunDate)) {
+                        g.latestRunDate = rd;
+                        g.latestRunDateStr = r.run_date;
+                    }
+                    g.runs.push(r);
                 });
-                tbody.innerHTML = html;
+
+                tbody.style.display = 'none';
+                tbody.innerHTML = '';
+
+                var sortedKeys = Object.keys(fbcGroups).sort(function(a, b) {
+                    if (a === '__no_fbc__') return 1;
+                    if (b === '__no_fbc__') return -1;
+                    var da = fbcGroups[a].latestRunDate || new Date(0);
+                    var db = fbcGroups[b].latestRunDate || new Date(0);
+                    if (db - da !== 0) return db - da;
+                    return a.localeCompare(b);
+                });
+
+                sortedKeys.forEach(function(key, gIdx) {
+                    var g = fbcGroups[key];
+                    var gbody = document.createElement('tbody');
+                    gbody.className = 'fbc-group' + (gIdx > 0 ? ' collapsed' : '');
+                    if (key === '__no_fbc__') gbody.classList.add('fbc-missing-marker');
+
+                    var fbcLabel = '';
+                    if (g.fbc_image) {
+                        fbcLabel = '<span class="fbc-id-text" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</span>';
+                        if (g.fbc_quay_url) {
+                            fbcLabel += ' <a href="' + esc(g.fbc_quay_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;">Quay</a>';
+                        }
+                        if (g.fbc_konflux_url) {
+                            fbcLabel += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;">Konflux</a>';
+                        }
+                        if (g.fbc_gitlab_url) {
+                            fbcLabel += ' <a href="' + esc(g.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-orange);text-decoration:none;font-size:0.75rem;margin-left:6px;">GitLab</a>';
+                        }
+                    } else {
+                        fbcLabel = '<span class="fbc-no-image">No FBC Image</span>';
+                    }
+                    var dateStr = g.latestRunDateStr ? fmtDate(g.latestRunDateStr) : '-';
+
+                    var hdr = document.createElement('tr');
+                    hdr.className = 'fbc-group-header';
+                    hdr.innerHTML = '<td colspan="7">'
+                        + '<span class="fbc-chevron">&#9660;</span>'
+                        + fbcLabel
+                        + '<span class="fbc-badge fbc-badge--total">' + g.total + ' jobs</span>'
+                        + '<span class="fbc-badge fbc-badge--pass">' + g.passed + ' passed</span>'
+                        + (g.failed > 0 ? '<span class="fbc-badge fbc-badge--fail">' + g.failed + ' failed</span>' : '')
+                        + '<span class="fbc-date" style="float:right;">Latest: ' + dateStr + '</span>'
+                        + '</td>';
+                    hdr.addEventListener('click', function(e) {
+                        if (e.target.closest('a')) return;
+                        if (!e.target.closest('.fbc-chevron')) {
+                            var sel = window.getSelection();
+                            if (sel && sel.toString() && sel.anchorNode && hdr.contains(sel.anchorNode)) return;
+                        }
+                        gbody.classList.toggle('collapsed');
+                    });
+                    gbody.appendChild(hdr);
+
+                    g.runs.forEach(function(r) {
+                        var row = document.createElement('tr');
+                        var statusCls = r.status === 'passed' ? 'result-pass' : 'result-fail';
+                        var jobOp = deriveOperator(r.step_name || r.job_name || '');
+                        row.innerHTML = '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>'
+                            + '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>'
+                            + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
+                            + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
+                            + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
+                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);">N/A</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
+                            + '<td style="font-size:0.75rem; white-space:nowrap;">'
+                            + linkEl(r.prow_url, 'Prow') + ' '
+                            + linkEl(r.build_log_url, 'Build') + ' '
+                            + linkEl(r.e2e_log_url, 'E2E') + ' '
+                            + linkEl(r.catalog_log_url, 'Catalog') + ' '
+                            + linkEl(r.subscribe_log_url, 'Subscribe') + ' '
+                            + linkEl(r.install_log_url, 'Install') + ' '
+                            + linkEl(r.artifacts_url, 'Artifacts')
+                            + '</td>';
+                        gbody.appendChild(row);
+                    });
+
+                    table.appendChild(gbody);
+                });
             } catch (e) {
+                table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
+                tbody.style.display = '';
                 tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
             }
         }

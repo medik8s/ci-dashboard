@@ -51,6 +51,41 @@ def _fbc_short(fbc_image):
     return fbc_image
 
 
+def _build_fbc_urls(fbc_image, gitlab_fbc_project='dragonfly/rhwa-fbc'):
+    """Build Quay, Konflux, and GitLab URLs from an FBC image reference."""
+    fbc_tag_url = ''
+    fbc_quay_url = ''
+    fbc_konflux_url = ''
+    fbc_gitlab_url = ''
+    if fbc_image and 'quay.io/' in fbc_image:
+        repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
+        fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
+        if '@' in fbc_image:
+            digest = fbc_image.split('@')[-1]
+            fbc_quay_url = f"https://quay.io/repository/{repo_path}/manifest/{digest}"
+        elif ':' in fbc_image:
+            tag = fbc_image.split(':')[-1]
+            fbc_quay_url = f"https://quay.io/repository/{repo_path}/tag/{tag}"
+        else:
+            fbc_quay_url = fbc_tag_url
+        parts = repo_path.split('/')
+        if len(parts) >= 4 and parts[0] == 'redhat-user-workloads':
+            tenant = parts[1]
+            app_name = parts[-1]
+            fbc_konflux_url = f"https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/{tenant}/applications/{app_name}/snapshots"
+        if '@' not in fbc_image and ':' in fbc_image:
+            commit_sha = fbc_image.split(':')[-1]
+            if re.fullmatch(r'[0-9a-fA-F]{7,40}', commit_sha):
+                fbc_gitlab_url = f"https://gitlab.cee.redhat.com/{gitlab_fbc_project}/-/commit/{commit_sha}"
+    return {
+        'fbc_image_short': _fbc_short(fbc_image),
+        'fbc_image_url': fbc_tag_url,
+        'fbc_quay_url': fbc_quay_url,
+        'fbc_konflux_url': fbc_konflux_url,
+        'fbc_gitlab_url': fbc_gitlab_url,
+    }
+
+
 def _format_export_row(row, empty_placeholder='-'):
     """Shared row formatting for XLSX/CSV/Markdown exports."""
     job_name = row.get('periodic_job') or ''
@@ -546,33 +581,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             urls = _build_log_urls(job_name, build_id, step_name)
 
             fbc_image = row.get('fbc_image') or ''
-            fbc_short_val = _fbc_short(fbc_image)
-            fbc_tag_url = ''
-            fbc_quay_url = ''
-            fbc_konflux_url = ''
-            fbc_gitlab_url = ''
-            if fbc_image and 'quay.io/' in fbc_image:
-                repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
-                fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
-                if '@' in fbc_image:
-                    digest = fbc_image.split('@')[-1]
-                    fbc_quay_url = f"https://quay.io/repository/{repo_path}/manifest/{digest}"
-                elif ':' in fbc_image:
-                    tag = fbc_image.split(':')[-1]
-                    fbc_quay_url = f"https://quay.io/repository/{repo_path}/tag/{tag}"
-                else:
-                    fbc_quay_url = fbc_tag_url
-                # Konflux snapshots URL (extract app name from repo path)
-                # Expected: "redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-422"
-                parts = repo_path.split('/')
-                if len(parts) >= 4 and parts[0] == 'redhat-user-workloads':
-                    tenant = parts[1]  # e.g. "rhwa-tenant"
-                    app_name = parts[-1]  # e.g. "rhwa-fbc-422"
-                    fbc_konflux_url = f"https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/{tenant}/applications/{app_name}/snapshots"
-                if '@' not in fbc_image and ':' in fbc_image:
-                    commit_sha = fbc_image.split(':')[-1]
-                    if re.fullmatch(r'[0-9a-fA-F]{7,40}', commit_sha):
-                        fbc_gitlab_url = f"https://gitlab.cee.redhat.com/dragonfly/rhwa-fbc/-/commit/{commit_sha}"
+            fbc_urls = _build_fbc_urls(fbc_image)
 
             polarion_id = row.get('polarion_id') or ''
             polarion_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}" if polarion_id else ''
@@ -590,11 +599,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'ocp_version': row.get('ocp_version'),
                 'csv_version': row.get('csv_version'),
                 'fbc_image': fbc_image,
-                'fbc_image_short': fbc_short_val,
-                'fbc_image_url': fbc_tag_url,
-                'fbc_quay_url': fbc_quay_url,
-                'fbc_konflux_url': fbc_konflux_url,
-                'fbc_gitlab_url': fbc_gitlab_url,
+                **fbc_urls,
                 'prow_url': row.get('job_url') or '',
                 **urls,
                 'polarion_id': polarion_id,
@@ -627,6 +632,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
             urls = _build_log_urls(job_name, build_id, step_name)
+            fbc_image = row.get('fbc_image') or ''
 
             runs.append({
                 'job_name': job_name,
@@ -638,7 +644,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'platform': row.get('platform'),
                 'ocp_version': row.get('ocp_version'),
                 'csv_version': row.get('csv_version'),
-                'fbc_image': row.get('fbc_image'),
+                'fbc_image': fbc_image,
+                **_build_fbc_urls(fbc_image),
                 'step_name': step_name,
                 'total_tests': row.get('total_tests'),
                 'passed_tests': row.get('passed_tests'),
