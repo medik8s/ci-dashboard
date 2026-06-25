@@ -547,9 +547,24 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             fbc_image = row.get('fbc_image') or ''
             fbc_short_val = _fbc_short(fbc_image)
             fbc_tag_url = ''
+            fbc_quay_url = ''
+            fbc_konflux_url = ''
             if fbc_image and 'quay.io/' in fbc_image:
                 repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
                 fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
+                # Direct Quay link to the actual image (with digest or tag)
+                if '@' in fbc_image:
+                    digest = fbc_image.split('@')[-1]
+                    fbc_quay_url = f"https://quay.io/repository/{repo_path}/manifest/{digest}"
+                else:
+                    fbc_quay_url = fbc_tag_url
+                # Konflux snapshots URL (extract app name from repo path)
+                # Expected: "redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-422"
+                parts = repo_path.split('/')
+                if len(parts) >= 4 and parts[0] == 'redhat-user-workloads':
+                    tenant = parts[1]  # e.g. "rhwa-tenant"
+                    app_name = parts[-1]  # e.g. "rhwa-fbc-422"
+                    fbc_konflux_url = f"https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/{tenant}/applications/{app_name}/snapshots"
 
             polarion_id = row.get('polarion_id') or ''
             polarion_url = f"https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id={polarion_id}" if polarion_id else ''
@@ -569,6 +584,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'fbc_image': fbc_image,
                 'fbc_image_short': fbc_short_val,
                 'fbc_image_url': fbc_tag_url,
+                'fbc_quay_url': fbc_quay_url,
+                'fbc_konflux_url': fbc_konflux_url,
                 'prow_url': row.get('job_url') or '',
                 **urls,
                 'polarion_id': polarion_id,

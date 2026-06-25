@@ -137,6 +137,9 @@ python dashboard.py serve --port 8080
 ```
 
 ### OpenShift Deployment
+
+The pre-built container image is available at [quay.io/medik8s-qe/ci-dashboard](https://quay.io/repository/medik8s-qe/ci-dashboard).
+
 See `openshift/` directory for deployment manifests.
 
 Basic deployment:
