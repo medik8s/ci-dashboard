@@ -771,7 +771,7 @@
             text-overflow: ellipsis;
             white-space: nowrap;
             display: inline-block;
-            vertical-align: middle;
+            vertical-align: baseline;
             cursor: text;
             user-select: text;
         }
@@ -786,7 +786,7 @@
             font-size: 0.7rem;
             font-weight: 700;
             margin-left: 6px;
-            vertical-align: middle;
+            vertical-align: baseline;
         }
         .fbc-badge--total { background: rgba(255,255,255,0.08); color: var(--text-muted); }
         .fbc-badge--pass { background: rgba(34,197,94,0.15); color: #22c55e; }
@@ -2758,10 +2758,10 @@
                         fbcLabel = '<span class="fbc-id-text" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</span>';
                         var quayUrl = g.fbc_quay_url || g.fbc_url;
                         if (quayUrl) {
-                            fbcLabel += ' <a href="' + esc(quayUrl) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;vertical-align:middle;" title="View on Quay">Quay</a>';
+                            fbcLabel += ' <a href="' + esc(quayUrl) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View on Quay">Quay</a>';
                         }
                         if (g.fbc_konflux_url) {
-                            fbcLabel += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;vertical-align:middle;" title="View Konflux Snapshots">Konflux</a>';
+                            fbcLabel += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View Konflux Snapshots">Konflux</a>';
                         }
                     } else {
                         fbcLabel = '<span class="fbc-no-image">No FBC Image</span>';
