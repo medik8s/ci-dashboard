@@ -388,6 +388,16 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     calculator = MetricsCalculator(db, blocklist=blocklist)
     report_generator = WeeklyReportGenerator(db, blocklist=blocklist)
 
+    global collection_status
+    try:
+        latest = db.execute_query(
+            "SELECT MAX(timestamp) as latest FROM job_runs"
+        )
+        if latest and latest[0].get('latest'):
+            collection_status['completed_at'] = latest[0]['latest']
+    except Exception as e:
+        logger.debug("Could not read last sync time from DB: %s", e)
+
     # Check if AI analysis is enabled (default: False for production safety)
     enable_ai = os.environ.get('ENABLE_AI_ANALYSIS', 'false').lower() == 'true'
 
