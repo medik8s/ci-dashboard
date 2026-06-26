@@ -120,35 +120,26 @@ def _format_export_row(row, empty_placeholder='-'):
 
 GCS_BUCKET = 'test-platform-results'
 GCS_HOST = 'https://storage.googleapis.com'
-SPYGLASS_HOST = 'https://prow.ci.openshift.org/view/gs'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
 
 
 def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None):
-    """Build GCS, Spyglass, and gcsweb log URLs from job metadata."""
+    """Build GCS and gcsweb log URLs from job metadata."""
     has_job = bool(job_name and build_id)
     if gcs_prefix:
         gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
-        spyglass_base = f"{SPYGLASS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/{gcs_prefix}"
     else:
         gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
-        spyglass_base = f"{SPYGLASS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
-    artifacts_gcs = f"{gcs_base}/artifacts/{step_name}" if (has_job and step_name) else ''
-    artifacts_spy = f"{spyglass_base}/artifacts/{step_name}" if (has_job and step_name) else ''
+    artifacts_base = f"{gcs_base}/artifacts/{step_name}" if (has_job and step_name) else ''
     return {
-        'e2e_log_url': f"{artifacts_gcs}/e2e-test/build-log.txt" if (has_job and step_name) else '',
-        'e2e_log_url_spyglass': f"{artifacts_spy}/e2e-test/build-log.txt" if (has_job and step_name) else '',
-        'install_log_url': f"{artifacts_gcs}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
-        'install_log_url_spyglass': f"{artifacts_spy}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
-        'subscribe_log_url': f"{artifacts_gcs}/medik8s-operator-subscribe/build-log.txt" if (has_job and step_name) else '',
-        'subscribe_log_url_spyglass': f"{artifacts_spy}/medik8s-operator-subscribe/build-log.txt" if (has_job and step_name) else '',
-        'catalog_log_url': f"{artifacts_gcs}/medik8s-catalogsource/build-log.txt" if (has_job and step_name) else '',
-        'catalog_log_url_spyglass': f"{artifacts_spy}/medik8s-catalogsource/build-log.txt" if (has_job and step_name) else '',
+        'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if (has_job and step_name) else '',
+        'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
+        'subscribe_log_url': f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if (has_job and step_name) else '',
+        'catalog_log_url': f"{artifacts_base}/medik8s-catalogsource/build-log.txt" if (has_job and step_name) else '',
         'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if (has_job and step_name) else '',
         'build_log_url': f"{gcs_base}/build-log.txt" if has_job else '',
-        'build_log_url_spyglass': f"{spyglass_base}/build-log.txt" if has_job else '',
     }
 
 
