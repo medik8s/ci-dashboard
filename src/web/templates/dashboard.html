@@ -2591,8 +2591,8 @@
             if (!spyglassUrl && !rawUrl) return '-';
             if (!spyglassUrl) return linkEl(rawUrl, label);
             var parts = [];
-            parts.push('<a href="' + esc(spyglassUrl) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>');
-            if (rawUrl) parts.push('<a href="' + esc(rawUrl) + '" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:0.7rem;margin-left:4px;" title="Raw log (plain text)">Raw</a>');
+            parts.push('<a href="' + esc(spyglassUrl) + '" target="_blank" rel="noopener noreferrer" aria-label="View ' + esc(label) + '" style="color:var(--accent-blue);text-decoration:none;">View</a>');
+            if (rawUrl) parts.push('<a href="' + esc(rawUrl) + '" target="_blank" rel="noopener noreferrer" aria-label="Raw ' + esc(label) + '" style="color:var(--accent-blue);text-decoration:none;font-size:0.7rem;margin-left:4px;" title="Raw log (plain text)">Raw</a>');
             return parts.join(' ');
         }
 
