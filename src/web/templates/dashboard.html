@@ -1003,13 +1003,13 @@
                 <table>
                     <thead>
                         <tr>
+                            <th style="width:30px;"></th>
                             <th>Job Name</th>
                             <th>Status</th>
                             <th>Run Date</th>
                             <th>Duration</th>
                             <th>OCP Version</th>
                             <th>Tests (P/F)</th>
-                            <th>Links</th>
                         </tr>
                     </thead>
                     <tbody id="jobRunsBody">
@@ -2587,6 +2587,14 @@
             if (!url) return '-';
             return '<a href="' + esc(url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>';
         }
+        function dualLinkEl(spyglassUrl, rawUrl, label) {
+            if (!spyglassUrl && !rawUrl) return '-';
+            if (!spyglassUrl) return linkEl(rawUrl, label);
+            var parts = [];
+            parts.push('<a href="' + esc(spyglassUrl) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>');
+            if (rawUrl) parts.push('<a href="' + esc(rawUrl) + '" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:0.7rem;margin-left:4px;" title="Raw log (plain text)">Raw</a>');
+            return parts.join(' ');
+        }
 
         function buildDetailGrid(r) {
             var items = [];
@@ -2610,12 +2618,12 @@
             items.push('<div><strong>Full Job Name</strong><span style="font-size:0.75rem;">' + esc(r.job_name || r.periodic_job || '-') + '</span></div>');
             items.push('<div><strong>Build ID</strong>' + esc(r.build_id || '-') + '</div>');
             items.push('<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>');
-            items.push('<div><strong>E2E Test Log</strong>' + linkEl(r.e2e_log_url, 'Test Log') + '</div>');
-            items.push('<div><strong>Cluster Install Log</strong>' + linkEl(r.install_log_url, 'IPI Install') + '</div>');
-            items.push('<div><strong>Operator Install Log</strong>' + linkEl(r.subscribe_log_url, 'OLM Subscribe') + '</div>');
-            items.push('<div><strong>CatalogSource Log</strong>' + linkEl(r.catalog_log_url, 'CatalogSource') + '</div>');
+            items.push('<div><strong>E2E Test Log</strong>' + dualLinkEl(r.e2e_log_url_spyglass, r.e2e_log_url, 'Test Log') + '</div>');
+            items.push('<div><strong>Cluster Install Log</strong>' + dualLinkEl(r.install_log_url_spyglass, r.install_log_url, 'IPI Install') + '</div>');
+            items.push('<div><strong>Operator Install Log</strong>' + dualLinkEl(r.subscribe_log_url_spyglass, r.subscribe_log_url, 'OLM Subscribe') + '</div>');
+            items.push('<div><strong>CatalogSource Log</strong>' + dualLinkEl(r.catalog_log_url_spyglass, r.catalog_log_url, 'CatalogSource') + '</div>');
             items.push('<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>');
-            items.push('<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>');
+            items.push('<div><strong>Build Log</strong>' + dualLinkEl(r.build_log_url_spyglass, r.build_log_url, 'Build Log') + '</div>');
             items.push('<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>');
             return '<div class="detail-grid">' + items.join('') + '</div>';
         }
@@ -2978,26 +2986,26 @@
                     });
                     gbody.appendChild(hdr);
 
-                    g.runs.forEach(function(r) {
+                    g.runs.forEach(function(r, rIdx) {
+                        var rid = 'jr-detail-' + gIdx + '-' + rIdx;
                         var row = document.createElement('tr');
+                        row.style.cursor = 'pointer';
+                        row.onclick = function() { document.getElementById(rid).classList.toggle('open'); };
                         var statusCls = r.status === 'passed' ? 'result-pass' : 'result-fail';
                         var jobOp = deriveOperator(r.step_name || r.job_name || '');
-                        row.innerHTML = '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>'
+                        row.innerHTML = '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>'
+                            + '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>'
                             + '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>'
                             + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
-                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);">N/A</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
-                            + '<td style="font-size:0.75rem; white-space:nowrap;">'
-                            + linkEl(r.prow_url, 'Prow') + ' '
-                            + linkEl(r.build_log_url, 'Build') + ' '
-                            + linkEl(r.e2e_log_url, 'E2E') + ' '
-                            + linkEl(r.catalog_log_url, 'Catalog') + ' '
-                            + linkEl(r.subscribe_log_url, 'Subscribe') + ' '
-                            + linkEl(r.install_log_url, 'Install') + ' '
-                            + linkEl(r.artifacts_url, 'Artifacts')
-                            + '</td>';
+                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);">N/A</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>';
                         gbody.appendChild(row);
+                        var detail = document.createElement('tr');
+                        detail.id = rid;
+                        detail.className = 'detail-row';
+                        detail.innerHTML = '<td colspan="7">' + buildDetailGrid(r) + '</td>';
+                        gbody.appendChild(detail);
                     });
 
                     table.appendChild(gbody);
