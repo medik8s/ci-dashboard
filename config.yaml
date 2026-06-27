@@ -15,20 +15,24 @@ collector:
     gcs_url: "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results"
     bucket: "test-platform-results"
 
-    # Periodic job patterns to track
+    # Periodic job patterns to track (all run weekly on Sundays)
     job_patterns:
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-weekly-aws"
-      # Add NHC, NMO, MDR weekly jobs here when created
+      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws"
+      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-weekly-aws"
+      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws"
 
     # Presubmit E2E jobs (triggered on system-tests PRs)
     presubmit_job_patterns:
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-odf"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-efs"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-aws"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-aws"
       # Dev repo E2E presubmit jobs (triggered on operator PRs)
       - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
       - "pull-ci-medik8s-storage-based-remediation-main-4.20-openshift-e2e"
