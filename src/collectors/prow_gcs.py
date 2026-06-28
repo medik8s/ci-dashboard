@@ -210,10 +210,19 @@ class ProwGCSCollector(BaseCollector):
     })
 
     def _extract_failed_step(self, raw_reason: str) -> str:
-        """Extract a human-readable step name from the colon-delimited reason."""
+        """Extract a human-readable step name from the colon-delimited reason.
+
+        Returns 'parent / leaf' when two or more meaningful tokens exist,
+        so users see context like 'importing_release / pod_pending' instead
+        of just 'pod_pending'.
+        """
         parts = [p.strip() for p in raw_reason.split(':') if p.strip()]
         meaningful = [p for p in parts if p not in self._PLUMBING_TOKENS]
-        return meaningful[-1] if meaningful else parts[-1]
+        if len(meaningful) >= 2:
+            return f"{meaningful[-2]} / {meaningful[-1]}"
+        if meaningful:
+            return meaningful[-1]
+        return parts[-1] if parts else None
 
     def _classify_failure(self, raw_reason: str) -> str:
         """Classify a Prow failure reason into a category (strict priority order)."""
