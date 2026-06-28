@@ -197,6 +197,40 @@ class ProwGCSCollector(BaseCollector):
         match = re.search(r'with image:\s*(\S+)', text)
         return match.group(1) if match else None
 
+    def _parse_failure_reason(self, text: str) -> Optional[str]:
+        """Parse the Prow failure reason from build-log.txt (last match wins)."""
+        matches = re.findall(
+            r"Reporting job state 'failed' with reason '([^']+)'", text
+        )
+        return matches[-1] if matches else None
+
+    _PLUMBING_TOKENS = frozenset({
+        'executing_graph', 'step_failed', 'executing_test',
+        'utilizing_lease', 'utilizing_ip_pool',
+    })
+
+    def _extract_failed_step(self, raw_reason: str) -> str:
+        """Extract a human-readable step name from the colon-delimited reason."""
+        parts = [p.strip() for p in raw_reason.split(':') if p.strip()]
+        meaningful = [p for p in parts if p not in self._PLUMBING_TOKENS]
+        return meaningful[-1] if meaningful else parts[-1]
+
+    def _classify_failure(self, raw_reason: str) -> str:
+        """Classify a Prow failure reason into a category (strict priority order)."""
+        if not raw_reason:
+            return 'unknown'
+        tokens = {t.strip() for t in raw_reason.lower().split(':')}
+        if tokens & {'pod_pending', 'importing_release', 'scheduling',
+                     'utilizing_lease', 'utilizing_ip_pool'}:
+            return 'infra'
+        if tokens & {'ipi-install', 'ipi_install', 'bootstrap'}:
+            return 'install'
+        if tokens & {'catalogsource', 'subscribe', 'odf', 'set-odf'}:
+            return 'setup'
+        if tokens & {'e2e-test', 'e2e_test'}:
+            return 'test'
+        return 'unknown'
+
     def _fetch_gcs_text(self, url: str) -> Optional[str]:
         """Fetch text content from a GCS URL, returning None on failure."""
         try:
@@ -205,6 +239,22 @@ class ProwGCSCollector(BaseCollector):
                 return response.text
         except Exception as e:
             logger.debug(f"[prow_gcs] Could not fetch {url}: {e}")
+        return None
+
+    def _fetch_gcs_tail(self, url: str, tail_bytes: int = 51200) -> Optional[str]:
+        """Fetch only the last N bytes of a GCS object (for failure reason parsing)."""
+        try:
+            headers = {'Range': f'bytes=-{tail_bytes}'}
+            response = self.session.get(url, headers=headers, timeout=15)
+            if response.status_code == 206:
+                return response.content.decode('utf-8', errors='ignore')
+            elif response.status_code == 200:
+                content = response.content
+                if len(content) > tail_bytes:
+                    content = content[-tail_bytes:]
+                return content.decode('utf-8', errors='ignore')
+        except Exception as e:
+            logger.debug(f"[prow_gcs] Could not fetch tail of {url}: {e}")
         return None
 
     def _artifact_base(self, job_run: JobRun) -> Optional[str]:
@@ -224,6 +274,25 @@ class ProwGCSCollector(BaseCollector):
         """Enrich a JobRun with metadata parsed from GCS step logs."""
         step_name = self._derive_step_name(job_run.job_name)
         job_run.step_name = step_name
+
+        if job_run.status == TestStatus.FAILED and not (
+            job_run.failure_reason and job_run.failure_category
+        ):
+            if job_run.gcs_prefix:
+                log_url = f"{self.gcs_url}/{job_run.gcs_prefix}/build-log.txt"
+            else:
+                log_url = (
+                    f"{self.gcs_url}/logs/{job_run.job_name}"
+                    f"/{job_run.build_id}/build-log.txt"
+                )
+            tail = self._fetch_gcs_tail(log_url)
+            if tail:
+                raw = self._parse_failure_reason(tail)
+                if raw:
+                    job_run.failure_reason = raw
+                    job_run.failed_step = self._extract_failed_step(raw)
+                    job_run.failure_category = self._classify_failure(raw)
+
         if not step_name:
             return job_run
 

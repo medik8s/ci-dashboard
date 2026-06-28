@@ -263,7 +263,8 @@ class DashboardDatabase:
 
         # Add enriched metadata columns to job_runs
         jr_cols = {row[1] for row in cursor.execute("PRAGMA table_info(job_runs)")}
-        for col in ['ocp_version', 'csv_version', 'fbc_image', 'step_name']:
+        for col in ['ocp_version', 'csv_version', 'fbc_image', 'step_name',
+                     'failure_reason', 'failed_step', 'failure_category']:
             if col not in jr_cols:
                 cursor.execute(f"ALTER TABLE job_runs ADD COLUMN {col} TEXT")
 
@@ -312,8 +313,9 @@ class DashboardDatabase:
                         version, platform, total_tests, passed_tests, failed_tests,
                         skipped_tests, pass_rate, job_url,
                         ocp_version, csv_version, fbc_image, step_name,
-                        job_type, pr_number, pr_author, pr_repo, gcs_prefix
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        job_type, pr_number, pr_author, pr_repo, gcs_prefix,
+                        failure_reason, failed_step, failure_category
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(job_name, build_id) DO UPDATE SET
                         status = excluded.status,
                         timestamp = excluded.timestamp,
@@ -334,7 +336,10 @@ class DashboardDatabase:
                         pr_number = excluded.pr_number,
                         pr_author = COALESCE(excluded.pr_author, job_runs.pr_author),
                         pr_repo = COALESCE(excluded.pr_repo, job_runs.pr_repo),
-                        gcs_prefix = COALESCE(excluded.gcs_prefix, job_runs.gcs_prefix)
+                        gcs_prefix = COALESCE(excluded.gcs_prefix, job_runs.gcs_prefix),
+                        failure_reason = COALESCE(excluded.failure_reason, job_runs.failure_reason),
+                        failed_step = COALESCE(excluded.failed_step, job_runs.failed_step),
+                        failure_category = COALESCE(excluded.failure_category, job_runs.failure_category)
                 """, (
                     run.job_name,
                     run.build_id,
@@ -358,6 +363,9 @@ class DashboardDatabase:
                     getattr(run, 'pr_author', None),
                     getattr(run, 'pr_repo', None),
                     getattr(run, 'gcs_prefix', None),
+                    getattr(run, 'failure_reason', None),
+                    getattr(run, 'failed_step', None),
+                    getattr(run, 'failure_category', None),
                 ))
                 inserted += 1
             except sqlite3.IntegrityError:
@@ -1146,7 +1154,10 @@ class DashboardDatabase:
                 jr.ocp_version,
                 jr.csv_version,
                 jr.fbc_image,
-                jr.step_name
+                jr.step_name,
+                jr.failure_reason,
+                jr.failed_step,
+                jr.failure_category
             FROM job_runs jr
             WHERE jr.timestamp >= datetime('now', ? || ' days')
             AND COALESCE(jr.job_type, 'periodic') = 'periodic'

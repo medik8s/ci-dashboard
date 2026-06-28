@@ -671,6 +671,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'failed_tests': row.get('failed_tests'),
                 'pass_rate': row.get('pass_rate'),
                 'prow_url': row.get('job_url') or '',
+                'failure_reason': row.get('failure_reason') or '',
+                'failed_step': row.get('failed_step') or '',
+                'failure_category': row.get('failure_category') or '',
                 **urls,
             })
 
