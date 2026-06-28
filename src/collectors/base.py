@@ -70,6 +70,11 @@ class JobRun:
     fbc_image: Optional[str] = None
     step_name: Optional[str] = None
 
+    # Failure classification (from Prow build-log.txt)
+    failure_reason: Optional[str] = None
+    failed_step: Optional[str] = None
+    failure_category: Optional[str] = None
+
     # Job classification
     job_type: str = "periodic"
     pr_number: Optional[int] = None

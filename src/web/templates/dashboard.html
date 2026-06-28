@@ -1006,6 +1006,7 @@
                             <th style="width:30px;"></th>
                             <th>Job Name</th>
                             <th>Status</th>
+                            <th>Failure Info</th>
                             <th>Run Date</th>
                             <th>Duration</th>
                             <th>OCP Version</th>
@@ -1013,7 +1014,7 @@
                         </tr>
                     </thead>
                     <tbody id="jobRunsBody">
-                        <tr><td colspan="7" class="loading">Select the Job Runs tab to load data</td></tr>
+                        <tr><td colspan="8" class="loading">Select the Job Runs tab to load data</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -2570,6 +2571,20 @@
             if (r === 'failed') return '<span class="result-fail">FAILED</span>';
             return esc(r) || '';
         }
+        var CATEGORY_STYLES = {
+            infra:   {label:'INFRA',   bg:'#e67e22', color:'#fff'},
+            install: {label:'INSTALL', bg:'#e74c3c', color:'#fff'},
+            setup:   {label:'SETUP',   bg:'#f39c12', color:'#333'},
+            test:    {label:'TEST',    bg:'#9b59b6', color:'#fff'},
+            unknown: {label:'UNKNOWN', bg:'#7f8c8d', color:'#fff'}
+        };
+        function failureBadge(cat, step, reason) {
+            if (!cat) return '';
+            var s = CATEGORY_STYLES[cat] || CATEGORY_STYLES.unknown;
+            var badge = '<span style="display:inline-block;padding:2px 6px;border-radius:3px;font-size:0.65rem;font-weight:700;background:' + s.bg + ';color:' + s.color + ';margin-right:4px;" title="' + esc(reason || '') + '">' + s.label + '</span>';
+            if (step) badge += '<span style="font-family:monospace;font-size:0.7rem;color:var(--text-muted);" title="' + esc(reason || '') + '">' + esc(step) + '</span>';
+            return badge;
+        }
         function fmtDuration(s) {
             if (!s && s !== 0) return '-';
             var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -2875,7 +2890,7 @@
             table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
             var tbody = document.getElementById('jobRunsBody');
             tbody.style.display = '';
-            tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading...</td></tr>';
 
             var days = document.getElementById('timeRange').value;
             var version = document.getElementById('versionFilter').value;
@@ -2888,7 +2903,7 @@
                 var runs = data.job_runs || [];
 
                 if (runs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-muted);">No job runs found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No job runs found</td></tr>';
                     return;
                 }
 
@@ -2960,7 +2975,7 @@
 
                     var hdr = document.createElement('tr');
                     hdr.className = 'fbc-group-header';
-                    hdr.innerHTML = '<td colspan="7">'
+                    hdr.innerHTML = '<td colspan="8">'
                         + '<span class="fbc-chevron">&#9660;</span>'
                         + fbcLabel
                         + '<span class="fbc-badge fbc-badge--total">' + g.total + ' jobs</span>'
@@ -2985,9 +3000,11 @@
                         row.onclick = function() { document.getElementById(rid).classList.toggle('open'); };
                         var statusCls = r.status === 'passed' ? 'result-pass' : 'result-fail';
                         var jobOp = deriveOperator(r.step_name || r.job_name || '');
+                        var failInfo = r.status === 'failed' ? failureBadge(r.failure_category, r.failed_step, r.failure_reason) : '';
                         row.innerHTML = '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>'
                             + '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>'
                             + '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>'
+                            + '<td style="font-size:0.75rem;">' + failInfo + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
@@ -2996,7 +3013,7 @@
                         var detail = document.createElement('tr');
                         detail.id = rid;
                         detail.className = 'detail-row';
-                        detail.innerHTML = '<td colspan="7">' + buildDetailGrid(r) + '</td>';
+                        detail.innerHTML = '<td colspan="8">' + buildDetailGrid(r) + '</td>';
                         gbody.appendChild(detail);
                     });
 
@@ -3005,7 +3022,7 @@
             } catch (e) {
                 table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
                 tbody.style.display = '';
-                tbody.innerHTML = '<tr><td colspan="7" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
             }
         }
 
