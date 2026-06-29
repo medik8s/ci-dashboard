@@ -1010,6 +1010,13 @@
                 </div>
                 <span id="triggerStatus" style="font-size:0.8rem; margin-left:8px;"></span>
             </div>
+            <div id="recentTriggersSection" style="display:none; margin-bottom:16px; padding:12px; border-radius:8px; background:var(--card-bg); border:1px solid var(--border);">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                    <span style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">Recent Triggers</span>
+                    <button onclick="loadRecentTriggers()" style="padding:2px 8px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.7rem;">Refresh</button>
+                </div>
+                <div id="recentTriggersList" style="font-size:0.8rem;"></div>
+            </div>
             <div class="test-list">
                 <h2>Job Run History</h2>
                 <table>
@@ -1307,7 +1314,7 @@
             });
             if (tabName === 'weekly-report') refreshWeeklyReport();
             if (tabName === 'test-results') loadTestResults();
-            if (tabName === 'job-runs') loadJobRuns();
+            if (tabName === 'job-runs') { loadJobRuns(); loadRecentTriggers(); }
             if (tabName === 'presubmit') loadPresubmitResults();
         }
 
@@ -1432,7 +1439,44 @@
                 setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
             } finally {
                 allBtns.forEach(function(b) { b.disabled = false; });
+                loadRecentTriggers();
             }
+        }
+
+        async function loadRecentTriggers() {
+            var section = document.getElementById('recentTriggersSection');
+            var list = document.getElementById('recentTriggersList');
+            try {
+                var resp = await fetch('/api/trigger-job/history?limit=6');
+                if (!resp.ok) { section.style.display = 'none'; return; }
+                var items = await resp.json();
+                if (!items || items.length === 0) { section.style.display = 'none'; return; }
+                section.style.display = '';
+                var html = '<table style="width:100%;border-collapse:collapse;">';
+                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Operator</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow</th></tr>';
+                items.forEach(function(t) {
+                    var op = (t.operator || '').toUpperCase();
+                    var opColor = OP_COLORS[op] || 'var(--text-muted)';
+                    var st = t.status || 'UNKNOWN';
+                    var stColor = st === 'TRIGGERED' || st === 'PENDING' ? '#eab308' : st === 'SUCCESS' ? '#22c55e' : st === 'FAILURE' || st === 'FAILED' || st === 'ERROR' ? '#ef4444' : 'var(--text-muted)';
+                    var when = '-';
+                    if (t.triggered_at) {
+                        var ts = String(t.triggered_at);
+                        if (!/Z|[+-]\d{2}:\d{2}$/.test(ts)) ts += 'Z';
+                        var d = new Date(ts.replace(' ', 'T'));
+                        when = isNaN(d.getTime()) ? ts : d.toLocaleString();
+                    }
+                    var prowLink = t.prow_job_url ? linkEl(t.prow_job_url, 'View') : '-';
+                    html += '<tr style="border-top:1px solid var(--border);">';
+                    html += '<td style="padding:4px 8px;color:' + opColor + ';font-weight:600;">' + esc(op) + '</td>';
+                    html += '<td style="padding:4px 8px;color:' + stColor + ';">' + esc(st) + '</td>';
+                    html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(when) + '</td>';
+                    html += '<td style="padding:4px 8px;">' + prowLink + '</td>';
+                    html += '</tr>';
+                });
+                html += '</table>';
+                list.innerHTML = html;
+            } catch (e) { section.style.display = 'none'; }
         }
 
         // Simple modal-based log viewer (NO popup windows!)
