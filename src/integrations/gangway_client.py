@@ -6,10 +6,13 @@ and poll execution status.
 """
 
 import os
+import re
 import logging
 import urllib.request
+from urllib.parse import quote
 import urllib.error
 import json
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,63 @@ class GangwayClient:
         if 200 <= status < 300:
             return resp, None
         return None, resp.get("error", f"HTTP {status}")
+
+    @staticmethod
+    def resolve_prow_url(job_name, triggered_at_str):
+        """Find the Prow Spyglass URL for a triggered job by matching timestamps."""
+        prow_base = "https://prow.ci.openshift.org"
+        bucket = "test-platform-results"
+        history_url = f"{prow_base}/job-history/gs/{bucket}/logs/{quote(job_name, safe='')}"
+        try:
+            req = urllib.request.Request(history_url)
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                html = resp.read().decode()
+            marker_idx = html.find('var allBuilds')
+            if marker_idx == -1:
+                logger.warning("resolve_prow_url: allBuilds not found for %s", job_name)
+                return None
+            arr_start = html.find('[', marker_idx)
+            if arr_start == -1:
+                return None
+            try:
+                builds, _ = json.JSONDecoder().raw_decode(html[arr_start:])
+            except json.JSONDecodeError:
+                logger.warning("resolve_prow_url: invalid allBuilds JSON for %s", job_name)
+                return None
+            if not builds:
+                return None
+            if not triggered_at_str:
+                return None
+            ts = triggered_at_str.replace(' ', 'T')
+            if not re.search(r'(?:Z|[+-]\d{2}:\d{2})$', ts):
+                ts += '+00:00'
+            trigger_ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            best = None
+            best_delta = None
+            for b in builds:
+                started = b.get('Started', '')
+                if not started:
+                    continue
+                try:
+                    build_ts = datetime.fromisoformat(started.replace('Z', '+00:00'))
+                except ValueError:
+                    continue
+                delta = (build_ts - trigger_ts).total_seconds()
+                if delta < -30 or delta > 600:
+                    continue
+                candidate_key = (delta < 0, abs(delta))
+                best_key = (best_delta < 0, abs(best_delta)) if best_delta is not None else None
+                if best_key is None or candidate_key < best_key:
+                    best_delta = delta
+                    best = b
+            if best:
+                build_id = best.get('ID', '')
+                if build_id:
+                    logger.debug("resolve_prow_url matched %s delta=%.0fs", job_name, best_delta)
+                    return f"{prow_base}/view/gs/{bucket}/logs/{quote(job_name, safe='')}/{build_id}"
+        except Exception as e:
+            logger.warning("resolve_prow_url failed for %s: %s", job_name, e)
+        return None
 
 
 _gangway_client = GangwayClient()

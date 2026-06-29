@@ -1072,6 +1072,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         return jsonify(result)
 
     _TERMINAL_STATUSES = frozenset(('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'))
+    _SKIP_RESOLVE_STATUSES = frozenset(('PENDING', 'QUEUED', 'TRIGGERED', ''))
+
+    def _maybe_resolve_prow_url(prow_url, job_name, triggered_at, status):
+        if (not prow_url and job_name
+                and (status or '').upper() not in _SKIP_RESOLVE_STATUSES):
+            from integrations.gangway_client import GangwayClient
+            return GangwayClient.resolve_prow_url(job_name, triggered_at)
+        return prow_url
 
     @app.route('/api/trigger-job/history')
     def api_trigger_job_history():
@@ -1099,6 +1107,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                         if remote and not err:
                             new_status = remote.get('job_status', ex['status'])
                             prow_url = remote.get('prowjob_url')
+                            prow_url = _maybe_resolve_prow_url(
+                                prow_url, ex.get('job_name'), ex.get('triggered_at'), new_status)
                             db.update_gangway_execution(eid, new_status, prow_url)
                             ex['status'] = new_status
                             if prow_url:
@@ -1126,6 +1136,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             if remote and not err:
                 new_status = remote.get('job_status', local['status'])
                 prow_url = remote.get('prowjob_url')
+                prow_url = _maybe_resolve_prow_url(
+                    prow_url, local.get('job_name'), local.get('triggered_at'), new_status)
                 try:
                     db.update_gangway_execution(execution_id, new_status, prow_url)
                 except Exception:
