@@ -1456,14 +1456,15 @@
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
                 section.style.display = '';
                 var html = '<table style="width:100%;border-collapse:collapse;">';
-                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Operator</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow</th></tr>';
+                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Operator</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
                 items.forEach(function(t) {
                     var op = (t.operator || '').toUpperCase();
                     var st = t.status || 'UNKNOWN';
-                    var stHtml = st === 'SUCCESS' ? '<span class="result-pass">' + esc(st) + '</span>'
-                        : (st === 'FAILURE' || st === 'FAILED' || st === 'ERROR') ? '<span class="result-fail">' + esc(st) + '</span>'
-                        : (st === 'TRIGGERED' || st === 'PENDING') ? '<span style="color:#eab308;font-weight:600;">' + esc(st) + '</span>'
-                        : '<span style="color:var(--text-muted);">' + esc(st) + '</span>';
+                    var displaySt = st === 'SUCCESS' ? 'PASSED' : (st === 'FAILURE') ? 'FAILED' : st;
+                    var stHtml = st === 'SUCCESS' ? '<span class="result-pass">' + esc(displaySt) + '</span>'
+                        : (st === 'FAILURE' || st === 'FAILED' || st === 'ERROR') ? '<span class="result-fail">' + esc(displaySt) + '</span>'
+                        : (st === 'TRIGGERED' || st === 'PENDING') ? '<span style="color:#eab308;font-weight:600;">' + esc(displaySt) + '</span>'
+                        : '<span style="color:var(--text-muted);">' + esc(displaySt) + '</span>';
                     var when = '-';
                     var whenTitle = '';
                     if (t.triggered_at) {

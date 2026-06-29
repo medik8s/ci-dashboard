@@ -1115,6 +1115,23 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                                 ex['prow_job_url'] = prow_url
                     except Exception:
                         app.logger.exception("Failed to refresh execution %s", eid)
+            attempts = 0
+            for ex in executions:
+                if attempts >= 5:
+                    break
+                status = (ex.get('status') or '').upper()
+                if ex.get('prow_job_url') or not ex.get('job_name') or not ex.get('triggered_at'):
+                    continue
+                if status not in _TERMINAL_STATUSES:
+                    continue
+                attempts += 1
+                try:
+                    url = _maybe_resolve_prow_url(None, ex['job_name'], ex['triggered_at'], status)
+                    if url:
+                        db.update_gangway_execution(ex['execution_id'], status, url)
+                        ex['prow_job_url'] = url
+                except Exception:
+                    app.logger.exception("Failed to resolve Prow URL for %s", ex.get('execution_id'))
         return jsonify(executions)
 
     _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
