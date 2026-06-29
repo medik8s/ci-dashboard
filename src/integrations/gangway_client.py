@@ -10,7 +10,6 @@ import logging
 import urllib.request
 import urllib.error
 import json
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +40,22 @@ class GangwayClient:
         req.add_header("Content-Type", "application/json")
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
-                return json.loads(resp.read()), resp.status
+                raw = resp.read()
+                if not raw:
+                    return {}, resp.status
+                try:
+                    return json.loads(raw), resp.status
+                except json.JSONDecodeError:
+                    logger.error("Gangway %s %s returned non-JSON (status %d): %s",
+                                 method, path, resp.status, raw[:200])
+                    return {"error": "Non-JSON response from Gangway"}, resp.status
         except urllib.error.HTTPError as e:
             error_body = e.read().decode(errors="replace")
             logger.error("Gangway %s %s returned %d: %s", method, path, e.code, error_body[:500])
-            return {"error": error_body[:500]}, e.code
+            return {"error": f"Gangway returned HTTP {e.code}"}, e.code
         except Exception as e:
             logger.error("Gangway %s %s failed: %s", method, path, e)
-            return {"error": str(e)}, 0
+            return {"error": "Gangway request failed"}, 0
 
     def trigger_job(self, operator):
         job_name = OPERATOR_JOB_MAP.get(operator.lower())
@@ -56,9 +63,12 @@ class GangwayClient:
             return None, f"Unknown operator: {operator}. Valid: {', '.join(sorted(OPERATOR_JOB_MAP))}"
         payload = {"job_name": job_name, "job_execution_type": "1"}
         resp, status = self._request("POST", "/executions", payload)
-        if status == 200:
+        if 200 <= status < 300:
+            execution_id = resp.get("id")
+            if not execution_id:
+                return None, f"Gangway returned success but no execution id: {resp}"
             return {
-                "execution_id": resp.get("id"),
+                "execution_id": execution_id,
                 "job_name": job_name,
                 "operator": operator.lower(),
                 "status": resp.get("job_status", "TRIGGERED"),
@@ -67,16 +77,13 @@ class GangwayClient:
 
     def get_execution_status(self, execution_id):
         resp, status = self._request("GET", f"/executions/{execution_id}")
-        if status == 200:
+        if 200 <= status < 300:
             return resp, None
         return None, resp.get("error", f"HTTP {status}")
 
 
-_gangway_client = None
+_gangway_client = GangwayClient()
 
 
 def get_gangway_client():
-    global _gangway_client
-    if _gangway_client is None:
-        _gangway_client = GangwayClient()
     return _gangway_client

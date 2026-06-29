@@ -1195,23 +1195,66 @@ class DashboardDatabase:
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-    def save_gangway_execution(self, execution_id, operator, job_name, status="TRIGGERED"):
+    def check_cooldown_and_reserve(self, operator, cooldown_seconds=300):
+        import uuid
+        from datetime import datetime, timezone
+        cursor = self.conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        try:
+            cursor.execute("""
+                SELECT triggered_at FROM gangway_executions
+                WHERE operator = ?
+                ORDER BY triggered_at DESC LIMIT 1
+            """, (operator,))
+            row = cursor.fetchone()
+            if row and row['triggered_at']:
+                try:
+                    last_dt = datetime.fromisoformat(
+                        str(row['triggered_at']).replace(' ', 'T'))
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                    if elapsed < cooldown_seconds:
+                        self.conn.rollback()
+                        return False, int(cooldown_seconds - elapsed), None
+                except (ValueError, TypeError):
+                    self.conn.rollback()
+                    return False, -1, None
+            placeholder_id = f"pending-{uuid.uuid4().hex[:12]}"
+            cursor.execute("""
+                INSERT INTO gangway_executions (execution_id, operator, job_name, status)
+                VALUES (?, ?, '', 'PENDING')
+            """, (placeholder_id, operator))
+            self.conn.commit()
+            return True, 0, placeholder_id
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def finalize_gangway_execution(self, placeholder_id, execution_id, job_name, status):
         cursor = self.conn.cursor()
         cursor.execute("""
-            INSERT INTO gangway_executions (execution_id, operator, job_name, status)
-            VALUES (?, ?, ?, ?)
-        """, (execution_id, operator, job_name, status))
+            UPDATE gangway_executions
+            SET execution_id = ?, job_name = ?, status = ?,
+                updated_at = CURRENT_TIMESTAMP, error_message = NULL
+            WHERE execution_id = ?
+        """, (execution_id, job_name, status, placeholder_id))
         self.conn.commit()
 
     def update_gangway_execution(self, execution_id, status, prow_job_url=None, error_message=None):
         cursor = self.conn.cursor()
-        cursor.execute("""
-            UPDATE gangway_executions
-            SET status = ?, updated_at = CURRENT_TIMESTAMP,
-                prow_job_url = COALESCE(?, prow_job_url),
-                error_message = COALESCE(?, error_message)
-            WHERE execution_id = ?
-        """, (status, prow_job_url, error_message, execution_id))
+        sets = ["status = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [status]
+        if prow_job_url is not None:
+            sets.append("prow_job_url = ?")
+            params.append(prow_job_url)
+        if error_message is not None:
+            sets.append("error_message = ?")
+            params.append(error_message)
+        params.append(execution_id)
+        cursor.execute(
+            f"UPDATE gangway_executions SET {', '.join(sets)} WHERE execution_id = ?",
+            params)
         self.conn.commit()
 
     def get_gangway_executions(self, operator=None, limit=20):

@@ -998,6 +998,16 @@
 
         <!-- Job Runs Tab -->
         <div id="job-runs-tab" class="tab-content">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                <span style="font-size:0.85rem; color:var(--text-muted);">Trigger E2E:</span>
+                <button class="trigger-btn" data-operator="far" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #2563eb; background:transparent; color:#2563eb; cursor:pointer; font-size:0.8rem; font-weight:600;">FAR</button>
+                <button class="trigger-btn" data-operator="sbr" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #f97316; background:transparent; color:#f97316; cursor:pointer; font-size:0.8rem; font-weight:600;">SBR</button>
+                <button class="trigger-btn" data-operator="snr" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #22c55e; background:transparent; color:#22c55e; cursor:pointer; font-size:0.8rem; font-weight:600;">SNR</button>
+                <button class="trigger-btn" data-operator="nhc" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #a855f7; background:transparent; color:#a855f7; cursor:pointer; font-size:0.8rem; font-weight:600;">NHC</button>
+                <button class="trigger-btn" data-operator="mdr" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #eab308; background:transparent; color:#eab308; cursor:pointer; font-size:0.8rem; font-weight:600;">MDR</button>
+                <button class="trigger-btn" data-operator="nmo" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #06b6d4; background:transparent; color:#06b6d4; cursor:pointer; font-size:0.8rem; font-weight:600;">NMO</button>
+                <span id="triggerStatus" style="font-size:0.8rem; margin-left:8px;"></span>
+            </div>
             <div class="test-list">
                 <h2>Job Run History</h2>
                 <table>
@@ -1372,6 +1382,49 @@
                 }
             } catch (error) {
                 alert('Error starting collection: ' + error.message);
+            }
+        }
+
+        async function triggerJob(btn) {
+            var op = btn.dataset.operator;
+            if (!confirm('This will trigger a Prow E2E job for ' + op.toUpperCase() + '. Continue?')) return;
+            var status = document.getElementById('triggerStatus');
+            var allBtns = document.querySelectorAll('.trigger-btn');
+            allBtns.forEach(function(b) { b.disabled = true; });
+            status.textContent = 'Triggering ' + op.toUpperCase() + '...';
+            status.style.color = 'var(--text-muted)';
+            try {
+                var resp = await fetch('/api/trigger-job', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({operator: op})
+                });
+                var data = {};
+                var ct = resp.headers.get('content-type') || '';
+                if (ct.includes('application/json')) {
+                    data = await resp.json();
+                } else {
+                    var text = await resp.text();
+                    data = {error: text || ('Server error: HTTP ' + resp.status)};
+                }
+                if (resp.ok) {
+                    var msg = op.toUpperCase() + ' triggered (id: ' + (data.execution_id || '').slice(0,8) + ')';
+                    if (data.warning) {
+                        msg += ' - WARNING: ' + data.warning;
+                        status.style.color = '#eab308';
+                    } else {
+                        status.style.color = '#22c55e';
+                    }
+                    status.textContent = msg;
+                } else {
+                    status.textContent = 'Error: ' + (data.error || data.message || resp.statusText);
+                    status.style.color = '#ef4444';
+                }
+            } catch (e) {
+                status.textContent = 'Network error: ' + e.message;
+                status.style.color = '#ef4444';
+            } finally {
+                allBtns.forEach(function(b) { b.disabled = false; });
             }
         }
 
