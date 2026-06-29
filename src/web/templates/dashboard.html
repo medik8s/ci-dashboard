@@ -998,14 +998,16 @@
 
         <!-- Job Runs Tab -->
         <div id="job-runs-tab" class="tab-content">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-                <span style="font-size:0.85rem; color:var(--text-muted);">Trigger E2E:</span>
-                <button class="trigger-btn" data-operator="far" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #2563eb; background:transparent; color:#2563eb; cursor:pointer; font-size:0.8rem; font-weight:600;">FAR</button>
-                <button class="trigger-btn" data-operator="sbr" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #f97316; background:transparent; color:#f97316; cursor:pointer; font-size:0.8rem; font-weight:600;">SBR</button>
-                <button class="trigger-btn" data-operator="snr" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #22c55e; background:transparent; color:#22c55e; cursor:pointer; font-size:0.8rem; font-weight:600;">SNR</button>
-                <button class="trigger-btn" data-operator="nhc" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #a855f7; background:transparent; color:#a855f7; cursor:pointer; font-size:0.8rem; font-weight:600;">NHC</button>
-                <button class="trigger-btn" data-operator="mdr" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #eab308; background:transparent; color:#eab308; cursor:pointer; font-size:0.8rem; font-weight:600;">MDR</button>
-                <button class="trigger-btn" data-operator="nmo" onclick="triggerJob(this)" style="padding:4px 12px; border-radius:6px; border:1px solid #06b6d4; background:transparent; color:#06b6d4; cursor:pointer; font-size:0.8rem; font-weight:600;">NMO</button>
+            <div class="controls" style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+                <label>Trigger E2E:</label>
+                <div class="op-filter-bar">
+                    <button class="op-filter-chip trigger-btn" data-operator="far" onclick="triggerJob(this)" style="border-color:#2563eb; color:#2563eb;">FAR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="sbr" onclick="triggerJob(this)" style="border-color:#f97316; color:#f97316;">SBR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="snr" onclick="triggerJob(this)" style="border-color:#22c55e; color:#22c55e;">SNR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="nhc" onclick="triggerJob(this)" style="border-color:#a855f7; color:#a855f7;">NHC</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="mdr" onclick="triggerJob(this)" style="border-color:#eab308; color:#eab308;">MDR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="nmo" onclick="triggerJob(this)" style="border-color:#06b6d4; color:#06b6d4;">NMO</button>
+                </div>
                 <span id="triggerStatus" style="font-size:0.8rem; margin-left:8px;"></span>
             </div>
             <div class="test-list">
@@ -1021,10 +1023,11 @@
                             <th>Duration</th>
                             <th>OCP Version</th>
                             <th>Tests (P/F)</th>
+                            <th style="width:40px;"></th>
                         </tr>
                     </thead>
                     <tbody id="jobRunsBody">
-                        <tr><td colspan="8" class="loading">Select the Job Runs tab to load data</td></tr>
+                        <tr><td colspan="9" class="loading">Select the Job Runs tab to load data</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1420,9 +1423,13 @@
                     status.textContent = 'Error: ' + (data.error || data.message || resp.statusText);
                     status.style.color = '#ef4444';
                 }
+                btn.style.background = 'rgba(34,197,94,0.15)';
+                setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
             } catch (e) {
                 status.textContent = 'Network error: ' + e.message;
                 status.style.color = '#ef4444';
+                btn.style.background = 'rgba(239,68,68,0.15)';
+                setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
             } finally {
                 allBtns.forEach(function(b) { b.disabled = false; });
             }
@@ -2943,7 +2950,7 @@
             table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
             var tbody = document.getElementById('jobRunsBody');
             tbody.style.display = '';
-            tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="loading">Loading...</td></tr>';
 
             var days = document.getElementById('timeRange').value;
             var version = document.getElementById('versionFilter').value;
@@ -2956,7 +2963,7 @@
                 var runs = data.job_runs || [];
 
                 if (runs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:var(--text-muted);">No job runs found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted);">No job runs found</td></tr>';
                     return;
                 }
 
@@ -3028,7 +3035,7 @@
 
                     var hdr = document.createElement('tr');
                     hdr.className = 'fbc-group-header';
-                    hdr.innerHTML = '<td colspan="8">'
+                    hdr.innerHTML = '<td colspan="9">'
                         + '<span class="fbc-chevron">&#9660;</span>'
                         + fbcLabel
                         + '<span class="fbc-badge fbc-badge--total">' + g.total + ' jobs</span>'
@@ -3061,12 +3068,13 @@
                             + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
-                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);">N/A</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>';
+                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);">N/A</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
+                            + '<td style="text-align:center;"><button class="trigger-btn" data-operator="' + esc(jobOp.toLowerCase()) + '" onclick="event.stopPropagation();triggerJob(this)" title="Retrigger ' + esc(jobOp) + ' E2E" aria-label="Retrigger ' + esc(jobOp) + ' E2E" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button></td>';
                         gbody.appendChild(row);
                         var detail = document.createElement('tr');
                         detail.id = rid;
                         detail.className = 'detail-row';
-                        detail.innerHTML = '<td colspan="8">' + buildDetailGrid(r) + '</td>';
+                        detail.innerHTML = '<td colspan="9">' + buildDetailGrid(r) + '</td>';
                         gbody.appendChild(detail);
                     });
 
@@ -3075,7 +3083,7 @@
             } catch (e) {
                 table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
                 tbody.style.display = '';
-                tbody.innerHTML = '<tr><td colspan="8" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
             }
         }
 
