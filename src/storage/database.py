@@ -290,6 +290,21 @@ class DashboardDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_runs_job_type ON job_runs(job_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_test_results_job_type ON test_results(job_type)")
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gangway_executions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id TEXT NOT NULL UNIQUE,
+                operator TEXT NOT NULL,
+                job_name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'TRIGGERED',
+                triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                prow_job_url TEXT,
+                error_message TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gangway_operator ON gangway_executions(operator)")
+
         self.conn.commit()
 
     def insert_job_runs(self, job_runs: List[JobRun]) -> int:
@@ -1179,6 +1194,45 @@ class DashboardDatabase:
         query += " ORDER BY jr.timestamp DESC"
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
+    def save_gangway_execution(self, execution_id, operator, job_name, status="TRIGGERED"):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            INSERT INTO gangway_executions (execution_id, operator, job_name, status)
+            VALUES (?, ?, ?, ?)
+        """, (execution_id, operator, job_name, status))
+        self.conn.commit()
+
+    def update_gangway_execution(self, execution_id, status, prow_job_url=None, error_message=None):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE gangway_executions
+            SET status = ?, updated_at = CURRENT_TIMESTAMP,
+                prow_job_url = COALESCE(?, prow_job_url),
+                error_message = COALESCE(?, error_message)
+            WHERE execution_id = ?
+        """, (status, prow_job_url, error_message, execution_id))
+        self.conn.commit()
+
+    def get_gangway_executions(self, operator=None, limit=20):
+        cursor = self.conn.cursor()
+        if operator:
+            cursor.execute("""
+                SELECT * FROM gangway_executions WHERE operator = ?
+                ORDER BY triggered_at DESC LIMIT ?
+            """, (operator, limit))
+        else:
+            cursor.execute("""
+                SELECT * FROM gangway_executions
+                ORDER BY triggered_at DESC LIMIT ?
+            """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_gangway_execution(self, execution_id):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM gangway_executions WHERE execution_id = ?", (execution_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
     def close(self):
         """Close database connection"""

@@ -1003,6 +1003,60 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         else:
             return jsonify({'error': 'Failed to create Jira issue'}), 500
 
+    @app.route('/api/trigger-job', methods=['POST'])
+    def api_trigger_job():
+        from integrations import get_gangway_client
+        gangway = get_gangway_client()
+        if not gangway.enabled:
+            return jsonify({
+                'status': 'disabled',
+                'message': 'Gangway not configured. Set PROW_GANGWAY_TOKEN.'
+            }), 503
+
+        data = request.get_json(silent=True) or {}
+        operator = data.get('operator', '').strip().lower()
+        if not operator:
+            return jsonify({'error': 'Missing required field: operator'}), 400
+
+        result, error = gangway.trigger_job(operator)
+        if error:
+            return jsonify({'error': error}), 400
+
+        db.save_gangway_execution(
+            result['execution_id'], result['operator'],
+            result['job_name'], result['status']
+        )
+        return jsonify(result)
+
+    @app.route('/api/trigger-job/history')
+    def api_trigger_job_history():
+        operator = request.args.get('operator')
+        limit = request.args.get('limit', 20, type=int)
+        limit = max(1, min(limit, 100))
+        executions = db.get_gangway_executions(operator, limit)
+        return jsonify(executions)
+
+    @app.route('/api/trigger-job/<execution_id>')
+    def api_trigger_job_status(execution_id):
+        from integrations import get_gangway_client
+        gangway = get_gangway_client()
+
+        local = db.get_gangway_execution(execution_id)
+        if not local:
+            return jsonify({'error': 'Execution not found'}), 404
+
+        if gangway.enabled and local['status'] not in ('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'):
+            remote, err = gangway.get_execution_status(execution_id)
+            if remote and not err:
+                new_status = remote.get('job_status', local['status'])
+                prow_url = remote.get('prowjob_url')
+                db.update_gangway_execution(execution_id, new_status, prow_url)
+                local['status'] = new_status
+                if prow_url:
+                    local['prow_job_url'] = prow_url
+
+        return jsonify(local)
+
     @app.route('/api/analyze-failure', methods=['POST'])
     def api_analyze_failure():
         """
