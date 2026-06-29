@@ -664,6 +664,7 @@
             font-weight: 600;
             color: #fff;
             letter-spacing: 0.5px;
+            background: #6b7280;
         }
         .op-chip--far { background: #2563eb; }
         .op-chip--sbr { background: #f97316; }
@@ -1456,9 +1457,11 @@
                 html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Operator</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow</th></tr>';
                 items.forEach(function(t) {
                     var op = (t.operator || '').toUpperCase();
-                    var opColor = OP_COLORS[op] || 'var(--text-muted)';
                     var st = t.status || 'UNKNOWN';
-                    var stColor = st === 'TRIGGERED' || st === 'PENDING' ? '#eab308' : st === 'SUCCESS' ? '#22c55e' : st === 'FAILURE' || st === 'FAILED' || st === 'ERROR' ? '#ef4444' : 'var(--text-muted)';
+                    var stHtml = st === 'SUCCESS' ? '<span class="result-pass">' + esc(st) + '</span>'
+                        : (st === 'FAILURE' || st === 'FAILED' || st === 'ERROR') ? '<span class="result-fail">' + esc(st) + '</span>'
+                        : (st === 'TRIGGERED' || st === 'PENDING') ? '<span style="color:#eab308;font-weight:600;">' + esc(st) + '</span>'
+                        : '<span style="color:var(--text-muted);">' + esc(st) + '</span>';
                     var when = '-';
                     if (t.triggered_at) {
                         var ts = String(t.triggered_at);
@@ -1466,11 +1469,11 @@
                         var d = new Date(ts.replace(' ', 'T'));
                         when = isNaN(d.getTime()) ? ts : d.toLocaleString();
                     }
-                    var prowLink = t.prow_job_url ? linkEl(t.prow_job_url, 'View') : '-';
+                    var prowLink = t.prow_job_url ? linkEl(t.prow_job_url, 'View Job') : '-';
                     html += '<tr style="border-top:1px solid var(--border);">';
-                    html += '<td style="padding:4px 8px;color:' + opColor + ';font-weight:600;">' + esc(op) + '</td>';
-                    html += '<td style="padding:4px 8px;color:' + stColor + ';">' + esc(st) + '</td>';
-                    html += '<td style="padding:4px 8px;color:var(--text-muted);">' + esc(when) + '</td>';
+                    html += '<td style="padding:4px 8px;">' + opChip(op) + '</td>';
+                    html += '<td style="padding:4px 8px;">' + stHtml + '</td>';
+                    html += '<td style="padding:4px 8px;white-space:nowrap;">' + esc(when) + '</td>';
                     html += '<td style="padding:4px 8px;">' + prowLink + '</td>';
                     html += '</tr>';
                 });
