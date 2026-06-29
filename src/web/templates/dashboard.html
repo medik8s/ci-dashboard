@@ -1474,8 +1474,8 @@
                         if (!isNaN(d.getTime())) whenTitle = d.toISOString();
                     }
                     var prowLink = '-';
-                    if (t.prow_job_url) { prowLink = linkEl(t.prow_job_url, 'View Run'); }
-                    else if (t.job_name) { prowLink = linkEl('https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/' + encodeURIComponent(t.job_name), 'History'); }
+                    if (t.prow_job_url) { prowLink = linkEl(t.prow_job_url, 'View Job'); }
+                    else if (t.job_name) { prowLink = linkEl('https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/' + encodeURIComponent(t.job_name), 'View Job'); }
                     html += '<tr style="border-top:1px solid var(--border);">';
                     html += '<td style="padding:4px 8px;">' + opChip(op) + '</td>';
                     html += '<td style="padding:4px 8px;">' + stHtml + '</td>';
