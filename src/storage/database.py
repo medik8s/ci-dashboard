@@ -290,6 +290,21 @@ class DashboardDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_job_runs_job_type ON job_runs(job_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_test_results_job_type ON test_results(job_type)")
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS gangway_executions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id TEXT NOT NULL UNIQUE,
+                operator TEXT NOT NULL,
+                job_name TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'TRIGGERED',
+                triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                prow_job_url TEXT,
+                error_message TEXT
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_gangway_operator ON gangway_executions(operator)")
+
         self.conn.commit()
 
     def insert_job_runs(self, job_runs: List[JobRun]) -> int:
@@ -1179,6 +1194,88 @@ class DashboardDatabase:
         query += " ORDER BY jr.timestamp DESC"
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
+    def check_cooldown_and_reserve(self, operator, cooldown_seconds=300):
+        import uuid
+        from datetime import datetime, timezone
+        cursor = self.conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        try:
+            cursor.execute("""
+                SELECT triggered_at FROM gangway_executions
+                WHERE operator = ?
+                ORDER BY triggered_at DESC LIMIT 1
+            """, (operator,))
+            row = cursor.fetchone()
+            if row and row['triggered_at']:
+                try:
+                    last_dt = datetime.fromisoformat(
+                        str(row['triggered_at']).replace(' ', 'T'))
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+                    if elapsed < cooldown_seconds:
+                        self.conn.rollback()
+                        return False, int(cooldown_seconds - elapsed), None
+                except (ValueError, TypeError):
+                    self.conn.rollback()
+                    return False, -1, None
+            placeholder_id = f"pending-{uuid.uuid4().hex[:12]}"
+            cursor.execute("""
+                INSERT INTO gangway_executions (execution_id, operator, job_name, status)
+                VALUES (?, ?, '', 'PENDING')
+            """, (placeholder_id, operator))
+            self.conn.commit()
+            return True, 0, placeholder_id
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def finalize_gangway_execution(self, placeholder_id, execution_id, job_name, status):
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            UPDATE gangway_executions
+            SET execution_id = ?, job_name = ?, status = ?,
+                updated_at = CURRENT_TIMESTAMP, error_message = NULL
+            WHERE execution_id = ?
+        """, (execution_id, job_name, status, placeholder_id))
+        self.conn.commit()
+
+    def update_gangway_execution(self, execution_id, status, prow_job_url=None, error_message=None):
+        cursor = self.conn.cursor()
+        sets = ["status = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [status]
+        if prow_job_url is not None:
+            sets.append("prow_job_url = ?")
+            params.append(prow_job_url)
+        if error_message is not None:
+            sets.append("error_message = ?")
+            params.append(error_message)
+        params.append(execution_id)
+        cursor.execute(
+            f"UPDATE gangway_executions SET {', '.join(sets)} WHERE execution_id = ?",
+            params)
+        self.conn.commit()
+
+    def get_gangway_executions(self, operator=None, limit=20):
+        cursor = self.conn.cursor()
+        if operator:
+            cursor.execute("""
+                SELECT * FROM gangway_executions WHERE operator = ?
+                ORDER BY triggered_at DESC LIMIT ?
+            """, (operator, limit))
+        else:
+            cursor.execute("""
+                SELECT * FROM gangway_executions
+                ORDER BY triggered_at DESC LIMIT ?
+            """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_gangway_execution(self, execution_id):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM gangway_executions WHERE execution_id = ?", (execution_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
     def close(self):
         """Close database connection"""

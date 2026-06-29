@@ -1003,6 +1003,116 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         else:
             return jsonify({'error': 'Failed to create Jira issue'}), 500
 
+    TRIGGER_COOLDOWN_SECONDS = 300
+
+    @app.route('/api/trigger-job', methods=['POST'])
+    def api_trigger_job():
+        from integrations import get_gangway_client
+        gangway = get_gangway_client()
+        if not gangway.enabled:
+            return jsonify({
+                'status': 'disabled',
+                'message': 'Gangway not configured. Set PROW_GANGWAY_TOKEN.'
+            }), 503
+
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': 'Request body must be a JSON object'}), 400
+        operator_raw = data.get('operator')
+        if not isinstance(operator_raw, str) or not operator_raw.strip():
+            return jsonify({'error': 'Missing required field: operator'}), 400
+        operator = operator_raw.strip().lower()
+
+        from integrations.gangway_client import OPERATOR_JOB_MAP
+        if operator not in OPERATOR_JOB_MAP:
+            return jsonify({
+                'error': f'Unknown operator: {operator}. Valid: {", ".join(sorted(OPERATOR_JOB_MAP))}'
+            }), 400
+
+        try:
+            allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
+                operator, TRIGGER_COOLDOWN_SECONDS)
+        except Exception:
+            app.logger.exception("Cooldown check failed for %s", operator)
+            return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
+        if not allowed:
+            if remaining < 0:
+                return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
+            return jsonify({'error': f'Rate limited. Try again in {remaining}s.'}), 429
+
+        result, error = gangway.trigger_job(operator)
+        if error:
+            db.update_gangway_execution(placeholder_id, "FAILED", error_message=error)
+            if 'Unknown operator' in error:
+                return jsonify({'error': error}), 400
+            return jsonify({'error': error}), 502
+
+        execution_id = result.get('execution_id')
+        if not execution_id:
+            db.update_gangway_execution(placeholder_id, "FAILED",
+                                        error_message="No execution ID returned")
+            return jsonify({
+                'error': 'Gangway returned success but no execution ID',
+                'job_name': result.get('job_name'),
+            }), 502
+
+        try:
+            db.finalize_gangway_execution(
+                placeholder_id, execution_id,
+                result['job_name'], result['status'])
+        except Exception:
+            app.logger.exception(
+                "Gangway execution %s triggered but DB update failed", execution_id
+            )
+            return jsonify({
+                'error': 'Job was triggered but tracking failed. Do NOT retry.',
+                'execution_id': execution_id,
+            }), 500
+
+        return jsonify(result)
+
+    @app.route('/api/trigger-job/history')
+    def api_trigger_job_history():
+        operator = request.args.get('operator')
+        limit = request.args.get('limit', 20, type=int)
+        limit = max(1, min(limit, 100))
+        executions = db.get_gangway_executions(operator, limit)
+        return jsonify(executions)
+
+    _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
+
+    @app.route('/api/trigger-job/<execution_id>')
+    def api_trigger_job_status(execution_id):
+        if not _SAFE_ID.match(execution_id):
+            return jsonify({'error': 'Invalid execution id format'}), 400
+        from integrations import get_gangway_client
+        gangway = get_gangway_client()
+
+        local = db.get_gangway_execution(execution_id)
+        if not local:
+            return jsonify({'error': 'Execution not found'}), 404
+
+        refresh_error = None
+        if gangway.enabled and local['status'] not in ('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'):
+            remote, err = gangway.get_execution_status(execution_id)
+            if remote and not err:
+                new_status = remote.get('job_status', local['status'])
+                prow_url = remote.get('prowjob_url')
+                try:
+                    db.update_gangway_execution(execution_id, new_status, prow_url)
+                except Exception:
+                    app.logger.exception("Failed to update gangway execution %s in DB", execution_id)
+                local['status'] = new_status
+                if prow_url:
+                    local['prow_job_url'] = prow_url
+            elif err:
+                refresh_error = err
+
+        payload = dict(local)
+        if refresh_error:
+            payload['refresh_warning'] = f'Could not refresh from Gangway: {refresh_error}'
+        return jsonify(payload)
+
     @app.route('/api/analyze-failure', methods=['POST'])
     def api_analyze_failure():
         """
