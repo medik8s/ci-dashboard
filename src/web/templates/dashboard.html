@@ -1463,17 +1463,19 @@
                         : (st === 'TRIGGERED' || st === 'PENDING') ? '<span style="color:#eab308;font-weight:600;">' + esc(st) + '</span>'
                         : '<span style="color:var(--text-muted);">' + esc(st) + '</span>';
                     var when = '-';
+                    var whenTitle = '';
                     if (t.triggered_at) {
                         var ts = String(t.triggered_at);
                         if (!/Z|[+-]\d{2}:\d{2}$/.test(ts)) ts += 'Z';
                         var d = new Date(ts.replace(' ', 'T'));
-                        when = isNaN(d.getTime()) ? ts : d.toLocaleString();
+                        when = fmtDateTime(d) || ts;
+                        if (!isNaN(d.getTime())) whenTitle = d.toISOString();
                     }
                     var prowLink = t.prow_job_url ? linkEl(t.prow_job_url, 'View Job') : '-';
                     html += '<tr style="border-top:1px solid var(--border);">';
                     html += '<td style="padding:4px 8px;">' + opChip(op) + '</td>';
                     html += '<td style="padding:4px 8px;">' + stHtml + '</td>';
-                    html += '<td style="padding:4px 8px;white-space:nowrap;">' + esc(when) + '</td>';
+                    html += '<td style="padding:4px 8px;white-space:nowrap;"' + (whenTitle ? ' title="' + esc(whenTitle) + '"' : '') + '>' + esc(when) + '</td>';
                     html += '<td style="padding:4px 8px;">' + prowLink + '</td>';
                     html += '</tr>';
                 });
@@ -2700,6 +2702,12 @@
         function fmtDate(d) {
             if (!d) return '-';
             return d.split('T')[0];
+        }
+        function fmtDateTime(d) {
+            if (!d || isNaN(d.getTime())) return '';
+            var dd = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+            var tt = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+            return dd + ' ' + tt;
         }
         function esc(s) {
             if (s == null) return '';
