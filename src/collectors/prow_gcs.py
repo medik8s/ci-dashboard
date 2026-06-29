@@ -419,7 +419,11 @@ class ProwGCSCollector(BaseCollector):
                     if start_time < start_date or start_time > end_date:
                         continue
 
-                    result = build.get('Result', 'FAILURE')
+                    result = (build.get('Result') or '').strip().upper()
+                    if result in ('PENDING', 'TRIGGERED'):
+                        continue
+                    if not result:
+                        result = 'FAILURE'
                     job_status = (
                         TestStatus.PASSED
                         if result == 'SUCCESS'
@@ -520,7 +524,11 @@ class ProwGCSCollector(BaseCollector):
                     if start_time < start_date or start_time > end_date:
                         continue
 
-                    result = build.get('Result', 'FAILURE')
+                    result = (build.get('Result') or '').strip().upper()
+                    if result in ('PENDING', 'TRIGGERED'):
+                        continue
+                    if not result:
+                        result = 'FAILURE'
                     job_status = TestStatus.PASSED if result == 'SUCCESS' else TestStatus.FAILED
                     build_id = str(build.get('ID', 'unknown'))
                     duration = int(build.get('Duration', 0)) // 1_000_000_000

@@ -790,7 +790,7 @@
         .fbc-missing-marker tr td:first-child { border-left: 3px solid #f59e0b; }
 
         /* Donut chart container */
-        .donut-container { max-width: 380px; margin: 0 auto; }
+        .donut-container { max-width: 460px; margin: 0 auto; }
     </style>
 </head>
 <body>
@@ -1002,19 +1002,19 @@
             <div class="controls" style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
                 <label>Trigger E2E:</label>
                 <div class="op-filter-bar">
-                    <button class="op-filter-chip trigger-btn" data-operator="far" onclick="triggerJob(this)" style="border-color:#2563eb; color:#2563eb;">FAR</button>
-                    <button class="op-filter-chip trigger-btn" data-operator="sbr" onclick="triggerJob(this)" style="border-color:#f97316; color:#f97316;">SBR</button>
-                    <button class="op-filter-chip trigger-btn" data-operator="snr" onclick="triggerJob(this)" style="border-color:#22c55e; color:#22c55e;">SNR</button>
-                    <button class="op-filter-chip trigger-btn" data-operator="nhc" onclick="triggerJob(this)" style="border-color:#a855f7; color:#a855f7;">NHC</button>
-                    <button class="op-filter-chip trigger-btn" data-operator="mdr" onclick="triggerJob(this)" style="border-color:#eab308; color:#eab308;">MDR</button>
-                    <button class="op-filter-chip trigger-btn" data-operator="nmo" onclick="triggerJob(this)" style="border-color:#06b6d4; color:#06b6d4;">NMO</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="far" onclick="triggerJob(this)" style="border-color:#2563eb;">FAR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="sbr" onclick="triggerJob(this)" style="border-color:#f97316;">SBR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="snr" onclick="triggerJob(this)" style="border-color:#22c55e;">SNR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="nhc" onclick="triggerJob(this)" style="border-color:#a855f7;">NHC</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="mdr" onclick="triggerJob(this)" style="border-color:#eab308;">MDR</button>
+                    <button class="op-filter-chip trigger-btn" data-operator="nmo" onclick="triggerJob(this)" style="border-color:#06b6d4;">NMO</button>
                 </div>
                 <span id="triggerStatus" style="font-size:0.8rem; margin-left:8px;"></span>
             </div>
             <div id="recentTriggersSection" style="display:none; margin-bottom:16px; padding:12px; border-radius:8px; background:var(--card-bg); border:1px solid var(--border);">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
                     <span style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">Recent Triggers</span>
-                    <button onclick="loadRecentTriggers()" style="padding:2px 8px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.7rem;">Refresh</button>
+                    <button onclick="loadRecentTriggers(true)" style="padding:2px 8px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.7rem;">Refresh</button>
                 </div>
                 <div id="recentTriggersList" style="font-size:0.8rem;"></div>
             </div>
@@ -1444,11 +1444,12 @@
             }
         }
 
-        async function loadRecentTriggers() {
+        async function loadRecentTriggers(refresh) {
             var section = document.getElementById('recentTriggersSection');
             var list = document.getElementById('recentTriggersList');
             try {
-                var resp = await fetch('/api/trigger-job/history?limit=6');
+                var url = '/api/trigger-job/history?limit=6' + (refresh ? '&refresh=1' : '');
+                var resp = await fetch(url);
                 if (!resp.ok) { section.style.display = 'none'; return; }
                 var items = await resp.json();
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
@@ -2821,7 +2822,7 @@
                         },
                         options: {
                             responsive: true, maintainAspectRatio: true,
-                            plugins: { legend: { position: 'bottom', labels: { color: '#d8d9da', boxWidth: 12, padding: 12 } } }
+                            plugins: { legend: { position: 'bottom', labels: { color: '#d8d9da', boxWidth: 10, padding: 8, usePointStyle: true } } }
                         }
                     });
                 }
@@ -3123,7 +3124,7 @@
                             + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
-                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);">N/A</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
+                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? (r.status === 'failed' ? '<span style="color:#f59e0b;" title="Job failed before tests ran">Infra</span>' : '<span style="color:var(--text-muted);">N/A</span>') : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
                             + '<td style="text-align:center;"><button class="trigger-btn" data-operator="' + esc(jobOp.toLowerCase()) + '" onclick="event.stopPropagation();triggerJob(this)" title="Retrigger ' + esc(jobOp) + ' E2E" aria-label="Retrigger ' + esc(jobOp) + ' E2E" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button></td>';
                         gbody.appendChild(row);
                         var detail = document.createElement('tr');

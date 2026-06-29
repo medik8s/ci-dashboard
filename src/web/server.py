@@ -1071,12 +1071,40 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
         return jsonify(result)
 
+    _TERMINAL_STATUSES = frozenset(('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'))
+
     @app.route('/api/trigger-job/history')
     def api_trigger_job_history():
         operator = request.args.get('operator')
         limit = request.args.get('limit', 20, type=int)
         limit = max(1, min(limit, 100))
+        refresh = request.args.get('refresh', '0') == '1'
         executions = db.get_gangway_executions(operator, limit)
+        if refresh:
+            from integrations import get_gangway_client
+            gangway = get_gangway_client()
+            if gangway.enabled:
+                refreshed = 0
+                for ex in executions:
+                    if refreshed >= 5:
+                        break
+                    if (ex.get('status') or '').upper() in _TERMINAL_STATUSES:
+                        continue
+                    eid = ex.get('execution_id')
+                    if not eid:
+                        continue
+                    refreshed += 1
+                    try:
+                        remote, err = gangway.get_execution_status(eid)
+                        if remote and not err:
+                            new_status = remote.get('job_status', ex['status'])
+                            prow_url = remote.get('prowjob_url')
+                            db.update_gangway_execution(eid, new_status, prow_url)
+                            ex['status'] = new_status
+                            if prow_url:
+                                ex['prow_job_url'] = prow_url
+                    except Exception:
+                        app.logger.exception("Failed to refresh execution %s", eid)
         return jsonify(executions)
 
     _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
@@ -1093,7 +1121,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             return jsonify({'error': 'Execution not found'}), 404
 
         refresh_error = None
-        if gangway.enabled and local['status'] not in ('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'):
+        if gangway.enabled and local['status'] not in _TERMINAL_STATUSES:
             remote, err = gangway.get_execution_status(execution_id)
             if remote and not err:
                 new_status = remote.get('job_status', local['status'])
