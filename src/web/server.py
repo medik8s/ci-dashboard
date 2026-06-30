@@ -1037,15 +1037,22 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
         result, error = gangway.trigger_job(operator)
         if error:
-            db.update_gangway_execution(placeholder_id, "FAILED", error_message=error)
+            try:
+                db.update_gangway_execution(placeholder_id, "FAILED",
+                                            error_message=error)
+            except Exception:
+                app.logger.exception("DB update failed for %s", operator)
             if 'Unknown operator' in error:
                 return jsonify({'error': error}), 400
             return jsonify({'error': error}), 502
 
         execution_id = result.get('execution_id')
         if not execution_id:
-            db.update_gangway_execution(placeholder_id, "FAILED",
-                                        error_message="No execution ID returned")
+            try:
+                db.update_gangway_execution(placeholder_id, "FAILED",
+                                            error_message="No execution ID returned")
+            except Exception:
+                app.logger.exception("DB update failed for %s", operator)
             return jsonify({
                 'error': 'Gangway returned success but no execution ID',
                 'job_name': result.get('job_name'),
@@ -1068,7 +1075,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     @app.route('/api/trigger-all-jobs', methods=['POST'])
     def api_trigger_all_jobs():
-        from integrations import get_gangway_client, OPERATOR_ORDER
+        from integrations import get_gangway_client
         from integrations.gangway_client import OPERATOR_JOB_MAP
         gangway = get_gangway_client()
         if not gangway.enabled:
@@ -1082,9 +1089,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         skipped = 0
         failed = 0
 
-        for idx, operator in enumerate(OPERATOR_ORDER):
-            if operator not in OPERATOR_JOB_MAP:
-                continue
+        operators = list(OPERATOR_JOB_MAP.keys())
+        for idx, operator in enumerate(operators):
             entry = {'operator': operator, 'status': None, 'message': None,
                      'execution_id': None}
 
@@ -1100,9 +1106,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 continue
 
             if not allowed:
-                entry['status'] = 'skipped'
-                entry['message'] = f'Cooldown active ({remaining}s remaining)'
-                skipped += 1
+                if remaining < 0:
+                    entry['status'] = 'failed'
+                    entry['message'] = 'Rate limit check failed'
+                    failed += 1
+                else:
+                    entry['status'] = 'skipped'
+                    entry['message'] = f'Cooldown active ({remaining}s remaining)'
+                    skipped += 1
                 results.append(entry)
                 continue
 
@@ -1136,23 +1147,24 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 db.finalize_gangway_execution(
                     placeholder_id, execution_id,
                     result['job_name'], result['status'])
+                entry['message'] = 'Job triggered'
             except Exception:
                 app.logger.exception(
                     "Gangway execution %s triggered but DB update failed",
                     execution_id)
+                entry['message'] = 'Triggered but tracking failed'
 
             entry['status'] = 'triggered'
             entry['execution_id'] = execution_id
-            entry['message'] = 'Job triggered'
             triggered += 1
             results.append(entry)
 
-            if idx < len(OPERATOR_ORDER) - 1:
-                time.sleep(1)
+            if idx < len(operators) - 1:
+                time.sleep(0.2)
 
         return jsonify({
             'summary': {
-                'total': len(OPERATOR_ORDER),
+                'total': triggered + skipped + failed,
                 'triggered': triggered,
                 'skipped': skipped,
                 'failed': failed,

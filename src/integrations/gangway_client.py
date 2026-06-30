@@ -27,8 +27,6 @@ OPERATOR_JOB_MAP = {
     "nhc": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws",
 }
 
-OPERATOR_ORDER = ["far", "sbr", "snr", "nhc", "mdr", "nmo"]
-
 
 class GangwayClient:
     def __init__(self):
