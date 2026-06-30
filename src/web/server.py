@@ -12,7 +12,6 @@ import sys
 import os
 import logging
 import io
-import csv
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
@@ -33,11 +32,6 @@ collection_status = {
     'completed_at': None,
     'lock': threading.Lock()
 }
-
-
-def _md_cell(val):
-    """Escape a value for use in a markdown table cell."""
-    return str(val or '').replace('|', '\\|').replace('\n', ' ').replace('\r', ' ').strip()
 
 
 def _fbc_short(fbc_image):
@@ -1367,14 +1361,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         today = datetime.now().strftime('%Y-%m-%d')
         filename = f'dashboard-export-{version}-{days}days-{today}'
 
-        if export_format == 'xlsx':
-            return export_to_xlsx_enriched(enriched_rows, filename, version, days)
-        elif export_format == 'csv':
-            return export_to_csv_enriched(enriched_rows, filename, version, days)
-        elif export_format == 'md':
-            return export_to_markdown_enriched(enriched_rows, filename, version, days)
-        else:
-            return jsonify({'error': 'Invalid format. Use xlsx, csv, or md'}), 400
+        if export_format != 'xlsx':
+            return jsonify({'error': 'Invalid format. Only xlsx is supported'}), 400
+        return export_to_xlsx_enriched(enriched_rows, filename, version, days)
 
     def export_to_xlsx_enriched(enriched_rows, filename, version, days):
         """Export to Excel matching the reference Google Sheet 17-column structure"""
@@ -1404,7 +1393,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             cell = ws.cell(row=1, column=col_num, value=header)
             cell.fill = header_fill
             cell.font = header_font
-            cell.alignment = Alignment(horizontal='center', vertical='middle', wrap_text=True)
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
         ws.row_dimensions[1].height = 35
         ws.freeze_panes = 'A2'
@@ -1522,76 +1511,6 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
             download_name=f'{filename}.xlsx'
-        )
-
-    def export_to_csv_enriched(enriched_rows, filename, version, days):
-        """Export enriched test results to CSV with 17-column structure"""
-        output = io.StringIO()
-        writer = csv.writer(output)
-
-        headers = [
-            'Test Name', 'Operator', 'Result', 'Periodic Job', 'Run Date',
-            'Job Duration', 'OCP Version', 'Platform', 'Operator CSV Version',
-            'FBC Catalog Image', 'Prow Job URL', 'E2E Test Log URL',
-            'Operator Install Log URL', 'CatalogSource Log URL', 'Artifacts URL', 'Build Log URL', 'Polarion ID'
-        ]
-        writer.writerow(headers)
-
-        for row in enriched_rows:
-            fmt = _format_export_row(row, empty_placeholder='')
-
-            writer.writerow([
-                row.get('test_description') or row.get('test_name'),
-                row.get('operator') or '',
-                fmt['result_str'],
-                fmt['short_job'],
-                fmt['run_date'],
-                fmt['duration_str'],
-                row.get('ocp_version') or row.get('version') or '',
-                (row.get('platform') or '').upper(),
-                row.get('csv_version') or '',
-                row.get('fbc_image') or '',
-                row.get('job_url') or '',
-                fmt['e2e_log_url'],
-                fmt['subscribe_log_url'],
-                fmt['catalog_log_url'],
-                fmt['artifacts_url'],
-                fmt['build_log_url'],
-                row.get('polarion_id') or '',
-            ])
-
-        output.seek(0)
-        return send_file(
-            io.BytesIO(output.getvalue().encode('utf-8')),
-            mimetype='text/csv',
-            as_attachment=True,
-            download_name=f'{filename}.csv'
-        )
-
-    def export_to_markdown_enriched(enriched_rows, filename, version, days):
-        """Export enriched test results to Markdown (8-column format for readability; full 17 columns via XLSX/CSV)"""
-        output = io.StringIO()
-        output.write(f'# Dashboard Export - {version}\n\n')
-        output.write(f'**Time Range:** {days} days | **Generated:** {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n\n')
-
-        output.write('| Test Name | Operator | Result | Job | Run Date | OCP Version | Platform | Polarion |\n')
-        output.write('|-----------|----------|--------|-----|----------|-------------|----------|----------|\n')
-
-        for row in enriched_rows:
-            fmt = _format_export_row(row)
-            name = _md_cell(row.get('test_description') or row.get('test_name'))
-            prow_url = row.get('job_url') or ''
-            job_link = f'[{_md_cell(fmt["short_job"])}]({prow_url})' if prow_url else _md_cell(fmt['short_job'])
-            ocp_ver = row.get('ocp_version') or row.get('version') or ''
-
-            output.write(f'| {name} | {_md_cell(row.get("operator"))} | {fmt["result_str"]} | {job_link} | {fmt["run_date"]} | {ocp_ver} | {(row.get("platform") or "").upper()} | {_md_cell(row.get("polarion_id"))} |\n')
-
-        output.seek(0)
-        return send_file(
-            io.BytesIO(output.getvalue().encode('utf-8')),
-            mimetype='text/markdown',
-            as_attachment=True,
-            download_name=f'{filename}.md'
         )
 
     @app.teardown_appcontext
