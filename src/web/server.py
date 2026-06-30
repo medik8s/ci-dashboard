@@ -6,6 +6,7 @@ from flask import Flask, render_template, jsonify, request, send_file
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
+import time
 import yaml
 import threading
 import sys
@@ -1036,15 +1037,22 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
         result, error = gangway.trigger_job(operator)
         if error:
-            db.update_gangway_execution(placeholder_id, "FAILED", error_message=error)
+            try:
+                db.update_gangway_execution(placeholder_id, "FAILED",
+                                            error_message=error)
+            except Exception:
+                app.logger.exception("DB update failed for %s", operator)
             if 'Unknown operator' in error:
                 return jsonify({'error': error}), 400
             return jsonify({'error': error}), 502
 
         execution_id = result.get('execution_id')
         if not execution_id:
-            db.update_gangway_execution(placeholder_id, "FAILED",
-                                        error_message="No execution ID returned")
+            try:
+                db.update_gangway_execution(placeholder_id, "FAILED",
+                                            error_message="No execution ID returned")
+            except Exception:
+                app.logger.exception("DB update failed for %s", operator)
             return jsonify({
                 'error': 'Gangway returned success but no execution ID',
                 'job_name': result.get('job_name'),
@@ -1064,6 +1072,105 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             }), 500
 
         return jsonify(result)
+
+    @app.route('/api/trigger-all-jobs', methods=['POST'])
+    def api_trigger_all_jobs():
+        from integrations import get_gangway_client
+        from integrations.gangway_client import OPERATOR_JOB_MAP
+        gangway = get_gangway_client()
+        if not gangway.enabled:
+            return jsonify({
+                'status': 'disabled',
+                'message': 'Gangway not configured. Set PROW_GANGWAY_TOKEN.'
+            }), 503
+
+        results = []
+        triggered = 0
+        skipped = 0
+        failed = 0
+
+        operators = list(OPERATOR_JOB_MAP.keys())
+        for idx, operator in enumerate(operators):
+            entry = {'operator': operator, 'status': None, 'message': None,
+                     'execution_id': None}
+
+            try:
+                allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
+                    operator, TRIGGER_COOLDOWN_SECONDS)
+            except Exception:
+                app.logger.exception("Cooldown check failed for %s", operator)
+                entry['status'] = 'failed'
+                entry['message'] = 'Rate limit check failed'
+                failed += 1
+                results.append(entry)
+                continue
+
+            if not allowed:
+                if remaining < 0:
+                    entry['status'] = 'failed'
+                    entry['message'] = 'Rate limit check failed'
+                    failed += 1
+                else:
+                    entry['status'] = 'skipped'
+                    entry['message'] = f'Cooldown active ({remaining}s remaining)'
+                    skipped += 1
+                results.append(entry)
+                continue
+
+            result, error = gangway.trigger_job(operator)
+            if error:
+                try:
+                    db.update_gangway_execution(placeholder_id, "FAILED",
+                                                error_message=error)
+                except Exception:
+                    app.logger.exception("DB update failed for %s", operator)
+                entry['status'] = 'failed'
+                entry['message'] = error
+                failed += 1
+                results.append(entry)
+                continue
+
+            execution_id = result.get('execution_id')
+            if not execution_id:
+                try:
+                    db.update_gangway_execution(placeholder_id, "FAILED",
+                                                error_message="No execution ID")
+                except Exception:
+                    app.logger.exception("DB update failed for %s", operator)
+                entry['status'] = 'failed'
+                entry['message'] = 'No execution ID returned'
+                failed += 1
+                results.append(entry)
+                continue
+
+            try:
+                db.finalize_gangway_execution(
+                    placeholder_id, execution_id,
+                    result['job_name'], result['status'])
+                entry['message'] = 'Job triggered'
+            except Exception:
+                app.logger.exception(
+                    "Gangway execution %s triggered but DB update failed",
+                    execution_id)
+                entry['message'] = 'Triggered but tracking failed'
+
+            entry['status'] = 'triggered'
+            entry['execution_id'] = execution_id
+            triggered += 1
+            results.append(entry)
+
+            if idx < len(operators) - 1:
+                time.sleep(0.2)
+
+        return jsonify({
+            'summary': {
+                'total': triggered + skipped + failed,
+                'triggered': triggered,
+                'skipped': skipped,
+                'failed': failed,
+            },
+            'results': results,
+        })
 
     _TERMINAL_STATUSES = frozenset(('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'))
     _SKIP_RESOLVE_STATUSES = frozenset(('PENDING', 'QUEUED', 'TRIGGERED', ''))

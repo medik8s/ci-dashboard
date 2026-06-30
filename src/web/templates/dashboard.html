@@ -979,6 +979,7 @@
             <div class="controls" style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
                 <label>Trigger E2E:</label>
                 <div class="op-filter-bar">
+                    <button class="op-filter-chip trigger-btn" onclick="triggerAllJobs(this)">All</button>
                     <button class="op-filter-chip trigger-btn" data-operator="far" onclick="triggerJob(this)" style="border-color:#2563eb;">FAR</button>
                     <button class="op-filter-chip trigger-btn" data-operator="sbr" onclick="triggerJob(this)" style="border-color:#f97316;">SBR</button>
                     <button class="op-filter-chip trigger-btn" data-operator="snr" onclick="triggerJob(this)" style="border-color:#22c55e;">SNR</button>
@@ -1362,6 +1363,61 @@
                 }
                 btn.style.background = 'rgba(34,197,94,0.15)';
                 setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
+            } catch (e) {
+                status.textContent = 'Network error: ' + e.message;
+                status.style.color = '#ef4444';
+                btn.style.background = 'rgba(239,68,68,0.15)';
+                setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
+            } finally {
+                allBtns.forEach(function(b) { b.disabled = false; });
+                loadRecentTriggers();
+            }
+        }
+
+        async function triggerAllJobs(btn) {
+            if (!confirm('Trigger periodic jobs for all operators?\n\nThis will start multiple AWS clusters (~1.5-2h each). Operators on cooldown will be skipped.')) return;
+            var status = document.getElementById('triggerStatus');
+            var allBtns = document.querySelectorAll('.trigger-btn');
+            allBtns.forEach(function(b) { b.disabled = true; });
+            status.textContent = 'Triggering all operators...';
+            status.style.color = 'var(--text-muted)';
+            try {
+                var resp = await fetch('/api/trigger-all-jobs', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                var data = {};
+                var ct = resp.headers.get('content-type') || '';
+                if (ct.includes('application/json')) {
+                    data = await resp.json();
+                } else {
+                    var text = await resp.text();
+                    data = {error: text || ('Server error: HTTP ' + resp.status)};
+                }
+                if (resp.ok && data.summary) {
+                    var s = data.summary;
+                    var parts = [];
+                    if (s.triggered > 0) parts.push(s.triggered + ' triggered');
+                    if (s.skipped > 0) parts.push(s.skipped + ' skipped');
+                    if (s.failed > 0) parts.push(s.failed + ' failed');
+                    var icons = (data.results || []).map(function(r) {
+                        var op = (r.operator || '').toUpperCase();
+                        if (r.status === 'triggered') return op + '✓';
+                        if (r.status === 'skipped') return op + '—';
+                        return op + '✗';
+                    }).join('  ');
+                    status.textContent = icons + '  (' + parts.join(', ') + ')';
+                    if (s.failed > 0) { status.style.color = '#eab308'; }
+                    else if (s.triggered > 0) { status.style.color = '#22c55e'; }
+                    else { status.style.color = 'var(--text-muted)'; }
+                    btn.style.background = s.failed > 0 ? 'rgba(234,179,8,0.15)' : 'rgba(34,197,94,0.15)';
+                    setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
+                } else {
+                    status.textContent = 'Error: ' + (data.error || data.message || resp.statusText);
+                    status.style.color = '#ef4444';
+                    btn.style.background = 'rgba(239,68,68,0.15)';
+                    setTimeout(function() { btn.style.background = 'transparent'; }, 2000);
+                }
             } catch (e) {
                 status.textContent = 'Network error: ' + e.message;
                 status.style.color = '#ef4444';
