@@ -776,12 +776,16 @@
         .fbc-badge {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 0.7rem;
             font-weight: 700;
             margin-left: 6px;
             vertical-align: middle;
+            font-variant-numeric: tabular-nums;
+            min-width: 72px;
+            flex-shrink: 0;
         }
         .fbc-badge--total { background: rgba(255,255,255,0.08); color: var(--text-muted); }
         .fbc-badge--pass { background: rgba(34,197,94,0.15); color: #22c55e; }
