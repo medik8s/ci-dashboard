@@ -858,25 +858,27 @@
             </div>
         </div>
 
+        <!-- Shared filters (visible on all tabs except Weekly Report) -->
+        <div id="sharedFilters" class="controls" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <label for="timeRange">Time Range:</label>
+                <select id="timeRange" onchange="refreshActiveTab()">
+                    <option value="3">Last 3 days</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="60">Last 60 days</option>
+                    <option value="90">Last 90 days</option>
+                </select>
+
+                <label for="versionFilter">Version:</label>
+                <select id="versionFilter" onchange="refreshActiveTab()">
+                </select>
+            </div>
+        </div>
+
         <!-- Overview Tab -->
         <div id="overview-tab" class="tab-content active">
-            <div class="controls" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <label for="timeRange">Time Range:</label>
-                    <select id="timeRange" onchange="refreshDashboard()">
-                        <option value="3">Last 3 days</option>
-                        <option value="7">Last 7 days</option>
-                        <option value="14">Last 14 days</option>
-                        <option value="30" selected>Last 30 days</option>
-                        <option value="60">Last 60 days</option>
-                        <option value="90">Last 90 days</option>
-                    </select>
-
-                    <label for="versionFilter">Version:</label>
-                    <select id="versionFilter" onchange="refreshDashboard()">
-                    </select>
-                </div>
-            </div>
 
         <div class="stat-panels" id="statPanels">
             <div class="stat-panel"><div class="sp-label">Total Tests</div><div class="sp-value" id="spTotal">--</div></div>
@@ -1266,6 +1268,16 @@
 
         var syncLabelInterval = setInterval(updateSyncLabel, 60000);
 
+        function refreshActiveTab() {
+            var active = document.querySelector('.tab-content.active');
+            if (!active) return;
+            var id = active.id.replace('-tab', '');
+            if (id === 'overview') refreshDashboard();
+            else if (id === 'test-results') loadTestResults();
+            else if (id === 'job-runs') loadJobRuns();
+            else if (id === 'presubmit') loadPresubmitResults();
+        }
+
         function showTab(tabName) {
             var tabs = document.querySelectorAll('.header-tabs .tab-button');
 
@@ -1296,6 +1308,8 @@
                     btn.setAttribute('aria-selected', 'true');
                 }
             });
+            var sharedFilters = document.getElementById('sharedFilters');
+            if (sharedFilters) sharedFilters.style.display = (tabName === 'weekly-report') ? 'none' : 'flex';
             if (tabName === 'weekly-report') refreshWeeklyReport();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') { loadJobRuns(); loadTriggerButtons(); loadRecentTriggers(); }
@@ -1331,7 +1345,7 @@
             }
         }
 
-        var OP_COLORS = {far:'#2563eb',sbr:'#f97316',snr:'#22c55e',nhc:'#a855f7',mdr:'#eab308',nmo:'#06b6d4'};
+
 
         function _shortJobLabel(job) {
             return job.replace(/^periodic-ci-medik8s-system-tests-main-/, '').replace(/^[^-]+-[^-]+-e2e-/, '');
@@ -1360,7 +1374,7 @@
                 }
                 Object.keys(operators).forEach(function(op) {
                     var jobs = operators[op];
-                    var color = OP_COLORS[op] || '#6b7280';
+                    var color = OP_COLORS[op.toUpperCase()] || '#6b7280';
                     var wrapper = document.createElement('div');
                     wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
                     var btn = document.createElement('button');
@@ -2541,8 +2555,8 @@
                         collectionPolling = null;
                     }
 
-                    // Refresh dashboard data without full page reload
-                    refreshDashboard();
+                    // Refresh whichever tab is currently active
+                    refreshActiveTab();
 
                     // Hide banner after a moment
                     setTimeout(() => {
