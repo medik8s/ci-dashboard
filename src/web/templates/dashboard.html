@@ -155,6 +155,7 @@
             border-radius: 8px;
             margin-bottom: 20px;
             box-shadow: var(--shadow);
+            border: 1px solid var(--border);
         }
 
         .controls label {
@@ -1345,8 +1346,6 @@
             }
         }
 
-        var OP_COLORS = {far:'#2563eb',sbr:'#f97316',snr:'#22c55e',nhc:'#a855f7',mdr:'#eab308',nmo:'#06b6d4'};
-
         function _shortJobLabel(job) {
             return job.replace(/^periodic-ci-medik8s-system-tests-main-/, '').replace(/^[^-]+-[^-]+-e2e-/, '');
         }
@@ -1372,31 +1371,51 @@
                     container.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted);">No triggerable jobs configured</span>';
                     return;
                 }
-                Object.keys(operators).forEach(function(op) {
+                var opOrder = ['far','sbr','snr','nhc','mdr','nmo'];
+                var sortedOps = Object.keys(operators).sort(function(a, b) {
+                    var ia = opOrder.indexOf(a), ib = opOrder.indexOf(b);
+                    if (ia === -1) ia = 999;
+                    if (ib === -1) ib = 999;
+                    return ia - ib;
+                });
+                sortedOps.forEach(function(op) {
                     var jobs = operators[op];
-                    var color = OP_COLORS[op] || '#6b7280';
+                    var color = OP_COLORS[op.toUpperCase()] || '#6b7280';
                     var wrapper = document.createElement('div');
-                    wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
+                    wrapper.style.cssText = 'position:relative;display:inline-block;margin-right:6px;';
                     var btn = document.createElement('button');
                     btn.className = 'op-filter-chip trigger-btn';
                     btn.style.borderColor = color;
                     btn.textContent = op.toUpperCase();
                     if (jobs.length > 1) {
-                        var select = document.createElement('select');
-                        select.className = 'trigger-job-select';
-                        select.style.cssText = 'font-size:0.7rem;padding:2px 4px;border:1px solid ' + color + ';border-radius:4px;background:transparent;color:var(--text-primary);max-width:180px;cursor:pointer;';
-                        jobs.forEach(function(job) {
-                            var opt = document.createElement('option');
-                            opt.value = job;
-                            opt.textContent = _shortJobLabel(job);
-                            opt.title = job;
-                            select.appendChild(opt);
-                        });
-                        btn.onclick = function() {
-                            var selectedJob = select.value;
-                            triggerJob(btn, selectedJob, op.toUpperCase() + ' (' + _shortJobLabel(selectedJob) + ')');
+                        btn.onclick = function(e) {
+                            var existing = wrapper.querySelector('.trigger-job-menu');
+                            if (existing) { existing.remove(); return; }
+                            document.querySelectorAll('.trigger-job-menu').forEach(function(m) { m.remove(); });
+                            var menu = document.createElement('div');
+                            menu.className = 'trigger-job-menu';
+                            menu.style.cssText = 'position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:6px;background:var(--bg-surface, #1e293b);border:2px solid ' + color + ';border-radius:8px;padding:8px 0;z-index:1000;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,0.6);backdrop-filter:blur(8px);';
+                            jobs.forEach(function(job) {
+                                var item = document.createElement('button');
+                                item.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 16px;background:none;border:none;color:var(--text-primary);font-size:0.8rem;cursor:pointer;white-space:nowrap;';
+                                item.textContent = _shortJobLabel(job);
+                                item.title = job;
+                                item.onmouseenter = function() { item.style.background = 'rgba(255,255,255,0.08)'; };
+                                item.onmouseleave = function() { item.style.background = 'none'; };
+                                item.onclick = function(ev) {
+                                    ev.stopPropagation();
+                                    menu.remove();
+                                    triggerJob(btn, job, op.toUpperCase() + ' (' + _shortJobLabel(job) + ')');
+                                };
+                                menu.appendChild(item);
+                            });
+                            wrapper.appendChild(menu);
+                            setTimeout(function() {
+                                document.addEventListener('click', function closeMenu(ev) {
+                                    if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); }
+                                });
+                            }, 0);
                         };
-                        wrapper.appendChild(select);
                     } else {
                         btn.onclick = function() {
                             triggerJob(btn, jobs[0], op.toUpperCase());
