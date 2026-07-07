@@ -52,6 +52,7 @@ collector:
 # Tracking configuration
 tracking:
   versions:
+    - "4.21"
     - "4.22"
 
   platforms:
