@@ -990,7 +990,7 @@
                 <label>Trigger E2E:</label>
                 <div class="op-filter-bar" id="triggerButtonBar">
                     <button class="op-filter-chip trigger-btn" onclick="triggerAllJobs(this)">All</button>
-                    <span class="loading" style="font-size:0.75rem;">Loading jobs...</span>
+                    <span id="dynamicTriggerBtns"><span class="loading" style="font-size:0.75rem;">Loading jobs...</span></span>
                 </div>
                 <span id="triggerStatus" style="font-size:0.8rem; margin-left:8px;"></span>
             </div>
@@ -1333,49 +1333,71 @@
 
         var OP_COLORS = {far:'#2563eb',sbr:'#f97316',snr:'#22c55e',nhc:'#a855f7',mdr:'#eab308',nmo:'#06b6d4'};
 
+        function _shortJobLabel(job) {
+            return job.replace(/^periodic-ci-medik8s-system-tests-main-/, '').replace(/^[^-]+-[^-]+-e2e-/, '');
+        }
+
+        var _triggerBtnsLoaded = false;
         async function loadTriggerButtons() {
-            var bar = document.getElementById('triggerButtonBar');
+            if (_triggerBtnsLoaded) return;
+            _triggerBtnsLoaded = true;
+            var container = document.getElementById('dynamicTriggerBtns');
             try {
                 var resp = await fetch('/api/trigger-job/map');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 var data = await resp.json();
-                var allBtn = bar.querySelector('[onclick*="triggerAllJobs"]');
-                bar.innerHTML = '';
-                if (allBtn) bar.appendChild(allBtn);
+                container.innerHTML = '';
+                if (data.enabled === false) {
+                    container.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted);">Gangway triggering disabled</span>';
+                    var allBtn = document.querySelector('#triggerButtonBar [onclick*="triggerAllJobs"]');
+                    if (allBtn) allBtn.style.display = 'none';
+                    return;
+                }
                 var operators = data.operators || {};
+                if (Object.keys(operators).length === 0) {
+                    container.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted);">No triggerable jobs configured</span>';
+                    return;
+                }
                 Object.keys(operators).forEach(function(op) {
                     var jobs = operators[op];
                     var color = OP_COLORS[op] || '#6b7280';
-                    if (jobs.length === 1) {
-                        var btn = document.createElement('button');
-                        btn.className = 'op-filter-chip trigger-btn';
-                        btn.dataset.jobName = jobs[0];
-                        btn.style.borderColor = color;
-                        btn.textContent = op.toUpperCase();
-                        btn.onclick = function() { triggerJob(this); };
-                        bar.appendChild(btn);
-                    } else {
+                    var wrapper = document.createElement('div');
+                    wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
+                    var btn = document.createElement('button');
+                    btn.className = 'op-filter-chip trigger-btn';
+                    btn.style.borderColor = color;
+                    btn.textContent = op.toUpperCase();
+                    if (jobs.length > 1) {
+                        var select = document.createElement('select');
+                        select.className = 'trigger-job-select';
+                        select.style.cssText = 'font-size:0.7rem;padding:2px 4px;border:1px solid ' + color + ';border-radius:4px;background:transparent;color:var(--text-primary);max-width:180px;cursor:pointer;';
                         jobs.forEach(function(job) {
-                            var short = job.replace(/^periodic-ci-medik8s-system-tests-main-[^-]+-[^-]+-e2e-/, '');
-                            var btn = document.createElement('button');
-                            btn.className = 'op-filter-chip trigger-btn';
-                            btn.dataset.jobName = job;
-                            btn.style.borderColor = color;
-                            btn.style.fontSize = '0.65rem';
-                            btn.textContent = op.toUpperCase() + ' ' + short;
-                            btn.title = job;
-                            btn.onclick = function() { triggerJob(this); };
-                            bar.appendChild(btn);
+                            var opt = document.createElement('option');
+                            opt.value = job;
+                            opt.textContent = _shortJobLabel(job);
+                            opt.title = job;
+                            select.appendChild(opt);
                         });
+                        btn.onclick = function() {
+                            var selectedJob = select.value;
+                            triggerJob(btn, selectedJob, op.toUpperCase() + ' (' + _shortJobLabel(selectedJob) + ')');
+                        };
+                        wrapper.appendChild(select);
+                    } else {
+                        btn.onclick = function() {
+                            triggerJob(btn, jobs[0], op.toUpperCase());
+                        };
                     }
+                    wrapper.appendChild(btn);
+                    container.appendChild(wrapper);
                 });
             } catch (e) {
-                bar.innerHTML = '<span style="color:#ef4444;font-size:0.75rem;">Failed to load jobs</span>';
+                _triggerBtnsLoaded = false;
+                container.innerHTML = '<span style="color:#ef4444;font-size:0.75rem;">Failed to load jobs</span>';
             }
         }
 
-        async function triggerJob(btn) {
-            var jobName = btn.dataset.jobName;
-            var label = btn.textContent;
+        async function triggerJob(btn, jobName, label) {
             if (!confirm('Trigger Prow job: ' + label + '?')) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
@@ -1423,7 +1445,7 @@
         }
 
         async function triggerAllJobs(btn) {
-            if (!confirm('Trigger periodic jobs for all operators?\n\nThis will start multiple AWS clusters (~1.5-2h each). Operators on cooldown will be skipped.')) return;
+            if (!confirm('Trigger all configured periodic jobs?\n\nThis will start multiple AWS clusters (~1.5-2h each). Jobs on cooldown will be skipped.')) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
