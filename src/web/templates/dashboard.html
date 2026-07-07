@@ -675,8 +675,11 @@
         .op-filter-bar { display: flex; gap: 6px; align-items: center; margin-left: 16px; }
         .op-filter-chip {
             width: 52px;
+            min-height: 32px;
             box-sizing: border-box;
-            text-align: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             padding: 4px 6px;
             border-radius: 999px;
             font-size: 0.75rem;
@@ -989,13 +992,15 @@
 
         <!-- Job Runs Tab -->
         <div id="job-runs-tab" class="tab-content">
-            <div class="controls" style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-                <label>Trigger E2E:</label>
-                <div class="op-filter-bar" id="triggerButtonBar">
-                    <button class="op-filter-chip trigger-btn" onclick="triggerAllJobs(this)">All</button>
-                    <span id="dynamicTriggerBtns"><span class="loading" style="font-size:0.75rem;">Loading jobs...</span></span>
+            <div class="controls" style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <label>Trigger E2E:</label>
+                    <div class="op-filter-bar" id="triggerButtonBar">
+                        <button class="op-filter-chip trigger-btn" onclick="triggerAllJobs(this)">All</button>
+                        <span id="dynamicTriggerBtns"><span class="loading" style="font-size:0.75rem;">Loading jobs...</span></span>
+                    </div>
                 </div>
-                <span id="triggerStatus" style="font-size:0.8rem; margin-left:8px;"></span>
+                <span id="triggerStatus" style="font-size:0.8rem;"></span>
             </div>
             <div id="recentTriggersSection" style="display:none; margin-bottom:16px; padding:12px; border-radius:8px; background:var(--card-bg); border:1px solid var(--border);">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
