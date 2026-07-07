@@ -18,14 +18,90 @@ logger = logging.getLogger(__name__)
 
 GANGWAY_BASE_URL = "https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1"
 
-OPERATOR_JOB_MAP = {
-    "far": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws",
-    "sbr": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf",
-    "snr": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-weekly-aws",
-    "mdr": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws",
-    "nmo": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-weekly-aws",
-    "nhc": "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws",
-}
+_OPERATOR_PATTERN = re.compile(r'-e2e-([a-z0-9]+)-')
+
+_job_map_cache = None
+
+
+def _load_job_patterns_from_config():
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config.yaml')
+    try:
+        import yaml
+        with open(config_path) as f:
+            cfg = yaml.safe_load(f)
+        return cfg.get('collector', {}).get('prow_gcs', {}).get('job_patterns', [])
+    except Exception:
+        logger.warning("Could not load config.yaml, falling back to empty job list")
+        return None
+
+
+def get_operator_job_map():
+    """Build operator-to-jobs mapping from config.yaml job_patterns.
+
+    Returns dict mapping operator name to list of periodic job names.
+    Derives operator from the '-e2e-<operator>-' segment in each job name.
+    """
+    global _job_map_cache
+    if _job_map_cache is not None:
+        return _job_map_cache
+
+    loaded = _load_job_patterns_from_config()
+    if loaded is None:
+        return {}
+
+    result = {}
+    skipped = []
+    for job in loaded:
+        m = _OPERATOR_PATTERN.search(job)
+        if m:
+            result.setdefault(m.group(1), []).append(job)
+        else:
+            skipped.append(job)
+    if skipped:
+        logger.warning("Jobs not triggerable (no operator match): %s", skipped)
+    _job_map_cache = result
+    return result
+
+
+def get_all_triggerable_jobs():
+    """Return flat list of all periodic job names from config."""
+    job_map = get_operator_job_map()
+    return [job for jobs in job_map.values() for job in jobs]
+
+
+def operator_from_job_name(job_name):
+    """Extract operator name from a job name string, or return None."""
+    m = _OPERATOR_PATTERN.search(job_name)
+    return m.group(1) if m else None
+
+
+def resolve_trigger_target(job_name_or_operator):
+    """Resolve an operator shorthand or full job name to a canonical job name.
+
+    Returns (job_name, operator, error). On success error is None.
+    On failure job_name and operator are None.
+    """
+    job_map = get_operator_job_map()
+    all_jobs = get_all_triggerable_jobs()
+    key = job_name_or_operator.strip().lower()
+
+    if key in all_jobs or job_name_or_operator in all_jobs:
+        job_name = job_name_or_operator if job_name_or_operator in all_jobs else key
+        op = operator_from_job_name(job_name) or key
+        return job_name, op, None
+    elif key in job_map:
+        jobs = job_map[key]
+        if len(jobs) == 1:
+            return jobs[0], key, None
+        return None, None, (
+            f"Operator '{key}' has {len(jobs)} jobs. "
+            f"Specify the full job name: {', '.join(jobs)}"
+        )
+    else:
+        return None, None, (
+            f"Unknown job or operator: {key}. "
+            f"Valid operators: {', '.join(sorted(job_map.keys()))}"
+        )
 
 
 class GangwayClient:
@@ -60,10 +136,8 @@ class GangwayClient:
             logger.error("Gangway %s %s failed: %s", method, path, e)
             return {"error": "Gangway request failed"}, 0
 
-    def trigger_job(self, operator):
-        job_name = OPERATOR_JOB_MAP.get(operator.lower())
-        if not job_name:
-            return None, f"Unknown operator: {operator}. Valid: {', '.join(sorted(OPERATOR_JOB_MAP))}"
+    def trigger_job(self, job_name):
+        """Trigger a periodic job by its canonical (pre-resolved) job name."""
         payload = {"job_name": job_name, "job_execution_type": "1"}
         resp, status = self._request("POST", "/executions", payload)
         if 200 <= status < 300:
@@ -73,7 +147,7 @@ class GangwayClient:
             return {
                 "execution_id": execution_id,
                 "job_name": job_name,
-                "operator": operator.lower(),
+                "operator": operator_from_job_name(job_name) or "unknown",
                 "status": resp.get("job_status", "TRIGGERED"),
             }, None
         return None, resp.get("error", f"HTTP {status}")

@@ -1000,6 +1000,18 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     TRIGGER_COOLDOWN_SECONDS = 300
 
+    @app.route('/api/trigger-job/map')
+    def api_trigger_job_map():
+        from integrations.gangway_client import get_operator_job_map, get_all_triggerable_jobs
+        from integrations import get_gangway_client
+        gangway = get_gangway_client()
+        job_map = get_operator_job_map()
+        return jsonify({
+            'enabled': gangway.enabled,
+            'operators': {op: jobs for op, jobs in sorted(job_map.items())},
+            'total_jobs': len(get_all_triggerable_jobs()),
+        })
+
     @app.route('/api/trigger-job', methods=['POST'])
     def api_trigger_job():
         from integrations import get_gangway_client
@@ -1013,37 +1025,34 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         data = request.get_json(silent=True)
         if not isinstance(data, dict):
             return jsonify({'error': 'Request body must be a JSON object'}), 400
-        operator_raw = data.get('operator')
-        if not isinstance(operator_raw, str) or not operator_raw.strip():
-            return jsonify({'error': 'Missing required field: operator'}), 400
-        operator = operator_raw.strip().lower()
+        raw = data.get('job_name') or data.get('operator')
+        if not isinstance(raw, str) or not raw.strip():
+            return jsonify({'error': 'Missing required field: operator or job_name'}), 400
+        job_name_or_operator = raw.strip()
 
-        from integrations.gangway_client import OPERATOR_JOB_MAP
-        if operator not in OPERATOR_JOB_MAP:
-            return jsonify({
-                'error': f'Unknown operator: {operator}. Valid: {", ".join(sorted(OPERATOR_JOB_MAP))}'
-            }), 400
+        from integrations.gangway_client import resolve_trigger_target
+        resolved_job, operator, resolve_err = resolve_trigger_target(job_name_or_operator)
+        if resolve_err:
+            return jsonify({'error': resolve_err}), 400
 
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
-                operator, TRIGGER_COOLDOWN_SECONDS)
+                resolved_job, TRIGGER_COOLDOWN_SECONDS)
         except Exception:
-            app.logger.exception("Cooldown check failed for %s", operator)
+            app.logger.exception("Cooldown check failed for %s", resolved_job)
             return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
         if not allowed:
             if remaining < 0:
                 return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
             return jsonify({'error': f'Rate limited. Try again in {remaining}s.'}), 429
 
-        result, error = gangway.trigger_job(operator)
+        result, error = gangway.trigger_job(resolved_job)
         if error:
             try:
                 db.update_gangway_execution(placeholder_id, "FAILED",
                                             error_message=error)
             except Exception:
-                app.logger.exception("DB update failed for %s", operator)
-            if 'Unknown operator' in error:
-                return jsonify({'error': error}), 400
+                app.logger.exception("DB update failed for %s", resolved_job)
             return jsonify({'error': error}), 502
 
         execution_id = result.get('execution_id')
@@ -1076,7 +1085,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     @app.route('/api/trigger-all-jobs', methods=['POST'])
     def api_trigger_all_jobs():
         from integrations import get_gangway_client
-        from integrations.gangway_client import OPERATOR_JOB_MAP
+        from integrations.gangway_client import get_all_triggerable_jobs, operator_from_job_name
         gangway = get_gangway_client()
         if not gangway.enabled:
             return jsonify({
@@ -1089,16 +1098,17 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         skipped = 0
         failed = 0
 
-        operators = list(OPERATOR_JOB_MAP.keys())
-        for idx, operator in enumerate(operators):
-            entry = {'operator': operator, 'status': None, 'message': None,
-                     'execution_id': None}
+        all_jobs = get_all_triggerable_jobs()
+        for idx, job_name in enumerate(all_jobs):
+            operator = operator_from_job_name(job_name) or job_name
+            entry = {'operator': operator, 'job_name': job_name,
+                     'status': None, 'message': None, 'execution_id': None}
 
             try:
                 allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
-                    operator, TRIGGER_COOLDOWN_SECONDS)
+                    job_name, TRIGGER_COOLDOWN_SECONDS)
             except Exception:
-                app.logger.exception("Cooldown check failed for %s", operator)
+                app.logger.exception("Cooldown check failed for %s", job_name)
                 entry['status'] = 'failed'
                 entry['message'] = 'Rate limit check failed'
                 failed += 1
@@ -1117,13 +1127,13 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 results.append(entry)
                 continue
 
-            result, error = gangway.trigger_job(operator)
+            result, error = gangway.trigger_job(job_name)
             if error:
                 try:
                     db.update_gangway_execution(placeholder_id, "FAILED",
                                                 error_message=error)
                 except Exception:
-                    app.logger.exception("DB update failed for %s", operator)
+                    app.logger.exception("DB update failed for %s", job_name)
                 entry['status'] = 'failed'
                 entry['message'] = error
                 failed += 1
@@ -1159,7 +1169,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             triggered += 1
             results.append(entry)
 
-            if idx < len(operators) - 1:
+            if idx < len(all_jobs) - 1:
                 time.sleep(0.2)
 
         return jsonify({

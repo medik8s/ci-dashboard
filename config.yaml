@@ -23,6 +23,9 @@ collector:
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-weekly-aws"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws"
+      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-efs"
+      - "periodic-ci-medik8s-system-tests-main-4.21-disconnected-e2e-sbr-weekly-aws-disconnected-nfs"
+      - "periodic-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws"
 
     # Presubmit E2E jobs (triggered on system-tests PRs)
     presubmit_job_patterns:
@@ -49,6 +52,7 @@ collector:
 # Tracking configuration
 tracking:
   versions:
+    - "4.21"
     - "4.22"
 
   platforms:
