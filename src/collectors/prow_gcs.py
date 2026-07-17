@@ -228,16 +228,15 @@ class ProwGCSCollector(BaseCollector):
         """Classify a Prow failure reason into a category (strict priority order)."""
         if not raw_reason:
             return 'unknown'
-        tokens = {t.strip() for t in raw_reason.lower().split(':')}
+        tokens = {t.strip() for t in raw_reason.lower().split(':')} - self._PLUMBING_TOKENS
         if tokens & {'pod_pending', 'importing_release', 'scheduling',
-                     'utilizing_lease', 'utilizing_ip_pool',
                      'cloning_source'}:
             return 'infra'
         if tokens & {'ipi-install', 'ipi_install', 'bootstrap'}:
             return 'install'
         if tokens & {'catalogsource', 'subscribe', 'odf', 'set-odf'}:
             return 'setup'
-        if tokens & {'e2e-test', 'e2e_test'}:
+        if tokens & {'e2e-test', 'e2e_test', 'executing_multi_stage_test'}:
             return 'test'
         return 'unknown'
 
