@@ -1012,7 +1012,7 @@
             </div>
             <div class="test-list">
                 <h2>Job Run History</h2>
-                <table>
+                <table style="table-layout:fixed;width:100%;">
                     <thead>
                         <tr>
                             <th style="width:3%;"></th>
@@ -3191,7 +3191,7 @@
                         row.innerHTML = '<td style="text-align:center;color:var(--text-muted);"><span class="expand-arrow">&#9654;</span></td>'
                             + '<td style="font-size:0.8rem;">' + opChip(jobOp) + ' ' + esc((r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-/, '')) + '</td>'
                             + '<td><span class="' + statusCls + '">' + esc((r.status || '').toUpperCase()) + '</span></td>'
-                            + '<td style="font-size:0.75rem;">' + failInfo + '</td>'
+                            + '<td style="font-size:0.75rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">' + failInfo + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
