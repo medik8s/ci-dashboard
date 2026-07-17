@@ -1550,9 +1550,10 @@
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
                 section.style.display = '';
                 var html = '<table style="width:100%;border-collapse:collapse;">';
-                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Operator</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
+                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Job</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
                 items.forEach(function(t) {
                     var op = (t.operator || '').toUpperCase();
+                    var jobLabel = t.job_name ? _shortJobLabel(t.job_name) : '';
                     var st = t.status || 'UNKNOWN';
                     var displaySt = st === 'SUCCESS' ? 'PASSED' : (st === 'FAILURE') ? 'FAILED' : st;
                     var stHtml = st === 'SUCCESS' ? '<span class="result-pass">' + esc(displaySt) + '</span>'
@@ -1572,7 +1573,7 @@
                     if (t.prow_job_url) { prowLink = linkEl(t.prow_job_url, 'View Job'); }
                     else if (t.job_name) { prowLink = linkEl('https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/' + encodeURIComponent(t.job_name), 'View Job'); }
                     html += '<tr style="border-top:1px solid var(--border);">';
-                    html += '<td style="padding:4px 8px;">' + opChip(op) + '</td>';
+                    html += '<td style="padding:4px 8px;">' + opChip(op) + ' <span style="font-size:0.75rem;">' + esc(jobLabel) + '</span></td>';
                     html += '<td style="padding:4px 8px;">' + stHtml + '</td>';
                     html += '<td style="padding:4px 8px;white-space:nowrap;"' + (whenTitle ? ' title="' + esc(whenTitle) + '"' : '') + '>' + esc(when) + '</td>';
                     html += '<td style="padding:4px 8px;">' + prowLink + '</td>';

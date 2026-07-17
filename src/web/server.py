@@ -1037,9 +1037,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
-                resolved_job, TRIGGER_COOLDOWN_SECONDS)
+                operator, TRIGGER_COOLDOWN_SECONDS)
         except Exception:
-            app.logger.exception("Cooldown check failed for %s", resolved_job)
+            app.logger.exception("Cooldown check failed for %s", operator)
             return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
         if not allowed:
             if remaining < 0:
@@ -1106,9 +1106,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
             try:
                 allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
-                    job_name, TRIGGER_COOLDOWN_SECONDS)
+                    operator, TRIGGER_COOLDOWN_SECONDS)
             except Exception:
-                app.logger.exception("Cooldown check failed for %s", job_name)
+                app.logger.exception("Cooldown check failed for %s", operator)
                 entry['status'] = 'failed'
                 entry['message'] = 'Rate limit check failed'
                 failed += 1
