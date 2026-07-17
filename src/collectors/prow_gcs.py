@@ -230,7 +230,8 @@ class ProwGCSCollector(BaseCollector):
             return 'unknown'
         tokens = {t.strip() for t in raw_reason.lower().split(':')}
         if tokens & {'pod_pending', 'importing_release', 'scheduling',
-                     'utilizing_lease', 'utilizing_ip_pool'}:
+                     'utilizing_lease', 'utilizing_ip_pool',
+                     'cloning_source'}:
             return 'infra'
         if tokens & {'ipi-install', 'ipi_install', 'bootstrap'}:
             return 'install'
