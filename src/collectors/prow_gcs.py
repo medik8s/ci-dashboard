@@ -668,14 +668,18 @@ class ProwGCSCollector(BaseCollector):
         """Derive the Prow multi-stage test step name from the job name.
 
         For medik8s periodic/presubmit jobs, the step name is the suffix
-        after the variant segment (e.g. '4.22-konflux-' or '4.22-openshift-').
+        after the variant segment (e.g. '4.22-konflux-', '4.22-upgrade-').
         Examples:
           periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws
               -> e2e-far-weekly-aws
+          periodic-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws
+              -> e2e-far-upgrade-aws
+          periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected
+              -> e2e-far-weekly-aws-disconnected
           pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e
               -> e2e
         """
-        match = re.search(r'\d+\.\d+-(?:konflux|openshift)-(.+)$', job_name)
+        match = re.search(r'\d+\.\d+-(?:konflux|openshift|upgrade|disconnected)-(.+)$', job_name)
         if match:
             return match.group(1)
         return None
