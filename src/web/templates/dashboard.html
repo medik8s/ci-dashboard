@@ -302,6 +302,7 @@
         .test-list table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         .test-list th {
@@ -935,11 +936,11 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Test Name</th>
-                        <th>Version</th>
-                        <th>Runs</th>
-                        <th>Pass Rate</th>
-                        <th style="width: 200px;">Performance</th>
+                        <th style="width:40%;">Test Name</th>
+                        <th style="width:10%;">Version</th>
+                        <th style="width:8%;">Runs</th>
+                        <th style="width:12%;">Pass Rate</th>
+                        <th style="width:30%;">Performance</th>
                     </tr>
                 </thead>
                 <tbody id="testRankings">
@@ -974,13 +975,13 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width:30px;"></th>
-                            <th>Test Name</th>
-                            <th>Operator</th>
-                            <th>Result</th>
-                            <th>Periodic Job</th>
-                            <th>Run Date</th>
-                            <th>Duration</th>
+                            <th style="width:3%;"></th>
+                            <th style="width:35%;">Test Name</th>
+                            <th style="width:8%;">Operator</th>
+                            <th style="width:8%;">Result</th>
+                            <th style="width:23%;">Periodic Job</th>
+                            <th style="width:12%;">Run Date</th>
+                            <th style="width:11%;">Duration</th>
                         </tr>
                     </thead>
                     <tbody id="testResultsBody">
@@ -1014,15 +1015,15 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width:30px;"></th>
-                            <th>Job Name</th>
-                            <th>Status</th>
-                            <th>Failure Info</th>
-                            <th>Run Date</th>
-                            <th>Duration</th>
-                            <th>OCP Version</th>
-                            <th>Tests (P/F)</th>
-                            <th style="width:40px;"></th>
+                            <th style="width:3%;"></th>
+                            <th style="width:34%;">Job Name</th>
+                            <th style="width:8%;">Status</th>
+                            <th style="width:14%;">Failure Info</th>
+                            <th style="width:11%;">Run Date</th>
+                            <th style="width:8%;">Duration</th>
+                            <th style="width:10%;">OCP Version</th>
+                            <th style="width:9%;">Tests (P/F)</th>
+                            <th style="width:3%;"></th>
                         </tr>
                     </thead>
                     <tbody id="jobRunsBody">
@@ -3309,13 +3310,13 @@
                     html += '<div class="pr-section-body">';
                     html += '<table style="width:100%;border-collapse:collapse;">';
                     html += '<thead><tr>';
-                    html += '<th style="width:30px;"></th>';
-                    html += '<th>Test Name</th>';
-                    html += '<th>Operator</th>';
-                    html += '<th>Result</th>';
-                    html += '<th>Presubmit Job</th>';
-                    html += '<th>Run Date</th>';
-                    html += '<th>Duration</th>';
+                    html += '<th style="width:3%;"></th>';
+                    html += '<th style="width:35%;">Test Name</th>';
+                    html += '<th style="width:8%;">Operator</th>';
+                    html += '<th style="width:8%;">Result</th>';
+                    html += '<th style="width:23%;">Presubmit Job</th>';
+                    html += '<th style="width:12%;">Run Date</th>';
+                    html += '<th style="width:11%;">Duration</th>';
                     html += '</tr></thead><tbody>';
 
                     var lastOp = null;
