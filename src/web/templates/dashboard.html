@@ -3195,7 +3195,7 @@
                             + '<td style="white-space:nowrap;">' + fmtDate(r.run_date) + '</td>'
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
-                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? (r.status === 'failed' ? '<span style="color:#f59e0b;" title="Job failed before tests ran">Infra</span>' : '<span style="color:var(--text-muted);">N/A</span>') : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
+                            + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? '<span style="color:var(--text-muted);" title="No tests ran">-</span>' : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
                             + '<td style="text-align:center;"><button class="trigger-btn" data-operator="' + esc(jobOp.toLowerCase()) + '" data-job-name="' + esc(r.job_name) + '" onclick="event.stopPropagation();triggerJob(this, this.dataset.jobName, \'' + esc(jobOp) + '\')" title="Retrigger ' + esc(jobOp) + ' E2E" aria-label="Retrigger ' + esc(jobOp) + ' E2E" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button></td>';
                         gbody.appendChild(row);
                         var detail = document.createElement('tr');
