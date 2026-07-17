@@ -1355,6 +1355,7 @@
             return job.replace(/^periodic-ci-medik8s-system-tests-main-/, '').replace(/^[^-]+-[^-]+-e2e-/, '');
         }
 
+        var NO_FBC_PREFIX = '__no_fbc__';
         var _triggerBtnsLoaded = false;
         async function loadTriggerButtons() {
             if (_triggerBtnsLoaded) return;
@@ -2812,6 +2813,40 @@
             if (s == null) return '';
             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
+        function fbcGroupKey(r) {
+            if (r.fbc_image) return r.fbc_image;
+            var d = r.run_date ? new Date(r.run_date) : new Date();
+            if (isNaN(d.getTime())) d = new Date();
+            return NO_FBC_PREFIX + ':' + d.toISOString().slice(0, 10);
+        }
+        function sortFbcKeys(fbcGroups) {
+            return Object.keys(fbcGroups).sort(function(a, b) {
+                var da = fbcGroups[a].latestRunDate || new Date(0);
+                var db = fbcGroups[b].latestRunDate || new Date(0);
+                if (db - da !== 0) return db - da;
+                return a.localeCompare(b);
+            });
+        }
+        function buildFbcLabel(key, g) {
+            var isNoFbc = key.startsWith(NO_FBC_PREFIX);
+            if (g.fbc_image) {
+                var label = '<span class="fbc-id-text" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</span>';
+                var quayUrl = g.fbc_quay_url || g.fbc_url || '';
+                if (quayUrl) label += ' <a href="' + esc(quayUrl) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View on Quay">Quay</a>';
+                if (g.fbc_konflux_url) label += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View Konflux Snapshots">Konflux</a>';
+                if (g.fbc_gitlab_url) label += ' <a href="' + esc(g.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-orange);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View FBC commit on GitLab">GitLab</a>';
+                return label;
+            }
+            var noFbcDate = isNoFbc ? key.split(':')[1] || '' : '';
+            return '<span class="fbc-no-image">No catalog' + (noFbcDate ? ' - ' + noFbcDate : '') + '</span>';
+        }
+        function createFbcGroupTbody(key, g, gIdx) {
+            var isNoFbc = key.startsWith(NO_FBC_PREFIX);
+            var gbody = document.createElement('tbody');
+            gbody.className = 'fbc-group' + (gIdx > 0 ? ' collapsed' : '');
+            if (isNoFbc) gbody.classList.add('fbc-missing-marker');
+            return gbody;
+        }
         function linkEl(url, label) {
             if (!url) return '-';
             return '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;">' + esc(label) + '</a>';
@@ -2953,20 +2988,14 @@
                     return;
                 }
 
-                // Group rows by FBC image
                 var fbcGroups = {};
                 rows.forEach(function(r) {
-                    var key = r.fbc_image || '__no_fbc__';
+                    var key = fbcGroupKey(r);
                     if (!fbcGroups[key]) {
                         fbcGroups[key] = {
-                            fbc_image: r.fbc_image || '',
-                            fbc_short: r.fbc_image_short || '',
-                            fbc_url: r.fbc_image_url || '',
-                            fbc_quay_url: r.fbc_quay_url || '',
-                            fbc_konflux_url: r.fbc_konflux_url || '',
-                            fbc_gitlab_url: r.fbc_gitlab_url || '',
-                            latestRunDate: null,
-                            total: 0, passed: 0, failed: 0,
+                            fbc_image: r.fbc_image || '', fbc_short: '', fbc_url: '',
+                            fbc_quay_url: '', fbc_konflux_url: '', fbc_gitlab_url: '',
+                            latestRunDate: null, total: 0, passed: 0, failed: 0,
                             byOperator: {}
                         };
                     }
@@ -2989,44 +3018,15 @@
                     g.byOperator[op].push(r);
                 });
 
-                // Sort groups: latest run date descending, "No FBC" last
-                var sortedKeys = Object.keys(fbcGroups).sort(function(a, b) {
-                    if (a === '__no_fbc__') return 1;
-                    if (b === '__no_fbc__') return -1;
-                    var da = fbcGroups[a].latestRunDate || new Date(0);
-                    var db = fbcGroups[b].latestRunDate || new Date(0);
-                    if (db - da !== 0) return db - da;
-                    return a.localeCompare(b);
-                });
-
-                // Clear the default tbody placeholder
+                var sortedKeys = sortFbcKeys(fbcGroups);
                 tbody.innerHTML = '';
                 tbody.style.display = 'none';
 
                 var globalIdx = 0;
                 sortedKeys.forEach(function(key, gIdx) {
                     var g = fbcGroups[key];
-                    var gbody = document.createElement('tbody');
-                    gbody.className = 'fbc-group' + (gIdx > 0 ? ' collapsed' : '');
-                    if (key === '__no_fbc__') gbody.classList.add('fbc-missing-marker');
-
-                    // FBC group header: selectable FBC image ID with optional Quay/Konflux links
-                    var fbcLabel = '';
-                    if (g.fbc_image) {
-                        fbcLabel = '<span class="fbc-id-text" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</span>';
-                        var quayUrl = g.fbc_quay_url || g.fbc_url;
-                        if (quayUrl) {
-                            fbcLabel += ' <a href="' + esc(quayUrl) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View on Quay">Quay</a>';
-                        }
-                        if (g.fbc_konflux_url) {
-                            fbcLabel += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View Konflux Snapshots">Konflux</a>';
-                        }
-                        if (g.fbc_gitlab_url) {
-                            fbcLabel += ' <a href="' + esc(g.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-orange);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="View FBC commit on GitLab">GitLab</a>';
-                        }
-                    } else {
-                        fbcLabel = '<span class="fbc-no-image">No FBC Image</span>';
-                    }
+                    var gbody = createFbcGroupTbody(key, g, gIdx);
+                    var fbcLabel = buildFbcLabel(key, g);
                     var dateStr = g.latestRunDateStr ? fmtDate(g.latestRunDateStr) : '-';
 
                     var hdr = document.createElement('tr');
@@ -3034,7 +3034,7 @@
                     hdr.innerHTML = '<td colspan="7">'
                         + '<span class="fbc-chevron">&#9660;</span>'
                         + fbcLabel
-                        + '<span class="fbc-badge fbc-badge--total">' + g.total + ' tests</span>'
+                        + '<span class="fbc-badge fbc-badge--total">' + g.total + ' jobs</span>'
                         + '<span class="fbc-badge fbc-badge--pass">' + g.passed + ' passed</span>'
                         + (g.failed > 0 ? '<span class="fbc-badge fbc-badge--fail">' + g.failed + ' failed</span>' : '')
                         + '<span class="fbc-date" style="float:right;">Latest: ' + dateStr + '</span>'
@@ -3123,16 +3123,12 @@
 
                 var fbcGroups = {};
                 runs.forEach(function(r) {
-                    var key = r.fbc_image || '__no_fbc__';
+                    var key = fbcGroupKey(r);
                     if (!fbcGroups[key]) {
                         fbcGroups[key] = {
-                            fbc_image: r.fbc_image || '',
-                            fbc_short: r.fbc_image_short || '',
-                            fbc_quay_url: r.fbc_quay_url || '',
-                            fbc_konflux_url: r.fbc_konflux_url || '',
-                            fbc_gitlab_url: r.fbc_gitlab_url || '',
-                            latestRunDate: null,
-                            total: 0, passed: 0, failed: 0,
+                            fbc_image: r.fbc_image || '', fbc_short: '',
+                            fbc_quay_url: '', fbc_konflux_url: '', fbc_gitlab_url: '',
+                            latestRunDate: null, total: 0, passed: 0, failed: 0,
                             runs: []
                         };
                     }
@@ -3152,39 +3148,14 @@
                     g.runs.push(r);
                 });
 
+                var sortedKeys = sortFbcKeys(fbcGroups);
                 tbody.style.display = 'none';
                 tbody.innerHTML = '';
 
-                var sortedKeys = Object.keys(fbcGroups).sort(function(a, b) {
-                    if (a === '__no_fbc__') return 1;
-                    if (b === '__no_fbc__') return -1;
-                    var da = fbcGroups[a].latestRunDate || new Date(0);
-                    var db = fbcGroups[b].latestRunDate || new Date(0);
-                    if (db - da !== 0) return db - da;
-                    return a.localeCompare(b);
-                });
-
                 sortedKeys.forEach(function(key, gIdx) {
                     var g = fbcGroups[key];
-                    var gbody = document.createElement('tbody');
-                    gbody.className = 'fbc-group' + (gIdx > 0 ? ' collapsed' : '');
-                    if (key === '__no_fbc__') gbody.classList.add('fbc-missing-marker');
-
-                    var fbcLabel = '';
-                    if (g.fbc_image) {
-                        fbcLabel = '<span class="fbc-id-text" onclick="event.stopPropagation()">' + esc(g.fbc_short || g.fbc_image) + '</span>';
-                        if (g.fbc_quay_url) {
-                            fbcLabel += ' <a href="' + esc(g.fbc_quay_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-left:6px;">Quay</a>';
-                        }
-                        if (g.fbc_konflux_url) {
-                            fbcLabel += ' <a href="' + esc(g.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-left:6px;">Konflux</a>';
-                        }
-                        if (g.fbc_gitlab_url) {
-                            fbcLabel += ' <a href="' + esc(g.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="color:var(--accent-orange);text-decoration:none;font-size:0.75rem;margin-left:6px;">GitLab</a>';
-                        }
-                    } else {
-                        fbcLabel = '<span class="fbc-no-image">No FBC Image</span>';
-                    }
+                    var gbody = createFbcGroupTbody(key, g, gIdx);
+                    var fbcLabel = buildFbcLabel(key, g);
                     var dateStr = g.latestRunDateStr ? fmtDate(g.latestRunDateStr) : '-';
 
                     var hdr = document.createElement('tr');
@@ -3223,7 +3194,7 @@
                             + '<td style="white-space:nowrap;">' + fmtDuration(r.duration) + '</td>'
                             + '<td style="font-size:0.75rem;">' + esc(r.ocp_version || r.version || '-') + '</td>'
                             + '<td>' + ((r.total_tests == null || r.total_tests === 0) ? (r.status === 'failed' ? '<span style="color:#f59e0b;" title="Job failed before tests ran">Infra</span>' : '<span style="color:var(--text-muted);">N/A</span>') : (r.passed_tests || 0) + '/' + (r.failed_tests || 0)) + '</td>'
-                            + '<td style="text-align:center;"><button class="trigger-btn" data-operator="' + esc(jobOp.toLowerCase()) + '" onclick="event.stopPropagation();triggerJob(this)" title="Retrigger ' + esc(jobOp) + ' E2E" aria-label="Retrigger ' + esc(jobOp) + ' E2E" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button></td>';
+                            + '<td style="text-align:center;"><button class="trigger-btn" data-operator="' + esc(jobOp.toLowerCase()) + '" data-job-name="' + esc(r.job_name) + '" onclick="event.stopPropagation();triggerJob(this, this.dataset.jobName, \'' + esc(jobOp) + '\')" title="Retrigger ' + esc(jobOp) + ' E2E" aria-label="Retrigger ' + esc(jobOp) + ' E2E" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button></td>';
                         gbody.appendChild(row);
                         var detail = document.createElement('tr');
                         detail.id = rid;
