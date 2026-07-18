@@ -2878,8 +2878,6 @@
             }
             fbcHtml += '</div>';
             items.push(fbcHtml);
-            var repoName = r.pr_repo ? r.pr_repo.replace(/^[^/]+\//, '') : '';
-            items.push('<div><strong>Repository</strong>' + (r.pr_repo ? linkEl('https://github.com/' + r.pr_repo, repoName) : '-') + '</div>');
             items.push('<div><strong>Full Job Name</strong><span style="font-size:0.75rem;">' + esc(r.job_name || r.periodic_job || '-') + '</span></div>');
             items.push('<div><strong>Build ID</strong>' + esc(r.build_id || '-') + '</div>');
             items.push('<div><strong>Prow Job</strong>' + linkEl(r.prow_url, 'View Job') + '</div>');

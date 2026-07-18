@@ -16,7 +16,7 @@ import subprocess
 import xml.etree.ElementTree as ET
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import Callable, List, Dict, Any, Optional, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -258,6 +258,16 @@ class ProwGCSCollector(BaseCollector):
             return 'test'
         return 'unknown'
 
+    def _try_parse_from_steps(self, base: str, steps: Sequence[str], parse_func: Callable[[str], Optional[str]]) -> Optional[str]:
+        """Try multiple step names, return first truthy parsed result."""
+        for step in steps:
+            log = self._fetch_gcs_text(f"{base}/{step}/build-log.txt")
+            if log:
+                parsed = parse_func(log)
+                if parsed:
+                    return parsed
+        return None
+
     def _fetch_gcs_text(self, url: str) -> Optional[str]:
         """Fetch text content from a GCS URL, returning None on failure."""
         try:
@@ -327,17 +337,23 @@ class ProwGCSCollector(BaseCollector):
         if not base:
             return job_run
 
-        install_log = self._fetch_gcs_text(f"{base}/ipi-install-install/build-log.txt")
-        if install_log:
-            job_run.ocp_version = self._parse_ocp_version(install_log)
+        job_run.ocp_version = self._try_parse_from_steps(
+            base,
+            ('ipi-install-install', 'ipi-install-install-aws'),
+            self._parse_ocp_version,
+        ) or job_run.ocp_version
 
-        subscribe_log = self._fetch_gcs_text(f"{base}/medik8s-operator-subscribe/build-log.txt")
-        if subscribe_log:
-            job_run.csv_version = self._parse_csv_version(subscribe_log)
+        job_run.csv_version = self._try_parse_from_steps(
+            base,
+            ('medik8s-operator-subscribe',),
+            self._parse_csv_version,
+        ) or job_run.csv_version
 
-        catalog_log = self._fetch_gcs_text(f"{base}/medik8s-catalogsource/build-log.txt")
-        if catalog_log:
-            job_run.fbc_image = self._parse_fbc_image(catalog_log)
+        job_run.fbc_image = self._try_parse_from_steps(
+            base,
+            ('medik8s-catalogsource', 'medik8s-disconnected-catalogsource'),
+            self._parse_fbc_image,
+        ) or job_run.fbc_image
 
         return job_run
 
@@ -763,10 +779,6 @@ class ProwGCSCollector(BaseCollector):
                 if basename == 'junit_operator.xml':
                     logger.debug(f"[prow_gcs] Skipping ci-operator metadata: {match}")
                     continue
-                if basename == 'report_testrun.xml':
-                    logger.debug(f"[prow_gcs] Skipping Polarion report (duplicate of Ginkgo JUnit): {match}")
-                    continue
-
                 if basename == 'report_testrun.xml':
                     logger.debug(f"[prow_gcs] Skipping Polarion report (duplicate of Ginkgo JUnit): {match}")
                     continue
