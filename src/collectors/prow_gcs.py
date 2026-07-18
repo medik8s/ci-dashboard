@@ -30,6 +30,12 @@ PROW_PR_PATH_RE = re.compile(
     r"(?P<job_name>[^/]+)/(?P<build_id>\d+)"
 )
 
+_GINKGO_IT_RE = re.compile(r'^\[It\]\s*')
+_GINKGO_DECORATOR_RE = re.compile(
+    r'\s*\[(Serial|Slow|Disruptive|Flaky|sig-[\w-]+)\]',
+    flags=re.IGNORECASE,
+)
+
 
 class ProwGCSCollector(BaseCollector):
     """Collector that accesses Prow data directly via GCS"""
@@ -157,6 +163,18 @@ class ProwGCSCollector(BaseCollector):
                 polarion_id = test_id
             elif polarion_id != test_id:
                 logger.warning(f"Polarion ID mismatch: polarion_id={polarion_id} vs OCP token {test_id} in: {raw_name}")
+
+            bracket_match = re.search(
+                r'\[([^\]]*' + re.escape(test_id) + r'[^\]]*)\]', raw_name
+            )
+            if bracket_match:
+                before = raw_name[:bracket_match.start()].strip()
+                before = _GINKGO_IT_RE.sub('', before)
+                before = _GINKGO_DECORATOR_RE.sub('', before)
+                before = re.sub(r'\s*\[[^\]]+\]\s*$', '', before).strip()
+                if before:
+                    return test_id, before, polarion_id
+
             after_id = raw_name.split(test_id, 1)[-1]
             description = after_id.strip(':- \t')
             description = re.sub(r'\s*\[[^\]]+\]', '', description)
@@ -164,8 +182,8 @@ class ProwGCSCollector(BaseCollector):
             return test_id, description.strip() if description else test_id, polarion_id
 
         description = raw_name.strip()
-        description = re.sub(r'^\[It\]\s*', '', description)
-        description = re.sub(r'\s*\[(Slow|Serial|Disruptive|Flaky|sig-[\w-]+)\]', '', description, flags=re.IGNORECASE)
+        description = _GINKGO_IT_RE.sub('', description)
+        description = _GINKGO_DECORATOR_RE.sub('', description)
         description = re.sub(
             r'\s*\[[^\]]*test_id:\s*\d+[^\]]*\]\s*$',
             '',
