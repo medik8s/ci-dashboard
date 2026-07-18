@@ -2223,9 +2223,9 @@
                 return `
                 <tr>
                     <td style="vertical-align: top;">
-                        <div>${opChip(op)} <strong>${esc(displayName)}</strong></div>
+                        <div>${opChip(op)} <strong>${test.polarion_id ? `<a href="https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id=${encodeURIComponent(test.polarion_id)}" target="_blank" rel="noopener" style="color:var(--text-primary); text-decoration:underline dotted; text-underline-offset:3px;">${esc(displayName)}</a>` : esc(displayName)}</strong></div>
                         ${showDesc ? `<div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${esc(cleanedDesc)}</div>` : ''}
-                        ${showLogs ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">${formatError(test.sample_error, test.test_name, test.test_description, test.failed_platforms, test.sample_error_timestamp, test.sample_error_platform, test.sample_error_job_name, test.sample_error_build_id, test.sample_error_job_url, test.version, days)}</div>` : ''}
+                        ${showLogs ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">${formatError(test.sample_error, test.test_name, test.test_description, null, test.sample_error_timestamp, test.sample_error_platform, test.sample_error_job_name, test.sample_error_build_id, test.sample_error_job_url, test.version, days)}</div>` : ''}
                     </td>
                     <td style="vertical-align: top;">${test.version}</td>
                     <td style="vertical-align: top;">${test.total_runs}</td>

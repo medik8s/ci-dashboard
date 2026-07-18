@@ -560,6 +560,7 @@ class DashboardDatabase:
             SELECT
                 test_name,
                 MAX(test_description) as test_description,
+                MAX(polarion_id) as polarion_id,
                 version,
                 COUNT(*) as total_runs,
                 SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed_runs,
