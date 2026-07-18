@@ -107,7 +107,7 @@ class MetricsCalculator:
         min_runs = 1 if (platform or days <= 7) else 2
         meaningful_tests = [
             test for test in test_data
-            if test['total_runs'] >= min_runs
+            if test['total_runs'] >= min_runs or test['pass_rate'] < 100
         ]
         if not meaningful_tests and min_runs > 1:
             meaningful_tests = [
