@@ -2765,12 +2765,12 @@
         }
         function deriveOperator(name) {
             if (!name) return '';
-            if (name.match(/^FAR\b|far-operator|far-weekly/i)) return 'FAR';
-            if (name.match(/^SBR\b|sbr-operator|sbr-weekly/i)) return 'SBR';
-            if (name.match(/^SNR\b|snr-operator|snr-weekly/i)) return 'SNR';
-            if (name.match(/^NHC\b|nhc-operator|nhc-weekly/i)) return 'NHC';
-            if (name.match(/^MDR\b|mdr-operator|mdr-weekly/i)) return 'MDR';
-            if (name.match(/^NMO\b|nmo-operator|nmo-weekly/i)) return 'NMO';
+            if (name.match(/^FAR\b|\bfar-/i)) return 'FAR';
+            if (name.match(/^SBR\b|\bsbr-/i)) return 'SBR';
+            if (name.match(/^SNR\b|\bsnr-/i)) return 'SNR';
+            if (name.match(/^NHC\b|\bnhc-/i)) return 'NHC';
+            if (name.match(/^MDR\b|\bmdr-/i)) return 'MDR';
+            if (name.match(/^NMO\b|\bnmo-/i)) return 'NMO';
             return '';
         }
         function cleanTestName(name) {
