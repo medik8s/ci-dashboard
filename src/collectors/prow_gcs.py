@@ -195,11 +195,14 @@ class ProwGCSCollector(BaseCollector):
         return test_id, description, polarion_id
 
     def _parse_ocp_version(self, text: str) -> Optional[str]:
-        """Parse full OCP version from ipi-install-install log."""
+        """Parse OCP version from install step log."""
         match = re.search(r'(\d+\.\d+\.\d+-0\.nightly-\d{4}-\d{2}-\d{2}-\d{6})', text)
         if match:
             return match.group(1)
         match = re.search(r'(\d+\.\d+\.\d+-(?:rc|ec)\.\d+)', text)
+        if match:
+            return match.group(1)
+        match = re.search(r'release image\s+\S+:(\d+\.\d+)', text)
         if match:
             return match.group(1)
         match = re.search(r'(\d+\.\d+\.\d+)', text)
@@ -212,7 +215,7 @@ class ProwGCSCollector(BaseCollector):
 
     def _parse_fbc_image(self, text: str) -> Optional[str]:
         """Parse FBC catalog image from medik8s-catalogsource log."""
-        match = re.search(r'with image:\s*(\S+)', text)
+        match = re.search(r'with (?:mirrored )?image:\s*(\S+)', text)
         return match.group(1) if match else None
 
     def _parse_failure_reason(self, text: str) -> Optional[str]:
