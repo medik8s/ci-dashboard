@@ -60,8 +60,27 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project='dragonfly/rhwa-fbc'):
     fbc_quay_url = ''
     fbc_konflux_url = ''
     fbc_gitlab_url = ''
-    if fbc_image and 'quay.io/' in fbc_image:
+    if not fbc_image:
+        return {
+            'fbc_image_short': '',
+            'fbc_image_url': '',
+            'fbc_quay_url': '',
+            'fbc_konflux_url': '',
+            'fbc_gitlab_url': '',
+        }
+    if 'quay.io/' in fbc_image:
         repo_path = fbc_image.split('quay.io/')[-1].split('@')[0].split(':')[0]
+    elif 'redhat-user-workloads/' in fbc_image:
+        repo_path = 'redhat-user-workloads/' + fbc_image.split('redhat-user-workloads/')[-1].split('@')[0].split(':')[0]
+    else:
+        return {
+            'fbc_image_short': _fbc_short(fbc_image),
+            'fbc_image_url': '',
+            'fbc_quay_url': '',
+            'fbc_konflux_url': '',
+            'fbc_gitlab_url': '',
+        }
+    if repo_path:
         fbc_tag_url = f"https://quay.io/repository/{repo_path}?tab=tags"
         if '@' in fbc_image:
             digest = fbc_image.split('@')[-1]
@@ -606,6 +625,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'operator': row.get('operator'),
                 'result': row.get('result'),
                 'periodic_job': job_name,
+                'build_id': build_id,
                 'run_date': row.get('run_date'),
                 'job_duration': row.get('job_duration'),
                 'version': row.get('version'),
