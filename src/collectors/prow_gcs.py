@@ -196,6 +196,9 @@ class ProwGCSCollector(BaseCollector):
 
     def _parse_ocp_version(self, text: str) -> Optional[str]:
         """Parse OCP version from install step log."""
+        match = re.search(r'Release payload version:\s*(\d+\.\d+\.\d+(?:-\S+)?)', text)
+        if match:
+            return match.group(1)
         match = re.search(r'(\d+\.\d+\.\d+-0\.nightly-\d{4}-\d{2}-\d{2}-\d{6})', text)
         if match:
             return match.group(1)
