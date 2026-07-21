@@ -248,8 +248,22 @@ class ProwGCSCollector(BaseCollector):
             return meaningful[-1]
         return parts[-1] if parts else None
 
-    def _classify_failure(self, raw_reason: str) -> str:
-        """Classify a Prow failure reason into a category (strict priority order)."""
+    _INFRA_LOG_SIGNALS = (
+        'diskpressure', 'evicted pod was rejected',
+        'memorypressure', 'insufficient ephemeral-storage',
+    )
+
+    def _classify_failure(self, raw_reason: str, log_tail: str = '') -> str:
+        """Classify a Prow failure reason into a category (strict priority order).
+
+        When log_tail is provided, explicit infrastructure signals
+        (DiskPressure, pod eviction, etc.) take priority over the
+        colon-delimited reason tokens from Prow.
+        """
+        if log_tail:
+            tail_lower = log_tail.lower()
+            if any(sig in tail_lower for sig in self._INFRA_LOG_SIGNALS):
+                return 'infra'
         if not raw_reason:
             return 'unknown'
         tokens = {t.strip() for t in raw_reason.lower().split(':')} - self._PLUMBING_TOKENS
@@ -334,7 +348,8 @@ class ProwGCSCollector(BaseCollector):
                 if raw:
                     job_run.failure_reason = raw
                     job_run.failed_step = self._extract_failed_step(raw)
-                    job_run.failure_category = self._classify_failure(raw)
+                    job_run.failure_category = self._classify_failure(
+                        raw, log_tail=tail)
 
         if not step_name:
             return job_run
