@@ -1263,6 +1263,28 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                         ex['prow_job_url'] = url
                 except Exception:
                     app.logger.exception("Failed to resolve Prow URL for %s", ex.get('execution_id'))
+            from integrations.gangway_client import GangwayClient
+            reconciled = 0
+            for ex in executions:
+                if reconciled >= 5:
+                    break
+                status = (ex.get('status') or '').upper()
+                if status in _TERMINAL_STATUSES:
+                    continue
+                if not ex.get('job_name') or not ex.get('triggered_at'):
+                    continue
+                reconciled += 1
+                try:
+                    prow_result, prow_url = GangwayClient.resolve_prow_result(
+                        ex['job_name'], ex['triggered_at'])
+                    if prow_result:
+                        db.update_gangway_execution(ex['execution_id'], prow_result, prow_url)
+                        ex['status'] = prow_result
+                        if prow_url:
+                            ex['prow_job_url'] = prow_url
+                except Exception:
+                    app.logger.exception("Failed to reconcile trigger %s with Prow",
+                                         ex.get('execution_id'))
         return jsonify(executions)
 
     _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
