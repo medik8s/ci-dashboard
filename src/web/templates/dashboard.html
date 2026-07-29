@@ -2269,7 +2269,7 @@
             tbody.innerHTML = rankings.filter(t => t.pass_rate < 100).map(test => {
                 const showLogs = test.pass_rate < 100 && test.sample_error;
                 const lastRun = formatLastRun(test.last_run_timestamp);
-                const op = test.operator || deriveOperator(test.test_name);
+                const op = test.operator || deriveOperator(test.test_name) || deriveOperator(test.test_description || '');
                 const displayName = cleanTestName(test.test_name);
                 const cleanedDesc = cleanTestName(test.test_description || '');
                 const showDesc = cleanedDesc && cleanedDesc !== displayName;
@@ -2524,7 +2524,7 @@
             }
 
             tbody.innerHTML = failing.map((test, index) => {
-                const op = test.operator || deriveOperator(test.test_name);
+                const op = test.operator || deriveOperator(test.test_name) || deriveOperator(test.test_description || '');
                 const displayName = cleanTestName(test.test_name);
                 const cleanedDesc = cleanTestName(test.test_description || '');
                 const showDesc = cleanedDesc && cleanedDesc !== displayName;
