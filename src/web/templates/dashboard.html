@@ -836,6 +836,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-validation')">FBC Validation</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
             </div>
         </header>
@@ -1001,6 +1002,11 @@
                         <span id="dynamicTriggerBtns"><span class="loading" style="font-size:0.75rem;">Loading jobs...</span></span>
                     </div>
                 </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <label style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">FBC SHA:</label>
+                    <input id="fbcShaInput" type="text" maxlength="40" placeholder="latest" pattern="[0-9a-fA-F]{7,40}" style="width:90px; padding:2px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.75rem; font-family:monospace;" title="7-40 char hex commit SHA from {{ gitlab_fbc_project }} GitLab repo">
+                    <span style="font-size:0.65rem; color:var(--text-muted); white-space:nowrap;">7-40 hex chars, e.g. <code style="font-size:0.65rem; color:var(--accent-purple);">69993f6</code></span>
+                </div>
                 <span id="triggerStatus" style="font-size:0.8rem;"></span>
             </div>
             <div id="recentTriggersSection" style="display:none; margin-bottom:16px; padding:12px; border-radius:8px; background:var(--card-bg); border:1px solid var(--border);">
@@ -1008,7 +1014,7 @@
                     <span style="font-size:0.85rem; font-weight:600; color:var(--text-primary);">Recent Triggers</span>
                     <button onclick="loadRecentTriggers(true, this)" style="min-width:80px; text-align:center; padding:2px 8px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.7rem;">Refresh</button>
                 </div>
-                <div id="recentTriggersList" style="font-size:0.8rem;"></div>
+                <div id="recentTriggersList" style="font-size:0.8rem; max-height:300px; overflow-y:auto;"></div>
             </div>
             <div class="test-list">
                 <h2>Job Run History</h2>
@@ -1030,6 +1036,17 @@
                         <tr><td colspan="9" class="loading">Select the Job Runs tab to load data</td></tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- FBC Validation Tab -->
+        <div id="fbc-validation-tab" class="tab-content">
+            <div class="test-list">
+                <h2>FBC Validation Summary</h2>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">Per-FBC catalog pass/fail status across all operators. Each card shows the latest job result for each operator tested against that FBC commit.</p>
+                <div id="fbcValidationContent">
+                    <div class="loading">Select the FBC Validation tab to load data</div>
+                </div>
             </div>
         </div>
 
@@ -1282,6 +1299,7 @@
             if (id === 'overview') refreshDashboard();
             else if (id === 'test-results') loadTestResults();
             else if (id === 'job-runs') loadJobRuns();
+            else if (id === 'fbc-validation') loadFbcValidation();
             else if (id === 'presubmit') loadPresubmitResults();
         }
 
@@ -1309,6 +1327,7 @@
                     (tabName === 'overview' && btn.textContent.trim() === 'Overview') ||
                     (tabName === 'test-results' && btn.textContent.trim() === 'Test Results') ||
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
+                    (tabName === 'fbc-validation' && btn.textContent.trim() === 'FBC Validation') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
                     (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report')) {
                     btn.classList.add('active');
@@ -1320,6 +1339,7 @@
             if (tabName === 'weekly-report') refreshWeeklyReport();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') { loadJobRuns(); loadTriggerButtons(); loadRecentTriggers(); }
+            if (tabName === 'fbc-validation') loadFbcValidation();
             if (tabName === 'presubmit') loadPresubmitResults();
         }
 
@@ -1437,18 +1457,37 @@
             }
         }
 
+        function getFbcShaOrError() {
+            var input = document.getElementById('fbcShaInput');
+            var sha = (input.value || '').trim();
+            if (sha && !/^[0-9a-fA-F]{7,40}$/.test(sha)) {
+                input.style.borderColor = 'var(--accent-red)';
+                document.getElementById('triggerStatus').textContent = 'Invalid FBC SHA: must be 7-40 hex characters';
+                document.getElementById('triggerStatus').style.color = 'var(--accent-red)';
+                return null;
+            }
+            input.style.borderColor = 'var(--border)';
+            return sha;
+        }
+
         async function triggerJob(btn, jobName, label) {
-            if (!confirm('Trigger Prow job: ' + label + '?')) return;
+            var fbcSha = getFbcShaOrError();
+            if (fbcSha === null) return;
+            var confirmMsg = 'Trigger Prow job: ' + label + '?';
+            if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + fbcSha;
+            if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
-            status.textContent = 'Triggering ' + label + '...';
+            status.textContent = 'Triggering ' + label + (fbcSha ? ' (FBC: ' + fbcSha.slice(0,7) + ')' : '') + '...';
             status.style.color = 'var(--text-muted)';
             try {
+                var payload = {job_name: jobName};
+                if (fbcSha) payload.fbc_commit_sha = fbcSha;
                 var resp = await fetch('/api/trigger-job', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({job_name: jobName})
+                    body: JSON.stringify(payload)
                 });
                 var data = {};
                 var ct = resp.headers.get('content-type') || '';
@@ -1485,16 +1524,23 @@
         }
 
         async function triggerAllJobs(btn) {
-            if (!confirm('Trigger all configured periodic jobs?\n\nThis will start multiple AWS clusters (~1.5-2h each). Jobs on cooldown will be skipped.')) return;
+            var fbcSha = getFbcShaOrError();
+            if (fbcSha === null) return;
+            var confirmMsg = 'Trigger all configured periodic jobs?\n\nThis will start multiple AWS clusters (~1.5-2h each). Jobs on cooldown will be skipped.';
+            if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + fbcSha;
+            if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
-            status.textContent = 'Triggering all operators...';
+            status.textContent = 'Triggering all operators' + (fbcSha ? ' (FBC: ' + fbcSha.slice(0,7) + ')' : '') + '...';
             status.style.color = 'var(--text-muted)';
             try {
+                var payload = {};
+                if (fbcSha) payload.fbc_commit_sha = fbcSha;
                 var resp = await fetch('/api/trigger-all-jobs', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
                 });
                 var data = {};
                 var ct = resp.headers.get('content-type') || '';
@@ -1544,7 +1590,7 @@
             var list = document.getElementById('recentTriggersList');
             if (refresh && btn) { btn.disabled = true; btn.textContent = 'Refreshing...'; btn.style.cursor = 'not-allowed'; }
             try {
-                var url = '/api/trigger-job/history?limit=6' + (refresh ? '&refresh=1' : '');
+                var url = '/api/trigger-job/history?limit=20' + (refresh ? '&refresh=1' : '');
                 var resp = await fetch(url);
                 if (!resp.ok) { section.style.display = 'none'; return; }
                 var items = await resp.json();
@@ -3216,6 +3262,69 @@
                 table.querySelectorAll('tbody.fbc-group').forEach(function(b) { b.remove(); });
                 tbody.style.display = '';
                 tbody.innerHTML = '<tr><td colspan="9" style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</td></tr>';
+            }
+        }
+
+        // ---- FBC Validation tab ----
+        async function loadFbcValidation() {
+            var container = document.getElementById('fbcValidationContent');
+            container.innerHTML = '<div class="loading">Loading FBC validation data...</div>';
+            var days = document.getElementById('timeRange').value;
+            var version = document.getElementById('versionFilter').value;
+            var params = {days: days};
+            if (version) params.version = version;
+            try {
+                var resp = await fetch('/api/fbc-summary?' + new URLSearchParams(params));
+                var data = await resp.json();
+                var summaries = data.fbc_summaries || [];
+                var allOps = data.all_operators || [];
+                if (summaries.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">No FBC data found</div>';
+                    return;
+                }
+                var html = '';
+                summaries.forEach(function(fbc) {
+                    var allPass = fbc.failed === 0 && fbc.total > 0;
+                    var borderColor = allPass ? 'var(--accent-green)' : 'var(--accent-red)';
+                    var links = '';
+                    if (fbc.fbc_quay_url) links += '<a href="' + esc(fbc.fbc_quay_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.7rem;margin-right:8px;">Quay</a>';
+                    if (fbc.fbc_konflux_url) links += '<a href="' + esc(fbc.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple);text-decoration:none;font-size:0.7rem;margin-right:8px;">Konflux</a>';
+                    if (fbc.fbc_gitlab_url) links += '<a href="' + esc(fbc.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-orange);text-decoration:none;font-size:0.7rem;">GitLab</a>';
+                    html += '<div style="margin-bottom:16px;border:1px solid ' + borderColor + ';border-radius:8px;background:var(--bg-card);overflow:hidden;">';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-surface);border-bottom:1px solid var(--border);">';
+                    html += '<div><span class="fbc-id-text" style="font-weight:700;font-size:0.95rem;">' + esc(fbc.fbc_short) + '</span> ' + links + '</div>';
+                    html += '<div style="display:flex;align-items:center;gap:10px;">';
+                    html += '<span style="font-size:0.75rem;color:var(--text-muted);">' + esc(fbc.latest_date) + '</span>';
+                    html += '<span class="fbc-badge fbc-badge--pass">' + fbc.passed + ' passed</span>';
+                    if (fbc.failed > 0) html += '<span class="fbc-badge fbc-badge--fail">' + fbc.failed + ' failed</span>';
+                    if (fbc.not_run > 0) html += '<span class="fbc-badge" style="background:var(--bg-hover);color:var(--text-muted);">' + fbc.not_run + ' not run</span>';
+                    html += '</div></div>';
+                    html += '<table style="width:100%;border-collapse:collapse;">';
+                    html += '<tr style="font-size:0.7rem;color:var(--text-muted);"><th style="text-align:left;padding:4px 14px;">Operator</th><th style="text-align:center;padding:4px 8px;">Status</th><th style="text-align:center;padding:4px 8px;">Tests (P/F)</th><th style="text-align:center;padding:4px 8px;">Duration</th><th style="text-align:center;padding:4px 8px;">Prow Job</th><th style="text-align:center;padding:4px 8px;">Test Log</th></tr>';
+                    allOps.forEach(function(op) {
+                        var o = fbc.operators[op];
+                        if (!o) {
+                            html += '<tr style="border-top:1px solid var(--border);"><td style="padding:4px 14px;">' + opChip(op) + '</td><td style="text-align:center;color:var(--text-muted);font-size:0.75rem;">NOT RUN</td><td colspan="4"></td></tr>';
+                            return;
+                        }
+                        var statusCls = o.status === 'passed' ? 'result-pass' : 'result-fail';
+                        var tests = (o.total_tests == null || o.total_tests === 0) ? '-' : o.passed_tests + '/' + o.failed_tests;
+                        var prowLink = o.prow_url ? '<a href="' + esc(o.prow_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;">View Job</a>' : '-';
+                        var logLink = o.e2e_log_url ? '<a href="' + esc(o.e2e_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;">Test Log</a>' : '-';
+                        html += '<tr style="border-top:1px solid var(--border);">';
+                        html += '<td style="padding:4px 14px;">' + opChip(op) + '</td>';
+                        html += '<td style="text-align:center;"><span class="' + statusCls + '">' + esc(o.status.toUpperCase()) + '</span></td>';
+                        html += '<td style="text-align:center;font-size:0.8rem;">' + tests + '</td>';
+                        html += '<td style="text-align:center;font-size:0.8rem;">' + esc(o.duration || '-') + '</td>';
+                        html += '<td style="text-align:center;">' + prowLink + '</td>';
+                        html += '<td style="text-align:center;">' + logLink + '</td>';
+                        html += '</tr>';
+                    });
+                    html += '</table></div>';
+                });
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<div style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</div>';
             }
         }
 

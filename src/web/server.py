@@ -42,11 +42,12 @@ def _fbc_short(fbc_image):
     if '@' in fbc_image:
         return fbc_image.split('@')[-1][:15]
     if ':' in fbc_image:
-        return fbc_image.split(':')[-1][:10]
+        return fbc_image.split(':')[-1][:7]
     return fbc_image
 
 
 POLARION_BASE = 'https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id='
+GITLAB_FBC_PROJECT = 'dragonfly/rhwa-fbc'
 
 
 def _polarion_url(polarion_id):
@@ -54,7 +55,7 @@ def _polarion_url(polarion_id):
     return f"{POLARION_BASE}{polarion_id}" if polarion_id else ''
 
 
-def _build_fbc_urls(fbc_image, gitlab_fbc_project='dragonfly/rhwa-fbc'):
+def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
     """Build Quay, Konflux, and GitLab URLs from an FBC image reference."""
     fbc_tag_url = ''
     fbc_quay_url = ''
@@ -97,7 +98,7 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project='dragonfly/rhwa-fbc'):
             fbc_konflux_url = f"https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/{tenant}/applications/{app_name}/snapshots"
         if '@' not in fbc_image and ':' in fbc_image:
             commit_sha = fbc_image.split(':')[-1]
-            if re.fullmatch(r'[0-9a-fA-F]{7,40}', commit_sha):
+            if _FBC_SHA_RE.fullmatch(commit_sha):
                 fbc_gitlab_url = f"https://gitlab.cee.redhat.com/{gitlab_fbc_project}/-/commit/{commit_sha}"
     return {
         'fbc_image_short': _fbc_short(fbc_image),
@@ -106,6 +107,26 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project='dragonfly/rhwa-fbc'):
         'fbc_konflux_url': fbc_konflux_url,
         'fbc_gitlab_url': fbc_gitlab_url,
     }
+
+
+_FBC_SHA_RE = re.compile(r'[0-9a-fA-F]{7,40}')
+
+
+def _parse_fbc_overrides(data):
+    """Parse FBC commit SHA from request data and return (env_overrides, error_msg).
+
+    Returns ({}, None) when no SHA is provided.
+    Returns ({'FBC_COMMIT_SHA': sha}, None) on valid SHA.
+    Returns (None, 'error message') on invalid SHA.
+    """
+    if not isinstance(data, dict):
+        return {}, None
+    fbc_sha = (data.get('fbc_commit_sha') or '').strip()
+    if not fbc_sha:
+        return {}, None
+    if not _FBC_SHA_RE.fullmatch(fbc_sha):
+        return None, f'Invalid fbc_commit_sha: must be 7-40 hex chars'
+    return {'FBC_COMMIT_SHA': fbc_sha}, None
 
 
 def _format_export_row(row, empty_placeholder='-'):
@@ -466,7 +487,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         except Exception as e:
             print(f"Error checking database status: {e}")
 
-        return render_template('dashboard.html', enable_ai=enable_ai)
+        return render_template('dashboard.html', enable_ai=enable_ai,
+                               gitlab_fbc_project=GITLAB_FBC_PROJECT)
 
     @app.route('/logs')
     def view_logs():
@@ -693,6 +715,97 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             })
 
         return jsonify({'job_runs': runs})
+
+    @app.route('/api/fbc-summary')
+    def api_fbc_summary():
+        """Get FBC validation summary: per-FBC pass/fail across operators"""
+        days = request.args.get('days', 30, type=int)
+        version = normalize_version(request.args.get('version'))
+        rows = db.get_job_run_history(days=days, version=version)
+
+        fbc_map = {}
+        for row in rows:
+            fbc_image = row.get('fbc_image') or ''
+            if not fbc_image:
+                continue
+            tag = fbc_image.split(':')[-1] if ':' in fbc_image else fbc_image
+            if not re.fullmatch(r'[0-9a-fA-F]{7,40}', tag):
+                continue
+            short = tag[:7]
+            if short not in fbc_map:
+                fbc_urls = _build_fbc_urls(fbc_image)
+                fbc_map[short] = {
+                    'fbc_short': short,
+                    'fbc_full': tag,
+                    'fbc_image': fbc_image,
+                    **fbc_urls,
+                    'operators': {},
+                    'latest_date': None,
+                }
+            entry = fbc_map[short]
+            step_name = row.get('step_name') or ''
+            job_name = row.get('job_name') or ''
+            build_id = row.get('build_id') or ''
+            op = ''
+            m = re.search(r'-e2e-([a-z0-9]+)-', step_name or job_name)
+            if m:
+                op = m.group(1).upper()
+            if not op:
+                continue
+            urls = _build_log_urls(job_name, build_id, step_name)
+            run_date = row.get('run_date') or ''
+            if run_date and (not entry['latest_date'] or run_date > entry['latest_date']):
+                entry['latest_date'] = run_date
+            op_key = op
+            if op_key in entry['operators']:
+                existing = entry['operators'][op_key]
+                if run_date > (existing.get('run_date') or ''):
+                    pass
+                else:
+                    continue
+            dur = row.get('duration_seconds')
+            dur_str = ''
+            if dur and dur > 0:
+                h = int(dur) // 3600
+                mins = (int(dur) % 3600) // 60
+                dur_str = f"{h}h {mins}m" if h > 0 else f"{mins}m"
+            entry['operators'][op_key] = {
+                'operator': op_key,
+                'status': row.get('status') or 'unknown',
+                'passed_tests': row.get('passed_tests') or 0,
+                'failed_tests': row.get('failed_tests') or 0,
+                'total_tests': row.get('total_tests') or 0,
+                'duration': dur_str,
+                'run_date': run_date,
+                'job_name': job_name,
+                'build_id': build_id,
+                'prow_url': f"https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job_name}/{build_id}" if job_name and build_id else '',
+                'e2e_log_url': urls.get('e2e_log_url', ''),
+                'failure_category': row.get('failure_category') or '',
+            }
+
+        all_ops = sorted({op for e in fbc_map.values() for op in e['operators']})
+        summaries = []
+        for short in sorted(fbc_map.keys(), key=lambda k: fbc_map[k].get('latest_date') or '', reverse=True):
+            e = fbc_map[short]
+            passed = sum(1 for o in e['operators'].values() if o['status'] == 'passed')
+            failed = sum(1 for o in e['operators'].values() if o['status'] == 'failed')
+            total = len(e['operators'])
+            summaries.append({
+                'fbc_short': e['fbc_short'],
+                'fbc_full': e['fbc_full'],
+                'fbc_quay_url': e.get('fbc_quay_url', ''),
+                'fbc_konflux_url': e.get('fbc_konflux_url', ''),
+                'fbc_gitlab_url': e.get('fbc_gitlab_url', ''),
+                'latest_date': (e['latest_date'] or '').split('T')[0],
+                'passed': passed,
+                'failed': failed,
+                'total': total,
+                'not_run': len(all_ops) - total,
+                'operators': e['operators'],
+            })
+
+        return jsonify({'fbc_summaries': summaries, 'all_operators': all_ops})
 
     @app.route('/api/presubmit-results')
     def api_presubmit_results():
@@ -1055,6 +1168,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if resolve_err:
             return jsonify({'error': resolve_err}), 400
 
+        env_overrides, fbc_err = _parse_fbc_overrides(data)
+        if fbc_err:
+            return jsonify({'error': fbc_err}), 400
+
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
                 operator, TRIGGER_COOLDOWN_SECONDS)
@@ -1066,7 +1183,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
             return jsonify({'error': f'Rate limited. Try again in {remaining}s.'}), 429
 
-        result, error = gangway.trigger_job(resolved_job)
+        result, error = gangway.trigger_job(resolved_job, env_overrides or None)
         if error:
             try:
                 db.update_gangway_execution(placeholder_id, "FAILED",
@@ -1113,6 +1230,11 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'message': 'Gangway not configured. Set PROW_GANGWAY_TOKEN.'
             }), 503
 
+        data = request.get_json(silent=True) or {}
+        env_overrides, fbc_err = _parse_fbc_overrides(data)
+        if fbc_err:
+            return jsonify({'error': fbc_err}), 400
+
         results = []
         triggered = 0
         skipped = 0
@@ -1147,7 +1269,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 results.append(entry)
                 continue
 
-            result, error = gangway.trigger_job(job_name)
+            result, error = gangway.trigger_job(job_name, env_overrides or None)
             if error:
                 try:
                     db.update_gangway_execution(placeholder_id, "FAILED",

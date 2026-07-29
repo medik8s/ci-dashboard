@@ -198,9 +198,11 @@ class GangwayClient:
             logger.error("Gangway %s %s failed: %s", method, path, e)
             return {"error": "Gangway request failed"}, 0
 
-    def trigger_job(self, job_name):
+    def trigger_job(self, job_name, env_overrides=None):
         """Trigger a periodic job by its canonical (pre-resolved) job name."""
         payload = {"job_name": job_name, "job_execution_type": "1"}
+        if env_overrides:
+            payload["pod_spec_options"] = {"envs": env_overrides}
         resp, status = self._request("POST", "/executions", payload)
         if 200 <= status < 300:
             execution_id = resp.get("id")
