@@ -112,25 +112,6 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
 _FBC_SHA_RE = re.compile(r'[0-9a-fA-F]{7,40}')
 
 
-def _resolve_latest_fbc_sha(ocp_version='422'):
-    """Query Quay for the latest FBC commit SHA tag. Returns 7-char SHA or None."""
-    import urllib.request
-    import json as _json
-    repo = f"redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-{ocp_version}"
-    url = f"https://quay.io/api/v1/repository/{repo}/tag/?limit=10&onlyActiveTags=true"
-    try:
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = _json.loads(resp.read())
-        for tag in data.get('tags', []):
-            name = tag.get('name', '')
-            if len(name) == 40 and all(c in '0123456789abcdef' for c in name):
-                return name[:7]
-    except Exception:
-        pass
-    return None
-
-
 def _parse_fbc_overrides(data):
     """Parse FBC commit SHA from request data and return (env_overrides, error_msg).
 
@@ -1191,9 +1172,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if fbc_err:
             return jsonify({'error': fbc_err}), 400
 
-        fbc_display = env_overrides.get('FBC_COMMIT_SHA')
-        if not fbc_display:
-            fbc_display = _resolve_latest_fbc_sha() or 'latest'
+        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or 'latest'
 
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
@@ -1259,9 +1238,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if fbc_err:
             return jsonify({'error': fbc_err}), 400
 
-        fbc_display = env_overrides.get('FBC_COMMIT_SHA')
-        if not fbc_display:
-            fbc_display = _resolve_latest_fbc_sha() or 'latest'
+        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or 'latest'
 
         all_jobs = get_all_triggerable_jobs()
         reserved = []
