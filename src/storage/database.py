@@ -1207,14 +1207,15 @@ class DashboardDatabase:
                                     fbc_commit_sha=None, job_name=None):
         import uuid
         from datetime import datetime, timezone
+        cooldown_key = job_name or operator
         cursor = self.conn.cursor()
         cursor.execute("BEGIN IMMEDIATE")
         try:
             cursor.execute("""
                 SELECT triggered_at FROM gangway_executions
-                WHERE operator = ?
+                WHERE job_name = ?
                 ORDER BY triggered_at DESC LIMIT 1
-            """, (operator,))
+            """, (cooldown_key,))
             row = cursor.fetchone()
             if row and row['triggered_at']:
                 try:
