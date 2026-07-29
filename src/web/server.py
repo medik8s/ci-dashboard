@@ -1177,7 +1177,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
                 operator, TRIGGER_COOLDOWN_SECONDS,
-                fbc_commit_sha=fbc_display)
+                fbc_commit_sha=fbc_display, job_name=resolved_job)
         except Exception:
             app.logger.exception("Cooldown check failed for %s", operator)
             return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
@@ -1249,7 +1249,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             try:
                 allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
                     operator, TRIGGER_COOLDOWN_SECONDS,
-                    fbc_commit_sha=fbc_display)
+                    fbc_commit_sha=fbc_display, job_name=job_name)
             except Exception:
                 app.logger.exception("Cooldown check failed for %s", operator)
                 continue

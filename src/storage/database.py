@@ -1203,7 +1203,8 @@ class DashboardDatabase:
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-    def check_cooldown_and_reserve(self, operator, cooldown_seconds=300, fbc_commit_sha=None):
+    def check_cooldown_and_reserve(self, operator, cooldown_seconds=300,
+                                    fbc_commit_sha=None, job_name=None):
         import uuid
         from datetime import datetime, timezone
         cursor = self.conn.cursor()
@@ -1231,8 +1232,8 @@ class DashboardDatabase:
             placeholder_id = f"pending-{uuid.uuid4().hex[:12]}"
             cursor.execute("""
                 INSERT INTO gangway_executions (execution_id, operator, job_name, status, fbc_commit_sha)
-                VALUES (?, ?, '', 'PENDING', ?)
-            """, (placeholder_id, operator, fbc_commit_sha))
+                VALUES (?, ?, ?, 'PENDING', ?)
+            """, (placeholder_id, operator, job_name or '', fbc_commit_sha))
             self.conn.commit()
             return True, 0, placeholder_id
         except Exception:
