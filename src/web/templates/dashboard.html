@@ -1539,7 +1539,7 @@
         async function triggerAllJobs(btn) {
             var fbcSha = getFbcShaOrError();
             if (fbcSha === null) return;
-            var confirmMsg = 'Trigger all configured periodic jobs?\n\nThis will start multiple AWS clusters (~1.5-2h each). Jobs on cooldown will be skipped.';
+            var confirmMsg = 'Trigger all configured periodic jobs?\n\nJobs on cooldown will be skipped.';
             if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + fbcSha;
             if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
