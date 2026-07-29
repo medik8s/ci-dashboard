@@ -8,6 +8,7 @@ and poll execution status.
 import os
 import re
 import logging
+import time
 import urllib.request
 from urllib.parse import quote
 import urllib.error
@@ -173,30 +174,40 @@ class GangwayClient:
         if not self.enabled:
             logger.warning("PROW_GANGWAY_TOKEN not set, Gangway trigger disabled")
 
-    def _request(self, method, path, body=None):
+    def _request(self, method, path, body=None, retries=3):
         url = f"{GANGWAY_BASE_URL}{path}"
-        data = json.dumps(body).encode() if body else None
-        req = urllib.request.Request(url, data=data, method=method)
-        req.add_header("Authorization", f"Bearer {self.token}")
-        req.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                raw = resp.read()
-                if not raw:
-                    return {}, resp.status
-                try:
-                    return json.loads(raw), resp.status
-                except json.JSONDecodeError:
-                    logger.error("Gangway %s %s returned non-JSON (status %d): %s",
-                                 method, path, resp.status, raw[:200])
-                    return {"error": "Non-JSON response from Gangway"}, resp.status
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode(errors="replace")
-            logger.error("Gangway %s %s returned %d: %s", method, path, e.code, error_body[:500])
-            return {"error": f"Gangway returned HTTP {e.code}"}, e.code
-        except Exception as e:
-            logger.error("Gangway %s %s failed: %s", method, path, e)
-            return {"error": "Gangway request failed"}, 0
+        for attempt in range(retries):
+            data = json.dumps(body).encode() if body else None
+            req = urllib.request.Request(url, data=data, method=method)
+            req.add_header("Authorization", f"Bearer {self.token}")
+            req.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    raw = resp.read()
+                    if not raw:
+                        return {}, resp.status
+                    try:
+                        return json.loads(raw), resp.status
+                    except json.JSONDecodeError:
+                        logger.error("Gangway %s %s returned non-JSON (status %d): %s",
+                                     method, path, resp.status, raw[:200])
+                        return {"error": "Non-JSON response from Gangway"}, resp.status
+            except urllib.error.HTTPError as e:
+                if e.code == 429 and attempt < retries - 1:
+                    wait = 10 * (attempt + 1)
+                    logger.warning("Gangway 429 on %s %s, retry %d after %ds",
+                                   method, path, attempt + 1, wait)
+                    e.read()
+                    time.sleep(wait)
+                    continue
+                error_body = e.read().decode(errors="replace")
+                logger.error("Gangway %s %s returned %d: %s",
+                             method, path, e.code, error_body[:500])
+                return {"error": f"Gangway returned HTTP {e.code}"}, e.code
+            except Exception as e:
+                logger.error("Gangway %s %s failed: %s", method, path, e)
+                return {"error": "Gangway request failed"}, 0
+        return {"error": "Gangway request failed after retries"}, 0
 
     def trigger_job(self, job_name, env_overrides=None):
         """Trigger a periodic job by its canonical (pre-resolved) job name."""

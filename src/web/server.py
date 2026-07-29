@@ -1244,7 +1244,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         all_jobs = get_all_triggerable_jobs()
         for idx, job_name in enumerate(all_jobs):
             if idx > 0:
-                time.sleep(1.5)
+                time.sleep(5)
             operator = operator_from_job_name(job_name) or job_name
             entry = {'operator': operator, 'job_name': job_name,
                      'status': None, 'message': None, 'execution_id': None}
