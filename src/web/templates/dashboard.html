@@ -1043,9 +1043,22 @@
         <div id="fbc-validation-tab" class="tab-content">
             <div class="test-list">
                 <h2>FBC Validation Summary</h2>
-                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px;">Per-FBC catalog pass/fail status across all operators. Each card shows the latest job result for each operator tested against that FBC commit.</p>
+                <div class="controls" style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <label style="font-size:0.8rem; color:var(--text-muted);">FBC Commit:</label>
+                        <select id="fbcSelector" style="padding:4px 8px; border-radius:4px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.8rem; font-family:monospace; min-width:140px;">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <label style="font-size:0.75rem; color:var(--text-muted);">or paste SHA:</label>
+                        <input id="fbcLookupInput" type="text" maxlength="40" placeholder="7-40 hex" pattern="[0-9a-fA-F]{7,40}" style="width:100px; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.75rem; font-family:monospace;">
+                        <button onclick="lookupFbc()" style="padding:3px 10px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.75rem;">Go</button>
+                    </div>
+                    <span id="fbcValStatus" style="font-size:0.75rem; color:var(--text-muted);"></span>
+                </div>
                 <div id="fbcValidationContent">
-                    <div class="loading">Select the FBC Validation tab to load data</div>
+                    <div style="text-align:center; padding:40px; color:var(--text-muted);">Select an FBC commit to view validation results</div>
                 </div>
             </div>
         </div>
@@ -1552,17 +1565,10 @@
                 }
                 if (resp.ok && data.summary) {
                     var s = data.summary;
-                    var parts = [];
-                    if (s.triggered > 0) parts.push(s.triggered + ' triggered');
-                    if (s.skipped > 0) parts.push(s.skipped + ' skipped');
-                    if (s.failed > 0) parts.push(s.failed + ' failed');
-                    var icons = (data.results || []).map(function(r) {
-                        var op = (r.operator || '').toUpperCase();
-                        if (r.status === 'triggered') return op + '✓';
-                        if (r.status === 'skipped') return op + '—';
-                        return op + '✗';
-                    }).join('  ');
-                    status.textContent = icons + '  (' + parts.join(', ') + ')';
+                    var msg = s.triggered + ' jobs triggered';
+                    if (s.skipped > 0) msg += ', ' + s.skipped + ' on cooldown';
+                    if (s.failed > 0) msg += ', ' + s.failed + ' failed';
+                    status.textContent = msg;
                     if (s.failed > 0) { status.style.color = '#eab308'; }
                     else if (s.triggered > 0) { status.style.color = '#22c55e'; }
                     else { status.style.color = 'var(--text-muted)'; }
@@ -1597,7 +1603,7 @@
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
                 section.style.display = '';
                 var html = '<table style="width:100%;border-collapse:collapse;">';
-                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Job</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
+                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Job</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">FBC</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
                 items.forEach(function(t) {
                     var op = (t.operator || '').toUpperCase();
                     var jobLabel = t.job_name ? _shortJobLabel(t.job_name) : '';
@@ -1620,8 +1626,10 @@
                     if (t.prow_job_url) { prowLink = linkEl(t.prow_job_url, 'View Job'); }
                     else if (t.job_name) { prowLink = linkEl('https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/' + encodeURIComponent(t.job_name), 'View Job'); }
                     html += '<tr style="border-top:1px solid var(--border);">';
+                    var fbcCell = t.fbc_commit_sha ? '<code style="font-size:0.7rem;color:var(--accent-purple);">' + esc(t.fbc_commit_sha.slice(0,7)) + '</code>' : '<span style="color:var(--text-muted);font-size:0.7rem;">latest</span>';
                     html += '<td style="padding:4px 8px;">' + opChip(op) + ' <span style="font-size:0.75rem;">' + esc(jobLabel) + '</span></td>';
                     html += '<td style="padding:4px 8px;">' + stHtml + '</td>';
+                    html += '<td style="padding:4px 8px;">' + fbcCell + '</td>';
                     html += '<td style="padding:4px 8px;white-space:nowrap;"' + (whenTitle ? ' title="' + esc(whenTitle) + '"' : '') + '>' + esc(when) + '</td>';
                     html += '<td style="padding:4px 8px;">' + prowLink + '</td>';
                     html += '</tr>';
@@ -3266,66 +3274,111 @@
         }
 
         // ---- FBC Validation tab ----
+        var _fbcCache = null;
         async function loadFbcValidation() {
+            var sel = document.getElementById('fbcSelector');
             var container = document.getElementById('fbcValidationContent');
-            container.innerHTML = '<div class="loading">Loading FBC validation data...</div>';
             var days = document.getElementById('timeRange').value;
             var version = document.getElementById('versionFilter').value;
             var params = {days: days};
             if (version) params.version = version;
             try {
+                sel.innerHTML = '<option value="">Loading...</option>';
                 var resp = await fetch('/api/fbc-summary?' + new URLSearchParams(params));
                 var data = await resp.json();
+                _fbcCache = data;
                 var summaries = data.fbc_summaries || [];
-                var allOps = data.all_operators || [];
                 if (summaries.length === 0) {
-                    container.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">No FBC data found</div>';
+                    sel.innerHTML = '<option value="">No FBC data</option>';
+                    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">No FBC validation data found for this time range</div>';
                     return;
                 }
-                var html = '';
-                summaries.forEach(function(fbc) {
-                    var allPass = fbc.failed === 0 && fbc.total > 0;
-                    var borderColor = allPass ? 'var(--accent-green)' : 'var(--accent-red)';
-                    var links = '';
-                    if (fbc.fbc_quay_url) links += '<a href="' + esc(fbc.fbc_quay_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.7rem;margin-right:8px;">Quay</a>';
-                    if (fbc.fbc_konflux_url) links += '<a href="' + esc(fbc.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple);text-decoration:none;font-size:0.7rem;margin-right:8px;">Konflux</a>';
-                    if (fbc.fbc_gitlab_url) links += '<a href="' + esc(fbc.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-orange);text-decoration:none;font-size:0.7rem;">GitLab</a>';
-                    html += '<div style="margin-bottom:16px;border:1px solid ' + borderColor + ';border-radius:8px;background:var(--bg-card);overflow:hidden;">';
-                    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-surface);border-bottom:1px solid var(--border);">';
-                    html += '<div><span class="fbc-id-text" style="font-weight:700;font-size:0.95rem;">' + esc(fbc.fbc_short) + '</span> ' + links + '</div>';
-                    html += '<div style="display:flex;align-items:center;gap:10px;">';
-                    html += '<span style="font-size:0.75rem;color:var(--text-muted);">' + esc(fbc.latest_date) + '</span>';
-                    html += '<span class="fbc-badge fbc-badge--pass">' + fbc.passed + ' passed</span>';
-                    if (fbc.failed > 0) html += '<span class="fbc-badge fbc-badge--fail">' + fbc.failed + ' failed</span>';
-                    if (fbc.not_run > 0) html += '<span class="fbc-badge" style="background:var(--bg-hover);color:var(--text-muted);">' + fbc.not_run + ' not run</span>';
-                    html += '</div></div>';
-                    html += '<table style="width:100%;border-collapse:collapse;">';
-                    html += '<tr style="font-size:0.7rem;color:var(--text-muted);"><th style="text-align:left;padding:4px 14px;">Operator</th><th style="text-align:center;padding:4px 8px;">Status</th><th style="text-align:center;padding:4px 8px;">Tests (P/F)</th><th style="text-align:center;padding:4px 8px;">Duration</th><th style="text-align:center;padding:4px 8px;">Prow Job</th><th style="text-align:center;padding:4px 8px;">Test Log</th></tr>';
-                    allOps.forEach(function(op) {
-                        var o = fbc.operators[op];
-                        if (!o) {
-                            html += '<tr style="border-top:1px solid var(--border);"><td style="padding:4px 14px;">' + opChip(op) + '</td><td style="text-align:center;color:var(--text-muted);font-size:0.75rem;">NOT RUN</td><td colspan="4"></td></tr>';
-                            return;
-                        }
-                        var statusCls = o.status === 'passed' ? 'result-pass' : 'result-fail';
-                        var tests = (o.total_tests == null || o.total_tests === 0) ? '-' : o.passed_tests + '/' + o.failed_tests;
-                        var prowLink = o.prow_url ? '<a href="' + esc(o.prow_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;">View Job</a>' : '-';
-                        var logLink = o.e2e_log_url ? '<a href="' + esc(o.e2e_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;">Test Log</a>' : '-';
-                        html += '<tr style="border-top:1px solid var(--border);">';
-                        html += '<td style="padding:4px 14px;">' + opChip(op) + '</td>';
-                        html += '<td style="text-align:center;"><span class="' + statusCls + '">' + esc(o.status.toUpperCase()) + '</span></td>';
-                        html += '<td style="text-align:center;font-size:0.8rem;">' + tests + '</td>';
-                        html += '<td style="text-align:center;font-size:0.8rem;">' + esc(o.duration || '-') + '</td>';
-                        html += '<td style="text-align:center;">' + prowLink + '</td>';
-                        html += '<td style="text-align:center;">' + logLink + '</td>';
-                        html += '</tr>';
-                    });
-                    html += '</table></div>';
+                sel.innerHTML = '';
+                summaries.forEach(function(fbc, i) {
+                    var opt = document.createElement('option');
+                    opt.value = fbc.fbc_short;
+                    var label = fbc.fbc_short + '  (' + fbc.latest_date + ')  ' + fbc.passed + '/' + fbc.total + ' passed';
+                    opt.textContent = label;
+                    sel.appendChild(opt);
                 });
-                container.innerHTML = html;
+                renderFbcCard(summaries[0].fbc_short);
             } catch (e) {
                 container.innerHTML = '<div style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</div>';
             }
+        }
+        document.getElementById('fbcSelector').addEventListener('change', function() {
+            if (this.value) renderFbcCard(this.value);
+        });
+        function lookupFbc() {
+            var input = document.getElementById('fbcLookupInput');
+            var sha = (input.value || '').trim();
+            if (!sha || !/^[0-9a-fA-F]{7,40}$/.test(sha)) {
+                input.style.borderColor = 'var(--accent-red)';
+                document.getElementById('fbcValStatus').textContent = 'Invalid SHA';
+                return;
+            }
+            input.style.borderColor = 'var(--border)';
+            var short = sha.slice(0, 7).toLowerCase();
+            var sel = document.getElementById('fbcSelector');
+            var found = false;
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === short) { sel.selectedIndex = i; found = true; break; }
+            }
+            if (found) {
+                renderFbcCard(short);
+                document.getElementById('fbcValStatus').textContent = '';
+            } else {
+                document.getElementById('fbcValStatus').textContent = 'FBC ' + short + ' not found in current data';
+                document.getElementById('fbcValidationContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">FBC <code>' + esc(short) + '</code> not found. Try increasing the time range, or check that this FBC was used in a periodic job run.</div>';
+            }
+        }
+        function renderFbcCard(fbcShort) {
+            var container = document.getElementById('fbcValidationContent');
+            if (!_fbcCache) { container.innerHTML = '<div class="loading">Loading...</div>'; return; }
+            var summaries = _fbcCache.fbc_summaries || [];
+            var allOps = _fbcCache.all_operators || [];
+            var fbc = summaries.find(function(s) { return s.fbc_short === fbcShort; });
+            if (!fbc) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">FBC not found</div>'; return; }
+            var allPass = fbc.failed === 0 && fbc.total > 0;
+            var borderColor = allPass ? 'var(--accent-green)' : (fbc.failed > 0 ? 'var(--accent-red)' : 'var(--border)');
+            var links = '';
+            if (fbc.fbc_quay_url) links += '<a href="' + esc(fbc.fbc_quay_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.75rem;margin-right:10px;">Quay</a>';
+            if (fbc.fbc_konflux_url) links += '<a href="' + esc(fbc.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-right:10px;">Konflux</a>';
+            if (fbc.fbc_gitlab_url) links += '<a href="' + esc(fbc.fbc_gitlab_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-orange);text-decoration:none;font-size:0.75rem;">GitLab</a>';
+            var html = '<div style="border:2px solid ' + borderColor + ';border-radius:8px;background:var(--bg-card);overflow:hidden;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--bg-surface);border-bottom:1px solid var(--border);">';
+            html += '<div><span class="fbc-id-text" style="font-weight:700;font-size:1.1rem;">' + esc(fbc.fbc_short) + '</span> ' + links + '</div>';
+            html += '<div style="display:flex;align-items:center;gap:10px;">';
+            html += '<span style="font-size:0.8rem;color:var(--text-muted);">' + esc(fbc.latest_date) + '</span>';
+            html += '<span class="fbc-badge fbc-badge--pass">' + fbc.passed + ' passed</span>';
+            if (fbc.failed > 0) html += '<span class="fbc-badge fbc-badge--fail">' + fbc.failed + ' failed</span>';
+            if (fbc.not_run > 0) html += '<span class="fbc-badge" style="background:var(--bg-hover);color:var(--text-muted);">' + fbc.not_run + ' not run</span>';
+            html += '</div></div>';
+            html += '<table style="width:100%;border-collapse:collapse;">';
+            html += '<tr style="font-size:0.75rem;color:var(--text-muted);"><th style="text-align:left;padding:6px 16px;">Operator</th><th style="text-align:center;padding:6px 8px;">Status</th><th style="text-align:center;padding:6px 8px;">Tests (P/F)</th><th style="text-align:center;padding:6px 8px;">Duration</th><th style="text-align:center;padding:6px 8px;">Run Date</th><th style="text-align:center;padding:6px 8px;">Prow Job</th><th style="text-align:center;padding:6px 8px;">Test Log</th></tr>';
+            allOps.forEach(function(op) {
+                var o = fbc.operators[op];
+                if (!o) {
+                    html += '<tr style="border-top:1px solid var(--border);"><td style="padding:6px 16px;">' + opChip(op) + '</td><td style="text-align:center;color:var(--text-muted);font-size:0.8rem;">NOT RUN</td><td colspan="5"></td></tr>';
+                    return;
+                }
+                var statusCls = o.status === 'passed' ? 'result-pass' : 'result-fail';
+                var tests = (o.total_tests == null || o.total_tests === 0) ? '-' : o.passed_tests + '/' + o.failed_tests;
+                var prowLink = o.prow_url ? '<a href="' + esc(o.prow_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.8rem;">View Job</a>' : '-';
+                var logLink = o.e2e_log_url ? '<a href="' + esc(o.e2e_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.8rem;">Test Log</a>' : '-';
+                var runDate = o.run_date ? fmtDate(o.run_date) : '-';
+                html += '<tr style="border-top:1px solid var(--border);">';
+                html += '<td style="padding:6px 16px;">' + opChip(op) + '</td>';
+                html += '<td style="text-align:center;"><span class="' + statusCls + '">' + esc(o.status.toUpperCase()) + '</span></td>';
+                html += '<td style="text-align:center;font-size:0.85rem;">' + tests + '</td>';
+                html += '<td style="text-align:center;font-size:0.85rem;">' + esc(o.duration || '-') + '</td>';
+                html += '<td style="text-align:center;font-size:0.85rem;">' + esc(runDate) + '</td>';
+                html += '<td style="text-align:center;">' + prowLink + '</td>';
+                html += '<td style="text-align:center;">' + logLink + '</td>';
+                html += '</tr>';
+            });
+            html += '</table></div>';
+            container.innerHTML = html;
         }
 
         // ---- Presubmit tab ----

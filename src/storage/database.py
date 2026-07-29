@@ -300,10 +300,17 @@ class DashboardDatabase:
                 triggered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 prow_job_url TEXT,
-                error_message TEXT
+                error_message TEXT,
+                fbc_commit_sha TEXT
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_gangway_operator ON gangway_executions(operator)")
+
+        try:
+            cursor.execute("ALTER TABLE gangway_executions ADD COLUMN fbc_commit_sha TEXT")
+        except Exception as e:
+            if 'duplicate column' not in str(e).lower():
+                raise
 
         self.conn.commit()
 
@@ -1196,7 +1203,7 @@ class DashboardDatabase:
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-    def check_cooldown_and_reserve(self, operator, cooldown_seconds=300):
+    def check_cooldown_and_reserve(self, operator, cooldown_seconds=300, fbc_commit_sha=None):
         import uuid
         from datetime import datetime, timezone
         cursor = self.conn.cursor()
@@ -1223,9 +1230,9 @@ class DashboardDatabase:
                     return False, -1, None
             placeholder_id = f"pending-{uuid.uuid4().hex[:12]}"
             cursor.execute("""
-                INSERT INTO gangway_executions (execution_id, operator, job_name, status)
-                VALUES (?, ?, '', 'PENDING')
-            """, (placeholder_id, operator))
+                INSERT INTO gangway_executions (execution_id, operator, job_name, status, fbc_commit_sha)
+                VALUES (?, ?, '', 'PENDING', ?)
+            """, (placeholder_id, operator, fbc_commit_sha))
             self.conn.commit()
             return True, 0, placeholder_id
         except Exception:

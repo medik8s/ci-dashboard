@@ -747,7 +747,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
             op = ''
-            m = re.search(r'-e2e-([a-z0-9]+)-', step_name or job_name)
+            m = re.search(r'e2e-([a-z]+)', step_name or job_name)
             if m:
                 op = m.group(1).upper()
             if not op:
@@ -1174,7 +1174,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
-                operator, TRIGGER_COOLDOWN_SECONDS)
+                operator, TRIGGER_COOLDOWN_SECONDS,
+                fbc_commit_sha=env_overrides.get('FBC_COMMIT_SHA'))
         except Exception:
             app.logger.exception("Cooldown check failed for %s", operator)
             return jsonify({'error': 'Rate limit check failed. Try again later.'}), 503
@@ -1248,7 +1249,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
             try:
                 allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
-                    operator, TRIGGER_COOLDOWN_SECONDS)
+                    operator, TRIGGER_COOLDOWN_SECONDS,
+                    fbc_commit_sha=env_overrides.get('FBC_COMMIT_SHA'))
             except Exception:
                 app.logger.exception("Cooldown check failed for %s", operator)
                 entry['status'] = 'failed'
