@@ -1263,96 +1263,71 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if not fbc_display:
             fbc_display = _resolve_latest_fbc_sha() or 'latest'
 
-        results = []
-        triggered = 0
-        skipped = 0
-        failed = 0
-
         all_jobs = get_all_triggerable_jobs()
-        for idx, job_name in enumerate(all_jobs):
-            if idx > 0:
-                time.sleep(5)
-            operator = operator_from_job_name(job_name) or job_name
-            entry = {'operator': operator, 'job_name': job_name,
-                     'status': None, 'message': None, 'execution_id': None}
+        reserved = []
+        skipped = 0
 
+        for job_name in all_jobs:
+            operator = operator_from_job_name(job_name) or job_name
             try:
                 allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
                     operator, TRIGGER_COOLDOWN_SECONDS,
                     fbc_commit_sha=fbc_display)
             except Exception:
                 app.logger.exception("Cooldown check failed for %s", operator)
-                entry['status'] = 'failed'
-                entry['message'] = 'Rate limit check failed'
-                failed += 1
-                results.append(entry)
                 continue
+            if allowed:
+                reserved.append((job_name, operator, placeholder_id))
+            else:
+                skipped += 1
 
-            if not allowed:
-                if remaining < 0:
-                    entry['status'] = 'failed'
-                    entry['message'] = 'Rate limit check failed'
-                    failed += 1
-                else:
-                    entry['status'] = 'skipped'
-                    entry['message'] = f'Cooldown active ({remaining}s remaining)'
-                    skipped += 1
-                results.append(entry)
-                continue
+        if not reserved:
+            return jsonify({
+                'summary': {'total': len(all_jobs), 'triggered': 0,
+                            'skipped': skipped, 'failed': 0},
+                'message': f'All {len(all_jobs)} jobs on cooldown',
+            })
 
-            result, error = gangway.trigger_job(job_name, env_overrides or None)
-            if error:
+        def _trigger_in_background(jobs_to_trigger, overrides, gw):
+            for idx, (jn, op, pid) in enumerate(jobs_to_trigger):
+                if idx > 0:
+                    time.sleep(5)
+                result, error = gw.trigger_job(jn, overrides or None)
+                if error:
+                    try:
+                        db.update_gangway_execution(pid, "FAILED",
+                                                    error_message=error)
+                    except Exception:
+                        app.logger.exception("DB update failed for %s", jn)
+                    continue
+                eid = result.get('execution_id')
+                if not eid:
+                    try:
+                        db.update_gangway_execution(pid, "FAILED",
+                                                    error_message="No execution ID")
+                    except Exception:
+                        pass
+                    continue
                 try:
-                    db.update_gangway_execution(placeholder_id, "FAILED",
-                                                error_message=error)
+                    db.finalize_gangway_execution(pid, eid, result['job_name'],
+                                                  result['status'])
                 except Exception:
-                    app.logger.exception("DB update failed for %s", job_name)
-                entry['status'] = 'failed'
-                entry['message'] = error
-                failed += 1
-                results.append(entry)
-                continue
+                    app.logger.exception("DB finalize failed for %s", eid)
 
-            execution_id = result.get('execution_id')
-            if not execution_id:
-                try:
-                    db.update_gangway_execution(placeholder_id, "FAILED",
-                                                error_message="No execution ID")
-                except Exception:
-                    app.logger.exception("DB update failed for %s", operator)
-                entry['status'] = 'failed'
-                entry['message'] = 'No execution ID returned'
-                failed += 1
-                results.append(entry)
-                continue
-
-            try:
-                db.finalize_gangway_execution(
-                    placeholder_id, execution_id,
-                    result['job_name'], result['status'])
-                entry['message'] = 'Job triggered'
-            except Exception:
-                app.logger.exception(
-                    "Gangway execution %s triggered but DB update failed",
-                    execution_id)
-                entry['message'] = 'Triggered but tracking failed'
-
-            entry['status'] = 'triggered'
-            entry['execution_id'] = execution_id
-            triggered += 1
-            results.append(entry)
-
-            if idx < len(all_jobs) - 1:
-                time.sleep(0.2)
+        t = threading.Thread(target=_trigger_in_background,
+                             args=(reserved, env_overrides, gangway),
+                             daemon=True)
+        t.start()
 
         return jsonify({
             'summary': {
-                'total': triggered + skipped + failed,
-                'triggered': triggered,
+                'total': len(all_jobs),
+                'triggered': len(reserved),
                 'skipped': skipped,
-                'failed': failed,
+                'failed': 0,
             },
-            'results': results,
+            'message': f'{len(reserved)} jobs queued for triggering. '
+                       f'Click Refresh to see status updates.',
         })
 
     _TERMINAL_STATUSES = frozenset(('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR'))
