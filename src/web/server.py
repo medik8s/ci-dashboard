@@ -771,7 +771,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 mins = (int(dur) % 3600) // 60
                 dur_str = f"{h}h {mins}m" if h > 0 else f"{mins}m"
             entry['operators'][op_key] = {
-                'operator': op_key,
+                'operator': op,
                 'status': row.get('status') or 'unknown',
                 'passed_tests': row.get('passed_tests') or 0,
                 'failed_tests': row.get('failed_tests') or 0,
