@@ -1936,7 +1936,7 @@
             }
             var displayPin = snapName || userInput || fbcSha;
             var confirmMsg = 'Trigger Prow job: ' + label + '?';
-            if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + displayPin + (displayPin !== fbcSha ? ' (SHA: ' + fbcSha + ')' : '');
+            if (fbcSha) confirmMsg += '\n\nFBC: ' + displayPin;
             if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
@@ -1993,8 +1993,8 @@
                 var ms = _fbcCache.fbc_summaries.find(function(s) { return s.fbc_short === fbcSha.slice(0,7) || s.fbc_full === fbcSha; });
                 if (ms && ms.snapshot_name) snapDisplay = ms.snapshot_name;
             }
-            var confirmMsg = 'Trigger all configured periodic jobs?\n\nJobs on cooldown will be skipped.';
-            if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + snapDisplay;
+            var confirmMsg = 'Trigger all configured periodic jobs?';
+            if (fbcSha) confirmMsg += '\n\nFBC: ' + snapDisplay;
             if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
