@@ -1174,7 +1174,7 @@
                 .pipe-card .pc-sub { font-size:0.72rem;color:var(--text-muted);margin-top:3px; }
                 .pipe-card .pc-detail { font-size:0.68rem;color:var(--text-secondary);margin-top:3px;line-height:1.3; }
                 .pipe-diagram-wrap { overflow-x:auto;overflow-y:hidden;padding-bottom:8px; }
-                .pipe-diagram { display:flex;align-items:center;gap:100px;min-width:3200px;padding:40px 30px;position:relative; }
+                .pipe-diagram { display:flex;align-items:center;gap:100px;min-width:3500px;padding:40px 30px;position:relative; }
                 .pipe-phase { display:flex;flex-direction:column;gap:16px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-phase-fork { display:flex;flex-direction:column;gap:160px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-fork-badge { display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 8px;border-radius:4px;margin-bottom:4px; }
@@ -1319,7 +1319,7 @@
                     </div>
                 </div>
 
-                <!-- Column 8: Test Results + Stage/Prod -->
+                <!-- Column 8: Test Results + Stage Registry -->
                 <div class="pipe-phase-fork">
                     <div>
                         <div class="pipe-fork-spacer"></div>
@@ -1333,11 +1333,29 @@
                     </div>
                     <div>
                         <div class="pipe-fork-spacer"></div>
-                        <div class="pipe-card" id="pcStageProd" style="border:2px solid var(--accent-red);" title="After the IIB is built, it is pushed to registry.stage.redhat.io with an advisory. When approved, production ReleasePlan pushes images to registry.redhat.io.">
+                        <div class="pipe-card" id="pcStage" style="border:2px solid var(--accent-red);" title="Every IIB is automatically pushed to registry.stage.redhat.io. This happens for every FBC build, not just GA releases. Stage is used for internal validation and pre-release testing.">
+                            <div class="pc-icon">&#x1F4E6;</div>
+                            <div class="pc-title" style="color:var(--accent-red);">Stage Registry</div>
+                            <div class="pc-sub">registry.stage.redhat.io</div>
+                            <div class="pc-detail">Every IIB lands here automatically. Used for internal validation.</div>
+                            <div class="pc-links"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications/rhwa-fbc-422/releases" target="_blank" rel="noopener noreferrer">example: FBC 4.22 releases</a></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 9: Prod Registry (GA only) -->
+                <div class="pipe-phase-fork" style="margin-left:-60px;">
+                    <div>
+                        <div class="pipe-fork-spacer" style="height:160px;"></div>
+                    </div>
+                    <div>
+                        <div class="pipe-fork-spacer"></div>
+                        <div class="pipe-card" id="pcProd" style="border:2px dashed var(--accent-orange);opacity:0.85;" title="Only the final GA release is pushed to registry.redhat.io via an advisory. This is a manual approval gate, not automatic. Most FBC builds never reach this step.">
                             <div class="pc-icon">&#x1F310;</div>
-                            <div class="pc-title" style="color:var(--accent-red);">Stage / Prod Registry</div>
-                            <div class="pc-sub">registry.stage.redhat.io / registry.redhat.io</div>
-                            <div class="pc-detail">Published with advisory. What customers install from OCP catalog.</div>
+                            <div class="pc-title" style="color:var(--accent-orange);">Prod Registry</div>
+                            <div class="pc-sub">registry.redhat.io</div>
+                            <div class="pc-detail" style="color:var(--accent-orange);font-weight:600;">GA release only (manual advisory)</div>
+                            <div class="pc-detail">What customers install from OCP catalog. Most builds do not reach this step.</div>
                             <div class="pc-links"><a href="https://catalog.redhat.com/en/software/containers/workload-availability/fence-agents-remediation-rhel9-operator/673ef94a46d826196627d6f8" target="_blank" rel="noopener noreferrer">example: FAR on catalog</a></div>
                         </div>
                     </div>
@@ -1437,7 +1455,8 @@
                         drawEdge('pcProwCi','pcTestResults','green','GCS upload','Test results (JUnit XML, build logs, must-gather) are uploaded to GCS as Prow artifacts.','https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/');
                         drawEdge('pcSnapshot','pcEcPolicy','red','EC check','Release path: Enterprise Contract validates image provenance, signatures, SBOM, and FIPS compliance before allowing the release to proceed.','https://enterprisecontract.dev/');
                         drawEdge('pcEcPolicy','pcIib','red','fbc-release','The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an Index Image Build (IIB).');
-                        drawEdge('pcIib','pcStageProd','red','advisory','The IIB is pushed to staging/production registries via an advisory. This is what customers install from the OCP catalog.');
+                        drawEdge('pcIib','pcStage','red','auto-push','Every IIB is automatically pushed to registry.stage.redhat.io for internal validation. This happens for every FBC build.');
+                        drawEdge('pcStage','pcProd','main','GA advisory','Only the final GA release is promoted from stage to registry.redhat.io via a manual advisory approval. Most builds never reach this step.');
                     }
                     window.drawPipeArrows = drawPipeArrows;
                     window.addEventListener('resize', drawPipeArrows);
@@ -1449,7 +1468,9 @@
                     <h3>Legend</h3>
                     <div style="display:flex;flex-wrap:wrap;gap:16px;font-size:0.8rem;">
                         <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:3px;background:var(--accent-green);border-radius:2px;"></span> QE CI path (Prow periodic jobs, tracked by this dashboard)</div>
-                        <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:3px;background:var(--accent-red);border-radius:2px;"></span> Release path (IIB/staging, IIB build ID shown on FBC Summary)</div>
+                        <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:3px;background:var(--accent-red);border-radius:2px;"></span> Release path (every build: EC check, IIB, stage registry)</div>
+                        <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:3px;background:var(--text-muted);border-radius:2px;"></span> GA promotion (manual advisory, final release only)</div>
+                        <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:20px;height:0;border-top:2px dashed var(--accent-orange);"></span> Dashed border = not every build reaches this step</div>
                     </div>
                 </div>
 
@@ -3387,16 +3408,19 @@
             fbcHtml += '</div>';
             items.push(fbcHtml);
             var iibHtml = '<div><strong>Index Image</strong> ';
-            if (r.iib_resolved && r.iib_resolved.indexOf('@') > 0) {
-                var iiParts = r.iib_resolved.split('@');
-                var shortDigest = iiParts[1].length > 23 ? iiParts[1].slice(0, 23) + '...' : iiParts[1];
-                iibHtml += '<span style="font-size:0.75rem;word-break:break-all;" title="' + esc(r.iib_resolved) + '">' + esc(iiParts[0]) + '@<strong style="color:var(--accent-red);">' + esc(shortDigest) + '</strong></span>';
-                iibHtml += ' <button onclick="navigator.clipboard.writeText(\'' + esc(r.iib_resolved).replace(/'/g, "\\'") + '\');this.textContent=\'Copied\';setTimeout(function(){this.textContent=\'Copy\';}.bind(this),1500);" style="padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.65rem;" title="Copy full Index Image reference">Copy</button>';
-                if (r.iib_log_url) iibHtml += ' <a href="' + esc(r.iib_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-red);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="FBC release artifacts on Konflux">FBC Release</a>';
-            } else if (r.iib_id) {
+            var iibRef = r.iib_resolved || r.iib_url || '';
+            if (r.iib_id) {
                 iibHtml += '<span style="font-weight:600;color:var(--accent-red);">IIB ' + esc(r.iib_id) + '</span>';
-                if (r.iib_digest_short) iibHtml += ' <span style="font-size:0.7rem;color:var(--text-muted);">(' + esc(r.iib_digest_short) + ')</span>';
+                iibHtml += ' <button onclick="navigator.clipboard.writeText(\'' + esc(iibRef || r.iib_id).replace(/'/g, "\\'") + '\');this.textContent=\'Copied\';setTimeout(function(){this.textContent=\'Copy\';}.bind(this),1500);" style="padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.65rem;" title="Copy full Index Image reference">Copy</button>';
                 if (r.iib_log_url) iibHtml += ' <a href="' + esc(r.iib_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-red);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="FBC release artifacts on Konflux">FBC Release</a>';
+                if (iibRef) iibHtml += '<div style="margin-top:3px;padding:3px 6px;background:var(--bg-body);border-radius:3px;border:1px solid var(--border);font-family:ui-monospace,Consolas,monospace;font-size:0.65rem;color:var(--text-muted);word-break:break-all;user-select:all;cursor:text;max-width:400px;">' + esc(iibRef) + '</div>';
+            } else if (iibRef && iibRef.indexOf('@') > 0) {
+                var shortDigest = iibRef.split('@')[1] || '';
+                shortDigest = shortDigest.length > 19 ? shortDigest.slice(0, 19) + '...' : shortDigest;
+                iibHtml += '<span style="font-size:0.75rem;color:var(--accent-red);">' + esc(shortDigest) + '</span>';
+                iibHtml += ' <button onclick="navigator.clipboard.writeText(\'' + esc(iibRef).replace(/'/g, "\\'") + '\');this.textContent=\'Copied\';setTimeout(function(){this.textContent=\'Copy\';}.bind(this),1500);" style="padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.65rem;" title="Copy full Index Image reference">Copy</button>';
+                if (r.iib_log_url) iibHtml += ' <a href="' + esc(r.iib_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-red);text-decoration:none;font-size:0.75rem;margin-left:6px;" title="FBC release artifacts on Konflux">FBC Release</a>';
+                iibHtml += '<div style="margin-top:3px;padding:3px 6px;background:var(--bg-body);border-radius:3px;border:1px solid var(--border);font-family:ui-monospace,Consolas,monospace;font-size:0.65rem;color:var(--text-muted);word-break:break-all;user-select:all;cursor:text;max-width:400px;">' + esc(iibRef) + '</div>';
             } else {
                 iibHtml += '<span style="font-size:0.75rem;color:var(--text-muted);">Not released yet</span>';
             }
