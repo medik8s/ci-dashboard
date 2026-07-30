@@ -785,7 +785,12 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'failure_category': row.get('failure_category') or '',
             }
 
-        all_ops = sorted({op for e in fbc_map.values() for op in e['operators']})
+        all_jobs = {}
+        for e in fbc_map.values():
+            for key, val in e['operators'].items():
+                if key not in all_jobs and val.get('job_name'):
+                    all_jobs[key] = val['job_name']
+        all_ops = sorted(all_jobs.keys())
         summaries = []
         for short in sorted(fbc_map.keys(), key=lambda k: fbc_map[k].get('latest_date') or '', reverse=True):
             e = fbc_map[short]
@@ -806,7 +811,11 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'operators': e['operators'],
             })
 
-        return jsonify({'fbc_summaries': summaries, 'all_operators': all_ops})
+        return jsonify({
+            'fbc_summaries': summaries,
+            'all_operators': all_ops,
+            'all_jobs': all_jobs,
+        })
 
     @app.route('/api/presubmit-results')
     def api_presubmit_results():
