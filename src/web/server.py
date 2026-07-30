@@ -13,6 +13,10 @@ import sys
 import os
 import logging
 import io
+import json
+import urllib.request
+import urllib.parse
+import urllib.error
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
@@ -42,7 +46,7 @@ def _fbc_short(fbc_image):
     if '@' in fbc_image:
         return fbc_image.split('@')[-1][:15]
     if ':' in fbc_image:
-        return fbc_image.split(':')[-1][:7]
+        return fbc_image.split(':')[-1][:8]
     return fbc_image
 
 
@@ -95,11 +99,14 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
         if len(parts) >= 4 and parts[0] == 'redhat-user-workloads':
             tenant = parts[1]
             app_name = parts[-1]
-            fbc_konflux_url = f"https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/{tenant}/applications/{app_name}/snapshots"
+            fbc_konflux_url = f"{KONFLUX_UI}/ns/{tenant}/applications/{app_name}/snapshots"
         if '@' not in fbc_image and ':' in fbc_image:
             commit_sha = fbc_image.split(':')[-1]
             if _FBC_SHA_RE.fullmatch(commit_sha):
                 fbc_gitlab_url = f"https://gitlab.cee.redhat.com/{gitlab_fbc_project}/-/commit/{commit_sha}"
+                snap_name, snap_app = _resolve_konflux_snapshot(commit_sha)
+                if snap_name and snap_app:
+                    fbc_konflux_url = f"{KONFLUX_UI}/ns/{KONFLUX_NAMESPACE}/applications/{snap_app}/snapshots/{snap_name}"
     return {
         'fbc_image_short': _fbc_short(fbc_image),
         'fbc_image_url': fbc_tag_url,
@@ -110,6 +117,45 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
 
 
 _FBC_SHA_RE = re.compile(r'[0-9a-fA-F]{7,40}')
+
+KONFLUX_API = "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443"
+KONFLUX_NAMESPACE = "rhwa-tenant"
+KONFLUX_UI = "https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com"
+_konflux_token = os.environ.get("KONFLUX_TOKEN", "")
+_snapshot_cache = {}
+
+
+def _resolve_konflux_snapshot(commit_sha):
+    """Look up a Konflux Snapshot name by FBC commit SHA.
+
+    Returns (snapshot_name, app_name) or (None, None).
+    """
+    if not _konflux_token or not commit_sha:
+        return None, None
+    if commit_sha in _snapshot_cache:
+        return _snapshot_cache[commit_sha]
+    label = f"pac.test.appstudio.openshift.io/sha={commit_sha}"
+    url = (f"{KONFLUX_API}/apis/appstudio.redhat.com/v1alpha1"
+           f"/namespaces/{KONFLUX_NAMESPACE}/snapshots"
+           f"?labelSelector={urllib.parse.quote(label, safe='=')}")
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {_konflux_token}",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        items = data.get("items", [])
+        if items:
+            snap = items[0]["metadata"]["name"]
+            app = items[0].get("metadata", {}).get("labels", {}).get(
+                "appstudio.openshift.io/application", "")
+            _snapshot_cache[commit_sha] = (snap, app)
+            return snap, app
+    except Exception as exc:
+        logger.warning("Konflux snapshot lookup failed for %s: %s", commit_sha[:8], exc)
+    _snapshot_cache[commit_sha] = (None, None)
+    return None, None
 
 
 def _parse_fbc_overrides(data):

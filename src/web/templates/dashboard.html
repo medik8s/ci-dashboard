@@ -1492,7 +1492,7 @@
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
-            status.textContent = 'Triggering ' + label + (fbcSha ? ' (FBC: ' + fbcSha.slice(0,7) + ')' : '') + '...';
+            status.textContent = 'Triggering ' + label + (fbcSha ? ' (FBC: ' + fbcSha.slice(0,8) + ')' : '') + '...';
             status.style.color = 'var(--text-muted)';
             try {
                 var payload = {job_name: jobName};
@@ -1545,7 +1545,7 @@
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
             allBtns.forEach(function(b) { b.disabled = true; });
-            status.textContent = 'Triggering all operators' + (fbcSha ? ' (FBC: ' + fbcSha.slice(0,7) + ')' : '') + '...';
+            status.textContent = 'Triggering all operators' + (fbcSha ? ' (FBC: ' + fbcSha.slice(0,8) + ')' : '') + '...';
             status.style.color = 'var(--text-muted)';
             try {
                 var payload = {};
@@ -1626,7 +1626,7 @@
                     if (t.prow_job_url) { prowLink = linkEl(t.prow_job_url, 'View Job'); }
                     else if (t.job_name) { prowLink = linkEl('https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/' + encodeURIComponent(t.job_name), 'View Job'); }
                     html += '<tr style="border-top:1px solid var(--border);">';
-                    var fbcCell = t.fbc_commit_sha ? '<code style="font-size:0.7rem;color:var(--accent-purple);">' + esc(t.fbc_commit_sha.slice(0,7)) + '</code>' : '<span style="color:var(--text-muted);font-size:0.7rem;">latest</span>';
+                    var fbcCell = t.fbc_commit_sha ? '<code style="font-size:0.7rem;color:var(--accent-purple);">' + esc(t.fbc_commit_sha.slice(0,8)) + '</code>' : '<span style="color:var(--text-muted);font-size:0.7rem;">latest</span>';
                     html += '<td style="padding:4px 8px;">' + opChip(op) + ' <span style="font-size:0.75rem;">' + esc(jobLabel) + '</span></td>';
                     html += '<td style="padding:4px 8px;">' + stHtml + '</td>';
                     html += '<td style="padding:4px 8px;">' + fbcCell + '</td>';
@@ -3318,7 +3318,7 @@
                 return;
             }
             input.style.borderColor = 'var(--border)';
-            var short = sha.slice(0, 7).toLowerCase();
+            var short = sha.slice(0, 8).toLowerCase();
             var sel = document.getElementById('fbcSelector');
             var found = false;
             for (var i = 0; i < sel.options.length; i++) {
@@ -3396,7 +3396,7 @@
         }
 
         async function fbcTriggerJob(jobName, fbcSha, btn) {
-            if (!confirm('Trigger ' + jobName.split('-e2e-')[1] + ' pinned to FBC ' + fbcSha.slice(0,7) + '?')) return;
+            if (!confirm('Trigger ' + jobName.split('-e2e-')[1] + ' pinned to FBC ' + fbcSha.slice(0,8) + '?')) return;
             btn.disabled = true;
             btn.textContent = '...';
             try {

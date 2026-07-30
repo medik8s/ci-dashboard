@@ -23,6 +23,17 @@ spec:
         ports:
         - containerPort: 8080
           protocol: TCP
+        env:
+        - name: PROW_GANGWAY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gangway-token
+              key: token
+        - name: KONFLUX_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: konflux-token
+              key: token
         volumeMounts:
         - name: data
           mountPath: /data
