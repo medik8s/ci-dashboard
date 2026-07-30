@@ -1174,7 +1174,7 @@
                 .pipe-card .pc-sub { font-size:0.72rem;color:var(--text-muted);margin-top:3px; }
                 .pipe-card .pc-detail { font-size:0.68rem;color:var(--text-secondary);margin-top:3px;line-height:1.3; }
                 .pipe-diagram-wrap { overflow-x:auto;overflow-y:hidden;padding-bottom:8px; }
-                .pipe-diagram { display:flex;align-items:center;gap:100px;min-width:3500px;padding:40px 30px;position:relative; }
+                .pipe-diagram { display:flex;align-items:center;gap:100px;min-width:3100px;padding:40px 30px;position:relative; }
                 .pipe-phase { display:flex;flex-direction:column;gap:16px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-phase-fork { display:flex;flex-direction:column;gap:160px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-fork-badge { display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 8px;border-radius:4px;margin-bottom:4px; }
@@ -1245,7 +1245,7 @@
                         <div class="pc-title" style="color:var(--accent-blue);"><a href="https://tekton.dev/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Tekton Build</a></div>
                         <div class="pc-sub">Hermetic, FIPS-compliant build</div>
                         <div class="pc-detail">Builds FBC catalog container image</div>
-                        <div class="pc-links"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications/rhwa-fbc-422/pipelineruns?name=rhwa-fbc-422-on-push-831c2ad" target="_blank" rel="noopener noreferrer">example: build for 831c2ad</a></div>
+                        <div class="pc-links"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications/rhwa-fbc-422/pipelineruns?name=rhwa-fbc-422-on-push-831c2ad" target="_blank" rel="noopener noreferrer">example: build for 831c2ad</a> | <a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications/rhwa-fbc-422/components" target="_blank" rel="noopener noreferrer">components</a></div>
                     </div>
                 </div>
 
@@ -1271,16 +1271,16 @@
                     </div>
                 </div>
 
-                <!-- Column 6: Y-fork (FBC Image + EC Policy) -->
+                <!-- Column 6: Y-fork (Prow CI + EC Policy) -->
                 <div class="pipe-phase-fork" style="margin-left:40px;">
                     <div>
                         <div class="pipe-fork-badge qe">QE CI</div>
-                        <div class="pipe-card" id="pcFbcImage" style="border:2px solid var(--accent-green);" title="The FBC build image is the raw catalog container pushed to Quay by the Tekton build. It contains ONLY the RHWA operator catalog entries (FAR, SBR, SNR, NHC, MDR, NMO). In CI, this image is used directly as a CatalogSource. The image tag is the FBC git commit SHA.">
-                            <div class="pc-icon"><img src="https://quay.io/static/img/quay_favicon.png" alt="Quay" style="width:20px;height:20px;"></div>
-                            <div class="pc-title" style="color:var(--accent-green);"><a href="https://quay.io/organization/redhat-user-workloads" target="_blank" rel="noopener noreferrer" style="color:inherit;">FBC Image</a></div>
-                            <div class="pc-sub">quay.io/.../rhwa-fbc-&lt;ver&gt;:&lt;sha&gt;</div>
-                            <div class="pc-detail">Raw RHWA-only catalog. Used directly in CI testing via CatalogSource.</div>
-                            <div class="pc-links"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications/rhwa-fbc-422/components" target="_blank" rel="noopener noreferrer">example: FBC component</a> | <a href="https://quay.io/repository/redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-422?tab=tags&tag=831c2ada782c80654f23313b44098e0b8989dedf" target="_blank" rel="noopener noreferrer">Quay tag</a></div>
+                        <div class="pipe-card" id="pcProwCi" style="border:2px solid var(--accent-green);" title="A fresh OCP cluster is provisioned on AWS using IPI. The medik8s-catalogsource step creates a CatalogSource from the FBC image on Quay, plus an ImageDigestMirrorSet. OLM installs the operators via Subscription. Then Ginkgo e2e tests run against the installed operators.">
+                            <div class="pc-icon"><img src="https://prow.ci.openshift.org/static/favicon.ico" alt="Prow" style="width:20px;height:20px;"></div>
+                            <div class="pc-title" style="color:var(--accent-green);"><a href="https://prow.ci.openshift.org/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Prow CI</a></div>
+                            <div class="pc-sub">CatalogSource + IDMS, OLM Subscribe, E2E</div>
+                            <div class="pc-detail">Ginkgo E2E tests on fresh AWS cluster</div>
+                            <div class="pc-links"><a href="https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws" target="_blank" rel="noopener noreferrer">example: FAR job history</a></div>
                         </div>
                     </div>
                     <div>
@@ -1295,16 +1295,16 @@
                     </div>
                 </div>
 
-                <!-- Column 7: Prow CI + IIB -->
+                <!-- Column 7: Test Results + IIB -->
                 <div class="pipe-phase-fork">
                     <div>
                         <div class="pipe-fork-spacer"></div>
-                        <div class="pipe-card" id="pcProwCi" style="border:2px solid var(--accent-green);" title="A fresh OCP cluster is provisioned on AWS using IPI. The medik8s-catalogsource step creates a CatalogSource pointing to the FBC build image. OLM installs the operators via Subscription. Then Ginkgo e2e tests run against the installed operators.">
-                            <div class="pc-icon"><img src="https://prow.ci.openshift.org/static/favicon.ico" alt="Prow" style="width:20px;height:20px;"></div>
-                            <div class="pc-title" style="color:var(--accent-green);"><a href="https://prow.ci.openshift.org/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Prow CI</a></div>
-                            <div class="pc-sub">IPI provision, CatalogSource, OLM Subscribe</div>
-                            <div class="pc-detail">Ginkgo E2E tests on fresh AWS cluster</div>
-                            <div class="pc-links"><a href="https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws" target="_blank" rel="noopener noreferrer">example: FAR job history</a></div>
+                        <div class="pipe-card" id="pcTestResults" style="border:2px solid var(--accent-green);" title="Test results are uploaded to GCS as Prow artifacts: JUnit XML reports, build logs, must-gather archives. The dashboard collects these daily.">
+                            <div class="pc-icon">&#x1F4CA;</div>
+                            <div class="pc-title" style="color:var(--accent-green);">Test Results</div>
+                            <div class="pc-sub">JUnit XML, build logs, artifacts</div>
+                            <div class="pc-detail" style="font-weight:600;color:var(--accent-green);">Shown on Job Runs, Test Results, FBC Summary tabs</div>
+                            <div class="pc-links"><a href="https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws/1912951652924604416" target="_blank" rel="noopener noreferrer">example: Spyglass view</a> | <a href="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws/1912951652924604416/artifacts/" target="_blank" rel="noopener noreferrer">GCS artifacts</a></div>
                         </div>
                     </div>
                     <div>
@@ -1319,17 +1319,10 @@
                     </div>
                 </div>
 
-                <!-- Column 8: Test Results + Stage Registry -->
+                <!-- Column 8: Stage Registry -->
                 <div class="pipe-phase-fork">
                     <div>
-                        <div class="pipe-fork-spacer"></div>
-                        <div class="pipe-card" id="pcTestResults" style="border:2px solid var(--accent-green);" title="Test results are uploaded to GCS as Prow artifacts: JUnit XML reports, build logs, must-gather archives. The dashboard collects these daily.">
-                            <div class="pc-icon">&#x1F4CA;</div>
-                            <div class="pc-title" style="color:var(--accent-green);">Test Results</div>
-                            <div class="pc-sub">JUnit XML, build logs, artifacts</div>
-                            <div class="pc-detail" style="font-weight:600;color:var(--accent-green);">Shown on Job Runs, Test Results, FBC Summary tabs</div>
-                            <div class="pc-links"><a href="https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws/1912951652924604416" target="_blank" rel="noopener noreferrer">example: Spyglass view</a> | <a href="https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws/1912951652924604416/artifacts/" target="_blank" rel="noopener noreferrer">GCS artifacts</a></div>
-                        </div>
+                        <div class="pipe-fork-spacer" style="height:160px;"></div>
                     </div>
                     <div>
                         <div class="pipe-fork-spacer"></div>
@@ -1444,8 +1437,7 @@
                         drawEdge('pcDownstream','pcTekton','main','PaC trigger','Pipelines-as-Code detects the merge to main and triggers a Tekton pipeline build.','https://pipelinesascode.com/');
                         drawEdge('pcTekton','pcQuay','main','pushes','The Tekton build pushes the FBC catalog container image to Quay registry.');
                         drawEdge('pcQuay','pcSnapshot','main','creates','Konflux creates an immutable Snapshot CR referencing the image digest and source commit.');
-                        drawEdge('pcSnapshot','pcFbcImage','green','CatalogSource + IDMS','QE CI path: the medik8s-catalogsource Prow step creates a CatalogSource and ImageDigestMirrorSet on the test cluster, pointing to the FBC image from Quay.','https://github.com/openshift/release/tree/master/ci-operator/step-registry/medik8s/catalogsource');
-                        drawEdge('pcFbcImage','pcProwCi','green','Prow job','Prow provisions a fresh AWS cluster via IPI, installs operators via OLM using the FBC image, and runs Ginkgo E2E tests.','https://prow.ci.openshift.org/');
+                        drawEdge('pcSnapshot','pcProwCi','green','Prow job','QE CI path: Prow provisions a fresh AWS cluster via IPI. The medik8s-catalogsource step creates a CatalogSource from the FBC image on Quay plus an IDMS. OLM installs operators, then Ginkgo E2E tests run.','https://github.com/openshift/release/tree/master/ci-operator/step-registry/medik8s/catalogsource');
                         drawEdge('pcProwCi','pcTestResults','green','GCS upload','Test results (JUnit XML, build logs, must-gather) are uploaded to GCS as Prow artifacts.','https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/');
                         drawEdge('pcSnapshot','pcEcPolicy','red','EC check','Release path: Enterprise Contract validates image provenance, signatures, SBOM, and FIPS compliance before allowing the release to proceed.','https://enterprisecontract.dev/');
                         drawEdge('pcEcPolicy','pcIib','red','fbc-release','The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an Index Image Build (IIB).');
