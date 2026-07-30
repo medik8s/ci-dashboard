@@ -1344,12 +1344,7 @@
                 </div>
 
                 <!-- Column 9: Prod Registry (GA only) -->
-                <div class="pipe-phase-fork" style="margin-left:-60px;">
-                    <div>
-                        <div class="pipe-fork-spacer" style="height:160px;"></div>
-                    </div>
-                    <div>
-                        <div class="pipe-fork-spacer"></div>
+                <div class="pipe-phase" style="align-self:flex-end;margin-bottom:40px;">
                         <div class="pipe-card" id="pcProd" style="border:2px dashed var(--accent-orange);opacity:0.85;" title="Only the final GA release is pushed to registry.redhat.io via an advisory. This is a manual approval gate, not automatic. Most FBC builds never reach this step.">
                             <div class="pc-icon">&#x1F310;</div>
                             <div class="pc-title" style="color:var(--accent-orange);">Prod Registry</div>
@@ -1358,7 +1353,6 @@
                             <div class="pc-detail">What customers install from OCP catalog. Most builds do not reach this step.</div>
                             <div class="pc-links"><a href="https://catalog.redhat.com/en/software/containers/workload-availability/fence-agents-remediation-rhel9-operator/673ef94a46d826196627d6f8" target="_blank" rel="noopener noreferrer">example: FAR on catalog</a></div>
                         </div>
-                    </div>
                 </div>
 
                 </div>
@@ -1456,7 +1450,7 @@
                         drawEdge('pcSnapshot','pcEcPolicy','red','EC check','Release path: Enterprise Contract validates image provenance, signatures, SBOM, and FIPS compliance before allowing the release to proceed.','https://enterprisecontract.dev/');
                         drawEdge('pcEcPolicy','pcIib','red','fbc-release','The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an Index Image Build (IIB).');
                         drawEdge('pcIib','pcStage','red','auto-push','Every IIB is automatically pushed to registry.stage.redhat.io for internal validation. This happens for every FBC build.');
-                        drawEdge('pcStage','pcProd','main','GA advisory','Only the final GA release is promoted from stage to registry.redhat.io via a manual advisory approval. Most builds never reach this step.');
+                        drawEdge('pcStage','pcProd','main','GA only','Only the final GA release is promoted from stage to registry.redhat.io via a manual advisory approval. Most builds never reach this step.');
                     }
                     window.drawPipeArrows = drawPipeArrows;
                     window.addEventListener('resize', drawPipeArrows);
@@ -1936,7 +1930,7 @@
             }
             var displayPin = snapName || userInput || fbcSha;
             var confirmMsg = 'Trigger Prow job: ' + label + '?';
-            if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + displayPin + (displayPin !== fbcSha ? ' (SHA: ' + fbcSha + ')' : '');
+            if (fbcSha) confirmMsg += '\n\nFBC: ' + displayPin;
             if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
@@ -1993,8 +1987,8 @@
                 var ms = _fbcCache.fbc_summaries.find(function(s) { return s.fbc_short === fbcSha.slice(0,7) || s.fbc_full === fbcSha; });
                 if (ms && ms.snapshot_name) snapDisplay = ms.snapshot_name;
             }
-            var confirmMsg = 'Trigger all configured periodic jobs?\n\nJobs on cooldown will be skipped.';
-            if (fbcSha) confirmMsg += '\n\nFBC pinned to: ' + snapDisplay;
+            var confirmMsg = 'Trigger all configured periodic jobs?';
+            if (fbcSha) confirmMsg += '\n\nFBC: ' + snapDisplay;
             if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
             var allBtns = document.querySelectorAll('.trigger-btn');
