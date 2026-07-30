@@ -3366,7 +3366,7 @@
                 var prowLink = o.prow_url ? '<a href="' + esc(o.prow_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.8rem;">View Job</a>' : '-';
                 var logLink = o.e2e_log_url ? '<a href="' + esc(o.e2e_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.8rem;">Test Log</a>' : '-';
                 var runDate = o.run_date ? fmtDate(o.run_date) : '-';
-                var triggerBtn = fullJob ? '<button onclick="fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this)" style="font-size:0.7rem;padding:2px 8px;cursor:pointer;background:var(--bg-hover);color:var(--text);border:1px solid var(--border);border-radius:4px;">Trigger</button>' : '-';
+                var triggerBtn = fullJob ? '<button onclick="fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this)" title="Retrigger" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button>' : '-';
                 html += '<tr style="border-top:1px solid var(--border);">';
                 html += '<td style="padding:6px 16px;white-space:nowrap;">' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(key) + '</span></td>';
                 html += '<td style="text-align:center;"><span class="' + statusCls + '">' + esc(o.status.toUpperCase()) + '</span></td>';
@@ -3382,7 +3382,7 @@
                 if (opKeys.indexOf(key) !== -1) return;
                 var op = deriveOperator(key) || key;
                 var fullJob = allJobMap[key] || '';
-                var triggerBtn = fullJob ? '<button onclick="fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this)" style="font-size:0.7rem;padding:2px 8px;cursor:pointer;background:var(--bg-hover);color:var(--text);border:1px solid var(--border);border-radius:4px;">Trigger</button>' : '-';
+                var triggerBtn = fullJob ? '<button onclick="fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this)" title="Retrigger" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button>' : '-';
                 html += '<tr style="border-top:1px solid var(--border);opacity:0.5;">';
                 html += '<td style="padding:6px 16px;white-space:nowrap;">' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(key) + '</span></td>';
                 html += '<td style="text-align:center;color:var(--text-muted);font-size:0.8rem;">NOT RUN</td>';
