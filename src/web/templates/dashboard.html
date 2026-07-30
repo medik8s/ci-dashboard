@@ -3297,7 +3297,7 @@
                 summaries.forEach(function(fbc, i) {
                     var opt = document.createElement('option');
                     opt.value = fbc.fbc_short;
-                    var label = fbc.fbc_short + '  (' + fbc.latest_date + ')  ' + fbc.passed + '/' + fbc.total + ' passed';
+                    var label = fbc.fbc_short + '  ' + fbc.passed + '/' + fbc.total + ' passed';
                     opt.textContent = label;
                     sel.appendChild(opt);
                 });
@@ -3354,8 +3354,9 @@
             if (fbc.failed > 0) html += '<span class="fbc-badge fbc-badge--fail">' + fbc.failed + ' failed</span>';
             html += '</div></div>';
             var allJobMap = _fbcCache.all_jobs || {};
-            html += '<table style="width:100%;border-collapse:collapse;">';
-            html += '<tr style="font-size:0.75rem;color:var(--text-muted);"><th style="text-align:left;padding:6px 16px;min-width:250px;">Job</th><th style="text-align:center;padding:6px 8px;">Status</th><th style="text-align:center;padding:6px 8px;">Tests (P/F)</th><th style="text-align:center;padding:6px 8px;">Duration</th><th style="text-align:center;padding:6px 8px;">Run Date</th><th style="text-align:center;padding:6px 8px;">Prow Job</th><th style="text-align:center;padding:6px 8px;">Test Log</th><th style="text-align:center;padding:6px 8px;"></th></tr>';
+            html += '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">';
+            html += '<colgroup><col style="width:28%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:5%"></colgroup>';
+            html += '<tr style="font-size:0.75rem;color:var(--text-muted);"><th style="text-align:left;padding:6px 16px;">Job</th><th style="text-align:center;padding:6px 8px;">Status</th><th style="text-align:center;padding:6px 8px;">Tests (P/F)</th><th style="text-align:center;padding:6px 8px;">Duration</th><th style="text-align:center;padding:6px 8px;">Run Date</th><th style="text-align:center;padding:6px 8px;">Prow Job</th><th style="text-align:center;padding:6px 8px;">Test Log</th><th style="text-align:center;padding:6px 8px;"></th></tr>';
             var opKeys = Object.keys(fbc.operators).sort();
             opKeys.forEach(function(key) {
                 var o = fbc.operators[key];
