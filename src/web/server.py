@@ -756,7 +756,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             run_date = row.get('run_date') or ''
             if run_date and (not entry['latest_date'] or run_date > entry['latest_date']):
                 entry['latest_date'] = run_date
-            op_key = op
+            step_short = re.sub(r'^e2e-', '', step_name) if step_name else op.lower()
+            op_key = step_short
             if op_key in entry['operators']:
                 existing = entry['operators'][op_key]
                 if run_date > (existing.get('run_date') or ''):
