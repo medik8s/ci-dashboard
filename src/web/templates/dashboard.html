@@ -1233,12 +1233,12 @@
 
                 <!-- Column 2: Downstream Operator Repos -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcDownstreamOps" style="border:2px solid var(--accent-orange);" title="Mintmaker detects upstream version tags and creates nudge MRs on downstream GitLab operator repos (dragonfly/fence-agents-remediation, dragonfly/storage-based-remediation, etc.). These MRs update the submodule pointer to the new upstream commit. Team reviews and merges each MR.">
-                        <div class="pipe-step-badge manual">Manual review</div>
+                    <div class="pipe-card" id="pcDownstreamOps" style="border:2px solid var(--accent-blue);" title="Mintmaker detects upstream version tags and creates nudge MRs on downstream GitLab operator repos (dragonfly/fence-agents-remediation, dragonfly/storage-based-remediation, etc.). These MRs update the submodule pointer to the new upstream commit. Auto-merge is enabled via gitlab-token-konflux-rhwa; MRs merge automatically after CI passes.">
+                        <div class="pipe-step-badge auto">Auto-merge</div>
                         <div class="pc-icon"><img src="https://gitlab.cee.redhat.com/assets/favicon-72a2cad5025aa931d6ea56c3201d1f18e68a8cd39788c7c80d5b2b82aa5143ef.png" alt="GitLab" style="width:20px;height:20px;"></div>
-                        <div class="pc-title" style="color:var(--accent-orange);">Downstream Operators</div>
+                        <div class="pc-title" style="color:var(--accent-blue);">Downstream Operators</div>
                         <div class="pc-sub">dragonfly/&lt;operator&gt; on GitLab</div>
-                        <div class="pc-detail">Mintmaker nudge MRs update submodule pointers. Team reviews and merges each operator individually.</div>
+                        <div class="pc-detail">Nudge MRs auto-merge after CI passes (via gitlab-token-konflux-rhwa).</div>
                         <div class="pc-links"><a href="https://gitlab.cee.redhat.com/dragonfly/fence-agents-remediation/-/merge_requests?state=merged" target="_blank" rel="noopener noreferrer">example: FAR MRs</a> | <a href="https://gitlab.cee.redhat.com/dragonfly/storage-based-remediation/-/merge_requests?state=merged" target="_blank" rel="noopener noreferrer">SBR MRs</a></div>
                     </div>
                 </div>
@@ -1470,7 +1470,7 @@
                             svg.appendChild(g);
                         }
 
-                        drawEdge('pcUpstream','pcDownstreamOps','main','nudge MRs','Mintmaker detects the new upstream tag and creates nudge MRs on downstream GitLab operator repos. MRs update the submodule pointer to the new upstream commit.','https://github.com/konflux-ci/mintmaker');
+                        drawEdge('pcUpstream','pcDownstreamOps','main','nudge MRs (auto-merge)','Mintmaker detects the new upstream tag and creates nudge MRs on downstream GitLab operator repos. MRs update the submodule pointer and auto-merge after CI passes (via gitlab-token-konflux-rhwa).','https://github.com/konflux-ci/mintmaker');
                         drawEdge('pcDownstreamOps','pcOpImages','main','merge (auto-build)','When a downstream operator MR merges, Konflux Tekton pipelines automatically build operator + bundle images and push to Quay.');
                         drawEdge('pcOpImages','pcFbcCatalog','main','digest update','New bundle image digests are propagated to the FBC catalog repo via nudge MRs. Team reviews which operators to include in each FBC build.');
                         drawEdge('pcFbcCatalog','pcTekton','main','merge (auto-trigger)','When an MR merges to main in rhwa-fbc, PipelinesAsCode automatically triggers a Tekton pipeline build.','https://pipelinesascode.com/');
