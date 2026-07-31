@@ -1179,7 +1179,7 @@
                 .pipe-step-badge.manual { background:rgba(255,152,48,0.18);color:var(--accent-orange);border:1px solid var(--accent-orange); }
                 .pipe-step-badge.auto { background:rgba(87,148,242,0.12);color:var(--accent-blue);border:1px solid rgba(87,148,242,0.4); }
                 .pipe-diagram-wrap { overflow-x:auto;overflow-y:hidden;padding-bottom:8px; }
-                .pipe-diagram { display:flex;align-items:center;gap:140px;min-width:5000px;padding:40px 30px;position:relative; }
+                .pipe-diagram { display:flex;align-items:center;gap:140px;min-width:5500px;padding:40px 30px;position:relative; }
                 .pipe-phase { display:flex;flex-direction:column;gap:16px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-phase-fork { display:flex;flex-direction:column;gap:160px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-fork-badge { display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 8px;border-radius:4px;margin-bottom:4px; }
@@ -1257,8 +1257,21 @@
                         <div class="pc-icon"><img src="https://tekton.dev/favicons/favicon-32x32.png" alt="Tekton" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:var(--accent-blue);">Operator + Bundle Build</div>
                         <div class="pc-sub">Konflux builds per operator</div>
-                        <div class="pc-detail">Builds operator image + bundle image (CSV, CRDs, relatedImages). Pushed to Quay.</div>
+                        <div class="pc-detail">Builds operator image + bundle image (CSV, CRDs, relatedImages).</div>
                         <div class="pc-links"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications" target="_blank" rel="noopener noreferrer">Konflux apps</a></div>
+                    </div>
+                </div>
+
+                <!-- Column 3b: Operator Images on Quay -->
+                <div class="pipe-phase">
+                    <div class="pipe-card" id="pcOpQuay" style="border:2px solid #d84a38;">
+                        <span class="pipe-info-icon" title="Individual operator and bundle images are stored on Quay under quay.io/redhat-user-workloads/rhwa-tenant/. Each operator has its own image repo (e.g., far-operator-0-8, far-bundle-0-8). These are the images referenced by the FBC catalog via relatedImages digests.">i</span>
+                        <div class="pipe-step-badge auto">Auto</div>
+                        <div class="pc-icon"><img src="https://quay.io/static/img/quay_favicon.png" alt="Quay" style="width:20px;height:20px;"></div>
+                        <div class="pc-title" style="color:#d84a38;">Operator Images</div>
+                        <div class="pc-sub">quay.io/.../rhwa-tenant/&lt;operator&gt;</div>
+                        <div class="pc-detail">Per-operator and bundle images stored on Quay.</div>
+                        <div class="pc-links"><a href="https://quay.io/organization/redhat-user-workloads?tab=repositories&q=rhwa-tenant" target="_blank" rel="noopener noreferrer">Quay repos</a></div>
                     </div>
                 </div>
 
@@ -1294,7 +1307,7 @@
                         <span class="pipe-info-icon" title="Quay.io is the container registry where the built FBC catalog image is stored. The image path is quay.io/redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-<ver>:<commit-sha>, where <ver> is the OCP version (e.g., 422, 421, 420). Each image tag is a 40-char git commit SHA.">i</span>
                         <div class="pipe-step-badge auto">Auto</div>
                         <div class="pc-icon"><img src="https://quay.io/static/img/quay_favicon.png" alt="Quay" style="width:20px;height:20px;"></div>
-                        <div class="pc-title" style="color:#d84a38;"><a href="https://quay.io/organization/redhat-user-workloads" target="_blank" rel="noopener noreferrer" style="color:inherit;">Quay Registry</a></div>
+                        <div class="pc-title" style="color:#d84a38;"><a href="https://quay.io/organization/redhat-user-workloads" target="_blank" rel="noopener noreferrer" style="color:inherit;">FBC Image (Quay)</a></div>
                         <div class="pc-sub">quay.io/.../rhwa-fbc-&lt;ver&gt;:&lt;sha&gt;</div>
                         <div class="pc-detail">FBC catalog image stored per OCP version</div>
                         <div class="pc-links"><a href="https://quay.io/repository/redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-422?tab=tags&tag=831c2ada782c80654f23313b44098e0b8989dedf" target="_blank" rel="noopener noreferrer">example: tag 831c2ad</a></div>
@@ -1501,8 +1514,9 @@
                         }
 
                         drawEdge('pcUpstream','pcDownstreamOps','main','nudge MRs (auto-merge)','Mintmaker detects any upstream change (commits, tags, deps) and creates nudge MRs on downstream GitLab operator repos. MRs update digests and auto-merge after CI passes (via gitlab-token-konflux-rhwa).','https://github.com/konflux-ci/mintmaker');
-                        drawEdge('pcDownstreamOps','pcOpImages','main','merge (auto-build)','When a downstream operator MR merges, Konflux Tekton pipelines automatically build operator + bundle images and push to Quay.');
-                        drawEdge('pcOpImages','pcFbcCatalog','main','digest update','New bundle image digests are propagated to the FBC catalog repo via nudge MRs. Routine digest updates auto-merge after CI; structural changes reviewed by team.');
+                        drawEdge('pcDownstreamOps','pcOpImages','main','merge (auto-build)','When a downstream operator MR merges, Konflux Tekton pipelines automatically build operator + bundle images.');
+                        drawEdge('pcOpImages','pcOpQuay','main','pushes','Built operator and bundle images are pushed to Quay under quay.io/redhat-user-workloads/rhwa-tenant/.');
+                        drawEdge('pcOpQuay','pcFbcCatalog','main','digest update','New bundle image digests are propagated to the FBC catalog repo via Mintmaker nudge MRs. Routine digest updates auto-merge after CI; structural changes reviewed by team.');
                         drawEdge('pcFbcCatalog','pcTekton','main','merge (auto-trigger)','When an MR merges to main in rhwa-fbc, PipelinesAsCode automatically triggers a Tekton pipeline build.','https://pipelinesascode.com/');
                         drawEdge('pcTekton','pcQuay','main','pushes','The Tekton build pushes the FBC catalog container image to Quay registry.');
                         drawEdge('pcQuay','pcSnapshot','main','creates','Konflux creates an immutable Snapshot CR referencing the image digest and source commit.');
