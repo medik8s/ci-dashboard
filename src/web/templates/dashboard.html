@@ -1167,8 +1167,10 @@
         <!-- Pipeline Tab -->
         <div id="pipeline-tab" class="tab-content">
             <style>
-                .pipe-card { background:var(--bg-card);border-radius:8px;padding:12px 16px;min-width:180px;max-width:320px;text-align:center;cursor:help;transition:box-shadow 0.2s; }
+                .pipe-card { background:var(--bg-card);border-radius:8px;padding:12px 16px;min-width:180px;max-width:320px;text-align:center;cursor:default;transition:box-shadow 0.2s;position:relative; }
                 .pipe-card:hover { box-shadow:0 0 12px rgba(100,150,255,0.3); }
+                .pipe-info-icon { position:absolute;top:6px;right:8px;width:16px;height:16px;border-radius:50%;background:rgba(100,150,255,0.15);color:var(--accent-blue);font-size:10px;font-weight:700;line-height:16px;text-align:center;cursor:help;opacity:0.6;transition:opacity 0.15s; }
+                .pipe-info-icon:hover { opacity:1;background:rgba(100,150,255,0.3); }
                 .pipe-card .pc-icon { font-size:1.1rem; }
                 .pipe-card .pc-title { font-weight:700;font-size:0.82rem;margin-top:2px; }
                 .pipe-card .pc-sub { font-size:0.72rem;color:var(--text-muted);margin-top:3px; }
@@ -1205,10 +1207,12 @@
                 .pipe-arrows-svg circle.main { fill:var(--text-muted); }
                 .pipe-arrows-svg circle.green { fill:var(--accent-green); }
                 .pipe-arrows-svg circle.red { fill:var(--accent-red); }
-                .pipe-arrows-svg text { font-size:10px;font-weight:600;text-anchor:middle;pointer-events:auto;cursor:pointer; }
+                .pipe-arrows-svg text { font-size:10px;font-weight:600;text-anchor:middle;pointer-events:auto;cursor:help; }
                 .pipe-arrows-svg text.main { fill:var(--text-muted); }
                 .pipe-arrows-svg text.green { fill:#4ade80; }
                 .pipe-arrows-svg text.red { fill:#f87171; }
+                .pipe-arrows-svg a { cursor:pointer; }
+                .pipe-arrows-svg a text { cursor:pointer; }
                 .pipe-arrows-svg a text:hover { text-decoration:underline;font-size:11px; }
             </style>
             <div style="padding:20px;">
@@ -1221,7 +1225,8 @@
 
                 <!-- Column 1: Upstream -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcUpstream" style="border:2px solid #22d3ee;" title="The medik8s project on GitHub is the upstream home for all RHWA operators. Any code change (PR merge, commit, dependency update) is automatically detected by Mintmaker and propagated downstream.">
+                    <div class="pipe-card" id="pcUpstream" style="border:2px solid #22d3ee;">
+                        <span class="pipe-info-icon" title="The medik8s project on GitHub is the upstream home for all RHWA operators. Any code change (PR merge, commit, dependency update) is automatically detected by Mintmaker and propagated downstream.">i</span>
                         <div class="pipe-step-badge manual">Manual</div>
                         <div class="pc-icon"><img src="https://github.githubassets.com/favicons/favicon.svg" alt="GitHub" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:#22d3ee;"><a href="https://github.com/medik8s" target="_blank" rel="noopener noreferrer" style="color:#22d3ee;">Upstream</a></div>
@@ -1233,7 +1238,8 @@
 
                 <!-- Column 2: Downstream Operator Repos -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcDownstreamOps" style="border:2px solid var(--accent-blue);" title="Mintmaker detects any upstream change (commits, tags, dependency updates) and creates nudge MRs on downstream GitLab operator repos (dragonfly/fence-agents-remediation, dragonfly/storage-based-remediation, etc.). MRs update digests to track the new upstream commit. Auto-merge is enabled via gitlab-token-konflux-rhwa; MRs merge automatically after CI passes.">
+                    <div class="pipe-card" id="pcDownstreamOps" style="border:2px solid var(--accent-blue);">
+                        <span class="pipe-info-icon" title="Mintmaker detects any upstream change (commits, tags, dependency updates) and creates nudge MRs on downstream GitLab operator repos (dragonfly/fence-agents-remediation, dragonfly/storage-based-remediation, etc.). MRs update digests to track the new upstream commit. Auto-merge is enabled via gitlab-token-konflux-rhwa; MRs merge automatically after CI passes.">i</span>
                         <div class="pipe-step-badge auto">Auto-merge</div>
                         <div class="pc-icon"><img src="https://gitlab.cee.redhat.com/assets/favicon-72a2cad5025aa931d6ea56c3201d1f18e68a8cd39788c7c80d5b2b82aa5143ef.png" alt="GitLab" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:var(--accent-blue);">Downstream Operators</div>
@@ -1245,7 +1251,8 @@
 
                 <!-- Column 3: Operator + Bundle Images -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcOpImages" style="border:2px solid var(--accent-blue);" title="When a downstream operator MR merges, Konflux Tekton pipelines build the operator image and bundle image. The bundle contains the CSV, CRDs, and relatedImages. These images are pushed to Quay under quay.io/redhat-user-workloads/rhwa-tenant/.">
+                    <div class="pipe-card" id="pcOpImages" style="border:2px solid var(--accent-blue);">
+                        <span class="pipe-info-icon" title="When a downstream operator MR merges, Konflux Tekton pipelines build the operator image and bundle image. The bundle contains the CSV, CRDs, and relatedImages. These images are pushed to Quay under quay.io/redhat-user-workloads/rhwa-tenant/.">i</span>
                         <div class="pipe-step-badge auto">Auto</div>
                         <div class="pc-icon"><img src="https://tekton.dev/favicons/favicon-32x32.png" alt="Tekton" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:var(--accent-blue);">Operator + Bundle Build</div>
@@ -1257,7 +1264,8 @@
 
                 <!-- Column 4: FBC Catalog Update -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcFbcCatalog" style="border:2px solid var(--accent-blue);" title="The FBC catalog repo (dragonfly/rhwa-fbc) receives nudge MRs with updated bundle digests from operator builds. Routine digest update MRs auto-merge after CI passes. Structural changes (catalog config, OCP version branches, Tekton configs) are reviewed and merged by team members.">
+                    <div class="pipe-card" id="pcFbcCatalog" style="border:2px solid var(--accent-blue);">
+                        <span class="pipe-info-icon" title="The FBC catalog repo (dragonfly/rhwa-fbc) receives nudge MRs with updated bundle digests from operator builds. Routine digest update MRs auto-merge after CI passes. Structural changes (catalog config, OCP version branches, Tekton configs) are reviewed and merged by team members.">i</span>
                         <div class="pipe-step-badge auto">Auto-merge</div>
                         <div class="pc-icon"><img src="https://gitlab.cee.redhat.com/assets/favicon-72a2cad5025aa931d6ea56c3201d1f18e68a8cd39788c7c80d5b2b82aa5143ef.png" alt="GitLab" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:var(--accent-blue);"><a href="https://gitlab.cee.redhat.com/dragonfly/rhwa-fbc" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);">FBC Catalog</a></div>
@@ -1269,7 +1277,8 @@
 
                 <!-- Column 3: Tekton Build -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcTekton" style="border:2px solid var(--accent-blue);" title="Konflux runs a Tekton pipeline that builds the FBC catalog container image. The build is hermetic (no network access during build) and FIPS-compliant. Triggered automatically when an MR merges to main in rhwa-fbc (PipelinesAsCode).">
+                    <div class="pipe-card" id="pcTekton" style="border:2px solid var(--accent-blue);">
+                        <span class="pipe-info-icon" title="Konflux runs a Tekton pipeline that builds the FBC catalog container image. The build is hermetic (no network access during build) and FIPS-compliant. Triggered automatically when an MR merges to main in rhwa-fbc (PipelinesAsCode).">i</span>
                         <div class="pipe-step-badge auto">Auto</div>
                         <div class="pc-icon"><img src="https://tekton.dev/favicons/favicon-32x32.png" alt="Tekton" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:var(--accent-blue);"><a href="https://tekton.dev/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Tekton Build</a></div>
@@ -1281,7 +1290,8 @@
 
                 <!-- Column 4: Quay Registry -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcQuay" style="border:2px solid #d84a38;" title="Quay.io is the container registry where the built FBC catalog image is stored. The image path is quay.io/redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-<ver>:<commit-sha>, where <ver> is the OCP version (e.g., 422, 421, 420). Each image tag is a 40-char git commit SHA.">
+                    <div class="pipe-card" id="pcQuay" style="border:2px solid #d84a38;">
+                        <span class="pipe-info-icon" title="Quay.io is the container registry where the built FBC catalog image is stored. The image path is quay.io/redhat-user-workloads/rhwa-tenant/rhwa-fbc/rhwa-fbc-<ver>:<commit-sha>, where <ver> is the OCP version (e.g., 422, 421, 420). Each image tag is a 40-char git commit SHA.">i</span>
                         <div class="pipe-step-badge auto">Auto</div>
                         <div class="pc-icon"><img src="https://quay.io/static/img/quay_favicon.png" alt="Quay" style="width:20px;height:20px;"></div>
                         <div class="pc-title" style="color:#d84a38;"><a href="https://quay.io/organization/redhat-user-workloads" target="_blank" rel="noopener noreferrer" style="color:inherit;">Quay Registry</a></div>
@@ -1293,7 +1303,8 @@
 
                 <!-- Column 5: Snapshot -->
                 <div class="pipe-phase">
-                    <div class="pipe-card" id="pcSnapshot" style="border:2px solid var(--accent-purple);" title="A Snapshot is a Kubernetes Custom Resource created automatically by Konflux after a successful build. It is an immutable record containing the exact image digest (sha256:...), the source git commit SHA, and build metadata. Triggers both CI and release paths.">
+                    <div class="pipe-card" id="pcSnapshot" style="border:2px solid var(--accent-purple);">
+                        <span class="pipe-info-icon" title="A Snapshot is a Kubernetes Custom Resource created automatically by Konflux after a successful build. It is an immutable record containing the exact image digest (sha256:...), the source git commit SHA, and build metadata. Triggers both CI and release paths.">i</span>
                         <div class="pipe-step-badge auto">Auto</div>
                         <div class="pc-icon"><img src="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/favicon.ico" alt="Konflux" style="width:20px;height:20px;border-radius:50%;"></div>
                         <div class="pc-title" style="color:var(--accent-purple);"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications" target="_blank" rel="noopener noreferrer" style="color:inherit;">Snapshot</a></div>
@@ -1307,7 +1318,8 @@
                 <div class="pipe-phase-fork" style="margin-left:40px;">
                     <div>
                         <div class="pipe-fork-badge qe">QE CI</div>
-                        <div class="pipe-card" id="pcProwCi" style="border:2px solid var(--accent-green);" title="Automated E2E testing that replaced the previous manual QE installation and testing step. A fresh OCP cluster is provisioned on AWS via IPI. The medik8s-catalogsource step creates a CatalogSource from the FBC image on Quay, plus an IDMS. OLM installs operators, then Ginkgo E2E tests run.">
+                        <div class="pipe-card" id="pcProwCi" style="border:2px solid var(--accent-green);">
+                        <span class="pipe-info-icon" title="Automated E2E testing that replaced the previous manual QE installation and testing step. A fresh OCP cluster is provisioned on AWS via IPI. The medik8s-catalogsource step creates a CatalogSource from the FBC image on Quay, plus an IDMS. OLM installs operators, then Ginkgo E2E tests run.">i</span>
                             <div class="pipe-step-badge auto">Auto</div>
                             <div class="pc-icon"><img src="https://prow.ci.openshift.org/static/favicon.ico" alt="Prow" style="width:20px;height:20px;"></div>
                             <div class="pc-title" style="color:var(--accent-green);"><a href="https://prow.ci.openshift.org/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Prow CI</a></div>
@@ -1318,7 +1330,8 @@
                     </div>
                     <div>
                         <div class="pipe-fork-badge rel">Release</div>
-                        <div class="pipe-card" id="pcEcPolicy" style="border:2px solid var(--accent-red);" title="Enterprise Contract Policy (ECP) checks the built image against policies: image provenance, signatures, SBOM completeness, and FIPS compliance. If validation fails, the release is blocked. Runs automatically for every snapshot.">
+                        <div class="pipe-card" id="pcEcPolicy" style="border:2px solid var(--accent-red);">
+                        <span class="pipe-info-icon" title="Enterprise Contract Policy (ECP) checks the built image against policies: image provenance, signatures, SBOM completeness, and FIPS compliance. If validation fails, the release is blocked. Runs automatically for every snapshot.">i</span>
                             <div class="pipe-step-badge auto">Auto</div>
                             <div class="pc-icon"><img src="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/favicon.ico" alt="Konflux" style="width:20px;height:20px;border-radius:50%;"></div>
                             <div class="pc-title" style="color:var(--accent-red);"><a href="https://enterprisecontract.dev/" target="_blank" rel="noopener noreferrer" style="color:inherit;">EC Policy</a></div>
@@ -1333,7 +1346,8 @@
                 <div class="pipe-phase-fork">
                     <div>
                         <div class="pipe-fork-spacer"></div>
-                        <div class="pipe-card" id="pcTestResults" style="border:2px solid var(--accent-green);" title="Test results are uploaded to GCS as Prow artifacts: JUnit XML reports, build logs, must-gather archives. The dashboard collects these daily.">
+                        <div class="pipe-card" id="pcTestResults" style="border:2px solid var(--accent-green);">
+                        <span class="pipe-info-icon" title="Test results are uploaded to GCS as Prow artifacts: JUnit XML reports, build logs, must-gather archives. The dashboard collects these daily.">i</span>
                             <div class="pc-icon">&#x1F4CA;</div>
                             <div class="pc-title" style="color:var(--accent-green);">Test Results</div>
                             <div class="pc-sub">JUnit XML, build logs, artifacts</div>
@@ -1343,7 +1357,8 @@
                     </div>
                     <div>
                         <div class="pipe-fork-spacer"></div>
-                        <div class="pipe-card" id="pcIib" style="border:2px solid var(--accent-red);" title="The Index Image Build (IIB) is the release candidate. The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an index image. Runs automatically after EC check passes.">
+                        <div class="pipe-card" id="pcIib" style="border:2px solid var(--accent-red);">
+                        <span class="pipe-info-icon" title="The Index Image Build (IIB) is the release candidate. The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an index image. Runs automatically after EC check passes.">i</span>
                             <div class="pipe-step-badge auto">Auto</div>
                             <div class="pc-icon">&#x1F3F7;&#xFE0F;</div>
                             <div class="pc-title" style="color:var(--accent-red);">Index Image (IIB)</div>
@@ -1361,7 +1376,8 @@
                     </div>
                     <div>
                         <div class="pipe-fork-spacer"></div>
-                        <div class="pipe-card" id="pcStage" style="border:2px solid var(--accent-red);" title="Every IIB is automatically pushed to registry.stage.redhat.io. This happens for every FBC build, not just GA releases. Stage is used for internal validation and pre-release testing.">
+                        <div class="pipe-card" id="pcStage" style="border:2px solid var(--accent-red);">
+                        <span class="pipe-info-icon" title="Every IIB is automatically pushed to registry.stage.redhat.io. This happens for every FBC build, not just GA releases. Stage is used for internal validation and pre-release testing.">i</span>
                             <div class="pipe-step-badge auto">Auto</div>
                             <div class="pc-icon">&#x1F4E6;</div>
                             <div class="pc-title" style="color:var(--accent-red);">Stage Registry</div>
@@ -1374,7 +1390,8 @@
 
                 <!-- Column 9: GA Release Prep (manual coordination) -->
                 <div class="pipe-phase" style="align-self:center;">
-                    <div class="pipe-card" id="pcGaPrep" style="border:2px dashed var(--accent-orange);opacity:0.85;" title="GA release preparation is a manual coordination step. The team creates upstream release branches, merges version-specific PRs, and authors a release-specific FBC catalog MR (e.g., build-rhwa-4.22-1-catalogs). This MR creates new catalog entries for the GA release. When merged, it flows back through the pipeline (Tekton build, Quay, Snapshot, EC, IIB, Stage) to produce the final GA candidate.">
+                    <div class="pipe-card" id="pcGaPrep" style="border:2px dashed var(--accent-orange);opacity:0.85;">
+                        <span class="pipe-info-icon" title="GA release preparation is a manual coordination step. The team creates upstream release branches, merges version-specific PRs, and authors a release-specific FBC catalog MR (e.g., build-rhwa-4.22-1-catalogs). This MR creates new catalog entries for the GA release. When merged, it flows back through the pipeline (Tekton build, Quay, Snapshot, EC, IIB, Stage) to produce the final GA candidate.">i</span>
                         <div class="pipe-step-badge manual">Manual</div>
                         <div class="pc-icon">&#x1F4CB;</div>
                         <div class="pc-title" style="color:var(--accent-orange);">GA Release Prep</div>
@@ -1386,7 +1403,8 @@
 
                 <!-- Column 10: Prod Registry (GA only) -->
                 <div class="pipe-phase" style="align-self:center;">
-                        <div class="pipe-card" id="pcProd" style="border:2px dashed var(--accent-orange);opacity:0.85;" title="Only the final GA release is pushed to registry.redhat.io via a manually-approved advisory/errata. This is a deliberate human gate, not automatic. Most FBC builds never reach this step.">
+                        <div class="pipe-card" id="pcProd" style="border:2px dashed var(--accent-orange);opacity:0.85;">
+                        <span class="pipe-info-icon" title="Only the final GA release is pushed to registry.redhat.io via a manually-approved advisory/errata. This is a deliberate human gate, not automatic. Most FBC builds never reach this step.">i</span>
                             <div class="pipe-step-badge manual">Manual</div>
                             <div class="pc-icon">&#x1F310;</div>
                             <div class="pc-title" style="color:var(--accent-orange);">Prod Registry</div>
