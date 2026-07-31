@@ -1372,12 +1372,12 @@
                     <div>
                         <div class="pipe-fork-spacer"></div>
                         <div class="pipe-card" id="pcIib" style="border:2px solid var(--accent-red);">
-                        <span class="pipe-info-icon" title="The Index Image Build (IIB) is the release candidate. The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an index image. Runs automatically after EC check passes.">i</span>
+                        <span class="pipe-info-icon" title="The fbc-release pipeline merges the RHWA-only FBC catalog with the full Red Hat OCP operator index to produce a combined index image (IIB). The result contains ALL OCP operators plus the 6 RHWA operators. Each release creates a Konflux Release CR (e.g., rhwa-fbc-422-20260730-...-831c2ad-h92vf) that tracks the IIB build ID, image digests per architecture, and OCP version. The IIB is stored at registry-proxy.engineering.redhat.com/rh-osbs/iib:BUILD_ID.">i</span>
                             <div class="pipe-step-badge auto">Auto</div>
                             <div class="pc-icon">&#x1F3F7;&#xFE0F;</div>
                             <div class="pc-title" style="color:var(--accent-red);">Index Image (IIB)</div>
                             <div class="pc-sub">registry-proxy.../rh-osbs/iib:1187142</div>
-                            <div class="pc-detail">FBC merged with full RH OCP catalog. The release candidate.</div>
+                            <div class="pc-detail">RHWA FBC merged with full OCP catalog into combined index. Tracked by Konflux Release CR.</div>
                             <div class="pc-links"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications/rhwa-fbc-422/releases/rhwa-fbc-422-20260730-035530-000-831c2ad-h92vf/artifacts" target="_blank" rel="noopener noreferrer">example: IIB 1187142 artifacts</a> | <a href="https://iib.engineering.redhat.com/api/v1/builds/1187142/logs" target="_blank" rel="noopener noreferrer">IIB log</a></div>
                         </div>
                     </div>
@@ -1524,7 +1524,7 @@
                         drawEdge('pcSnapshot','pcProwCi','green','scheduled E2E','QE CI path (weekly cron, not snapshot-triggered): Prow provisions a fresh AWS cluster via IPI, installs operators from the latest FBC image via CatalogSource + IDMS, runs Ginkgo E2E tests.','https://github.com/openshift/release/tree/master/ci-operator/step-registry/medik8s/catalogsource');
                         drawEdge('pcProwCi','pcTestResults','green','GCS upload','Test results (JUnit XML, build logs, must-gather) are uploaded to GCS as Prow artifacts.','https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/');
                         drawEdge('pcSnapshot','pcEcPolicy','red','EC check','Release path: Enterprise Contract validates image provenance, signatures, SBOM, and FIPS compliance before allowing the release to proceed.','https://enterprisecontract.dev/');
-                        drawEdge('pcEcPolicy','pcIib','red','fbc-release','The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an Index Image Build (IIB).');
+                        drawEdge('pcEcPolicy','pcIib','red','fbc-release','The fbc-release pipeline merges the RHWA-only FBC catalog with the full Red Hat OCP operator index into a combined Index Image (IIB). The result contains all OCP operators plus RHWA. Creates a Konflux Release CR that tracks the IIB build ID and multi-arch image digests.');
                         drawEdge('pcIib','pcStage','red','auto-push','Every IIB is automatically pushed to registry.stage.redhat.io for internal validation. This happens for every FBC build.');
                         drawEdge('pcStage','pcGaPrep','main','GA decision','When the team decides to do a GA release (e.g., rhwa-4.22-1), they coordinate upstream release branches and create a release-specific FBC catalog MR. Most continuous builds skip this step.');
                         drawEdge('pcGaPrep','pcProd','main','advisory/errata','The release-specific FBC build flows through the pipeline to Stage, then is promoted to registry.redhat.io via a manually-approved advisory/errata.');
