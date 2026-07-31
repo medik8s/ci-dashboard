@@ -1317,7 +1317,7 @@
                 <!-- Column 5: Snapshot -->
                 <div class="pipe-phase">
                     <div class="pipe-card" id="pcSnapshot" style="border:2px solid var(--accent-purple);">
-                        <span class="pipe-info-icon" title="A Snapshot is a Kubernetes Custom Resource created automatically by Konflux after a successful build. It is an immutable record containing the exact image digest (sha256:...), the source git commit SHA, and build metadata. Triggers both CI and release paths.">i</span>
+                        <span class="pipe-info-icon" title="A Snapshot is a Kubernetes CR created automatically by Konflux after a successful build. It ties together two different identifiers: the source commit (git SHA on main, e.g. 831c2ad, used as Quay image tag) and the image digest (sha256:... hash of the built container binary). The source commit tells you WHAT code was built; the image digest tells you the exact binary that was produced. Triggers the release path (EC, IIB, Stage).">i</span>
                         <div class="pipe-step-badge auto">Auto</div>
                         <div class="pc-icon"><img src="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/favicon.ico" alt="Konflux" style="width:20px;height:20px;border-radius:50%;"></div>
                         <div class="pc-title" style="color:var(--accent-purple);"><a href="https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com/ns/rhwa-tenant/applications" target="_blank" rel="noopener noreferrer" style="color:inherit;">Snapshot</a></div>
