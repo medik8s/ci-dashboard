@@ -1332,12 +1332,12 @@
                     <div>
                         <div class="pipe-fork-badge qe">QE CI</div>
                         <div class="pipe-card" id="pcProwCi" style="border:2px solid var(--accent-green);">
-                        <span class="pipe-info-icon" title="Automated E2E testing that replaced the previous manual QE installation and testing step. A fresh OCP cluster is provisioned on AWS via IPI. The medik8s-catalogsource step creates a CatalogSource from the FBC image on Quay, plus an IDMS. OLM installs operators, then Ginkgo E2E tests run.">i</span>
+                        <span class="pipe-info-icon" title="Automated E2E testing on a fresh OCP cluster provisioned on AWS via IPI. The medik8s-catalogsource step creates a CatalogSource from the FBC image on Quay, plus an IDMS. OLM installs operators, then Ginkgo E2E tests run. Runs weekly on cron schedule.">i</span>
                             <div class="pipe-step-badge auto">Auto</div>
                             <div class="pc-icon"><img src="https://prow.ci.openshift.org/static/favicon.ico" alt="Prow" style="width:20px;height:20px;"></div>
                             <div class="pc-title" style="color:var(--accent-green);"><a href="https://prow.ci.openshift.org/" target="_blank" rel="noopener noreferrer" style="color:inherit;">Prow CI</a></div>
                             <div class="pc-sub">CatalogSource + IDMS, OLM Subscribe, E2E</div>
-                            <div class="pc-detail">Automated E2E on fresh AWS cluster (replaced manual QE testing)</div>
+                            <div class="pc-detail">Automated E2E on fresh AWS cluster (weekly cron)</div>
                             <div class="pc-links"><a href="https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws" target="_blank" rel="noopener noreferrer">example: FAR job history</a></div>
                         </div>
                     </div>
@@ -1520,7 +1520,7 @@
                         drawEdge('pcFbcCatalog','pcTekton','main','merge (auto-trigger)','When an MR merges to main in rhwa-fbc, PipelinesAsCode automatically triggers a Tekton pipeline build.','https://pipelinesascode.com/');
                         drawEdge('pcTekton','pcQuay','main','pushes','The Tekton build pushes the FBC catalog container image to Quay registry.');
                         drawEdge('pcQuay','pcSnapshot','main','creates','Konflux creates an immutable Snapshot CR referencing the image digest and source commit.');
-                        drawEdge('pcSnapshot','pcProwCi','green','scheduled E2E','QE CI path (weekly cron, not snapshot-triggered): Prow provisions a fresh AWS cluster via IPI, installs operators from the latest FBC image via CatalogSource + IDMS, runs Ginkgo E2E tests. Replaced previous manual QE testing.','https://github.com/openshift/release/tree/master/ci-operator/step-registry/medik8s/catalogsource');
+                        drawEdge('pcSnapshot','pcProwCi','green','scheduled E2E','QE CI path (weekly cron, not snapshot-triggered): Prow provisions a fresh AWS cluster via IPI, installs operators from the latest FBC image via CatalogSource + IDMS, runs Ginkgo E2E tests.','https://github.com/openshift/release/tree/master/ci-operator/step-registry/medik8s/catalogsource');
                         drawEdge('pcProwCi','pcTestResults','green','GCS upload','Test results (JUnit XML, build logs, must-gather) are uploaded to GCS as Prow artifacts.','https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/logs/');
                         drawEdge('pcSnapshot','pcEcPolicy','red','EC check','Release path: Enterprise Contract validates image provenance, signatures, SBOM, and FIPS compliance before allowing the release to proceed.','https://enterprisecontract.dev/');
                         drawEdge('pcEcPolicy','pcIib','red','fbc-release','The fbc-release pipeline merges the RHWA FBC catalog with the full Red Hat OCP catalog into an Index Image Build (IIB).');
