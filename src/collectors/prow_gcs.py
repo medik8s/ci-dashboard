@@ -216,6 +216,29 @@ class ProwGCSCollector(BaseCollector):
         match = re.search(r'Found CSV:\s*(\S+)', text)
         return match.group(1) if match else None
 
+    def _parse_csv_from_junit(self, base: str, job_name: str = '') -> Optional[str]:
+        """Parse CSV version from JUnit XML (upgrade jobs fallback).
+
+        Upgrade jobs log CSV versions in JUnit system-err, e.g.:
+          'New CSV: fence-agents-remediation.v0.8.0 (was: ...)'
+        We prefer 'New CSV' (post-upgrade version).
+        """
+        operator = self._extract_operator(job_name) if job_name else None
+        suites = [operator] if operator else ['far', 'sbr', 'snr', 'nhc', 'nmo', 'mdr']
+        for step in ('e2e-upgrade-test', 'e2e-test'):
+            for suite in suites:
+                xml = self._fetch_gcs_text(
+                    f"{base}/{step}/artifacts/{suite}_suite_test_junit.xml")
+                if not xml:
+                    continue
+                match = re.search(r'New CSV:\s*(\S+)', xml)
+                if match:
+                    return match.group(1)
+                match = re.search(r'CSV[:\s]+(\S+\.v[\d.]+)', xml)
+                if match:
+                    return match.group(1)
+        return None
+
     def _parse_fbc_image(self, text: str) -> Optional[str]:
         """Parse FBC catalog image from medik8s-catalogsource log."""
         match = re.search(r'with (?:mirrored )?image:\s*(\S+)', text)
@@ -368,7 +391,7 @@ class ProwGCSCollector(BaseCollector):
             base,
             ('medik8s-operator-subscribe',),
             self._parse_csv_version,
-        ) or job_run.csv_version
+        ) or self._parse_csv_from_junit(base, job_run.job_name) or job_run.csv_version
 
         job_run.fbc_image = self._try_parse_from_steps(
             base,
