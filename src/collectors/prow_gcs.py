@@ -223,7 +223,8 @@ class ProwGCSCollector(BaseCollector):
           'New CSV: fence-agents-remediation.v0.8.0 (was: ...)'
         We prefer 'New CSV' (post-upgrade version).
         """
-        operator = self._extract_operator(job_name) if job_name else None
+        raw_op = self._extract_operator(job_name) if job_name else None
+        operator = raw_op.lower() if raw_op else None
         suites = [operator] if operator else ['far', 'sbr', 'snr', 'nhc', 'nmo', 'mdr']
         for step in ('e2e-upgrade-test', 'e2e-test'):
             for suite in suites:
