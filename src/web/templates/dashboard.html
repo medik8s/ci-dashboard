@@ -3984,8 +3984,8 @@
             html += '</div></div>';
             var allJobMap = _fbcCache.all_jobs || {};
             html += '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">';
-            html += '<colgroup><col style="width:28%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:5%"></colgroup>';
-            html += '<tr style="font-size:0.75rem;color:var(--text-muted);"><th style="text-align:left;padding:6px 16px;">Job</th><th style="text-align:center;padding:6px 8px;">Status</th><th style="text-align:center;padding:6px 8px;">Tests (P/F)</th><th style="text-align:center;padding:6px 8px;">Duration</th><th style="text-align:center;padding:6px 8px;">Run Date</th><th style="text-align:center;padding:6px 8px;">Prow Job</th><th style="text-align:center;padding:6px 8px;">Test Log</th><th style="text-align:center;padding:6px 8px;"></th></tr>';
+            html += '<colgroup><col style="width:25%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:5%"></colgroup>';
+            html += '<tr style="font-size:0.75rem;color:var(--text-muted);"><th style="text-align:left;padding:6px 16px;">Job</th><th style="text-align:center;padding:6px 8px;">Status</th><th style="text-align:center;padding:6px 8px;">Tests (P/F)</th><th style="text-align:center;padding:6px 8px;">Version</th><th style="text-align:center;padding:6px 8px;">Duration</th><th style="text-align:center;padding:6px 8px;">Run Date</th><th style="text-align:center;padding:6px 8px;">Prow Job</th><th style="text-align:center;padding:6px 8px;">Test Log</th><th style="text-align:center;padding:6px 8px;"></th></tr>';
             var opKeys = Object.keys(fbc.operators).sort();
             opKeys.forEach(function(key, opIdx) {
                 var o = fbc.operators[key];
@@ -4002,13 +4002,14 @@
                 html += '<td style="padding:6px 16px;white-space:nowrap;"><span class="expand-arrow" style="display:inline-block;transition:transform 0.2s;margin-right:4px;font-size:0.6rem;">&#9654;</span>' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(key) + '</span></td>';
                 html += '<td style="text-align:center;"><span class="' + statusCls + '">' + esc(o.status.toUpperCase()) + '</span></td>';
                 html += '<td style="text-align:center;font-size:0.85rem;">' + tests + '</td>';
+                html += '<td style="text-align:center;font-size:0.85rem;">' + ((o.csv_version || '').replace(/^.*\.v/, '') || '-') + '</td>';
                 html += '<td style="text-align:center;font-size:0.85rem;">' + esc(o.duration || '-') + '</td>';
                 html += '<td style="text-align:center;font-size:0.85rem;">' + esc(runDate) + '</td>';
                 html += '<td style="text-align:center;">' + prowLink + '</td>';
                 html += '<td style="text-align:center;">' + logLink + '</td>';
                 html += '<td style="text-align:center;">' + triggerBtn + '</td>';
                 html += '</tr>';
-                html += '<tr id="' + detailId + '" class="detail-row"><td colspan="8">' + buildDetailGrid(o) + '</td></tr>';
+                html += '<tr id="' + detailId + '" class="detail-row"><td colspan="9">' + buildDetailGrid(o) + '</td></tr>';
             });
             allOps.forEach(function(key) {
                 if (opKeys.indexOf(key) !== -1) return;
@@ -4021,7 +4022,7 @@
                 var schedMap = (_fbcCache || {}).job_schedules || {};
                 for (var sk in schedMap) { if (sk.indexOf(key) >= 0 || key.indexOf(sk) >= 0) { schedInfo = schedMap[sk].day || ''; break; } }
                 html += '<td style="text-align:center;color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">NOT RUN' + (schedInfo ? '<br><span style="font-size:0.65rem;">Next: ' + esc(schedInfo) + '</span>' : '') + '</td>';
-                html += '<td colspan="5"></td>';
+                html += '<td colspan="6"></td>';
                 html += '<td style="text-align:center;">' + triggerBtn + '</td>';
                 html += '</tr>';
             });
