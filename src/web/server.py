@@ -2038,75 +2038,119 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
         reg_list = [r for r in regressions_data if r.get('change_type') == 'regression']
         fix_list = [r for r in regressions_data if r.get('change_type') == 'fix']
-
-        from datetime import datetime as _dt
-        now = _dt.utcnow().strftime('%Y-%m-%d %H:%M UTC')
-        start = (_dt.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
-        end = _dt.utcnow().strftime('%Y-%m-%d')
-        title = f"{'medik8s' if not operator else operator} CI Report"
-        subtitle = f"{start} to {end} ({days} days)"
-        if version:
-            subtitle += f" | OCP {version}"
-
         failing = [t for t in top_tests if t.get('pass_rate', 100) < 100]
 
-        def clean(name):
+        now = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        start = (datetime.utcnow() - timedelta(days=days)).strftime('%Y-%m-%d')
+        end = datetime.utcnow().strftime('%Y-%m-%d')
+        title = (operator or 'medik8s') + ' CI Report'
+        subtitle = start + ' to ' + end + ' (' + str(days) + ' days)'
+        if version:
+            subtitle += ' | OCP ' + version
+
+        def _clean(name):
             if not name:
                 return ''
-            for prefix in ['[It] ', 'FAR ', 'SBR ', 'SNR ', 'NHC ', 'MDR ', 'NMO ']:
-                if name.startswith(prefix):
-                    name = name[len(prefix):]
+            for pfx in ['[It] ', 'FAR ', 'SBR ', 'SNR ', 'NHC ', 'MDR ', 'NMO ']:
+                if name.startswith(pfx):
+                    name = name[len(pfx):]
             return name
 
-        return f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>{title}</title>
-<style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #d8d9da; background: #111217; }}
-h1 {{ font-size: 22px; margin: 0; color: #f4f5f5; }} h2 {{ font-size: 16px; margin: 20px 0 10px; border-bottom: 2px solid #2c3235; padding-bottom: 6px; color: #f4f5f5; }}
-.subtitle {{ color: #9fa7b3; font-size: 14px; margin: 4px 0 20px; }}
-.stats {{ display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }}
-.stat {{ background: #1a1b21; border-radius: 8px; padding: 14px 20px; text-align: center; min-width: 120px; border: 1px solid #2c3235; }}
-.stat .value {{ font-size: 28px; font-weight: 700; }} .stat .label {{ font-size: 11px; color: #9fa7b3; text-transform: uppercase; }}
-.green {{ color: #73bf69; }} .red {{ color: #f2495c; }} .blue {{ color: #5794f2; }}
-table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }}
-th {{ background: #22252b; text-align: left; padding: 8px 10px; border: 1px solid #2c3235; font-weight: 600; color: #d8d9da; }}
-td {{ padding: 8px 10px; border: 1px solid #2c3235; }}
-.badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }}
-.badge-pass {{ background: rgba(115,191,105,0.15); color: #73bf69; }} .badge-fail {{ background: rgba(242,73,92,0.15); color: #f2495c; }}
-.footer {{ margin-top: 30px; padding-top: 10px; border-top: 1px solid #2c3235; font-size: 11px; color: #9fa7b3; }}
-a {{ color: #5794f2; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
-@media print {{ body {{ padding: 0; background: #111217; }} .no-print {{ display: none; }} }}
-</style></head><body>
-<h1>{title}</h1>
-<p class="subtitle">{subtitle} | Generated: {now}</p>
+        pass_rate = summary.get('avg_pass_rate', 0)
+        rate_cls = 'green' if pass_rate >= 90 else 'red'
 
-<div class="stats">
-<div class="stat"><div class="value">{summary.get('total_tests', 0)}</div><div class="label">Tests</div></div>
-<div class="stat"><div class="value {'green' if summary.get('avg_pass_rate', 0) >= 90 else 'red'}">{summary.get('avg_pass_rate', 0):.1f}%</div><div class="label">Pass Rate</div></div>
-<div class="stat"><div class="value red">{summary.get('failed_tests', 0)}</div><div class="label">Failures</div></div>
-<div class="stat"><div class="value blue">{len(job_runs)}</div><div class="label">Job Runs</div></div>
-<div class="stat"><div class="value red">{len(reg_list)}</div><div class="label">Regressions</div></div>
-<div class="stat"><div class="value green">{len(fix_list)}</div><div class="label">Fixes</div></div>
-</div>
+        ops_html = ''
+        if len(op_stats) > 1:
+            rows = ''.join(
+                '<tr><td><strong>' + str(s.get('operator', '?')) + '</strong></td>'
+                '<td>' + str(s.get('total_tests', 0)) + '</td>'
+                '<td>' + str(s.get('passed', 0)) + '</td>'
+                '<td>' + str(s.get('failed', 0)) + '</td>'
+                '<td>' + str(s.get('pass_rate', 0)) + '%</td></tr>'
+                for s in op_stats
+            )
+            ops_html = '<h2>Operator Breakdown</h2><table><tr><th>Operator</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Pass Rate</th></tr>' + rows + '</table>'
 
-{'<h2>Operator Breakdown</h2><table><tr><th>Operator</th><th>Tests</th><th>Passed</th><th>Failed</th><th>Pass Rate</th></tr>' + ''.join(f'<tr><td><strong>{s.get("operator","?")}</strong></td><td>{s.get("total_tests",0)}</td><td>{s.get("passed",0)}</td><td>{s.get("failed",0)}</td><td>{s.get("pass_rate",0)}%</td></tr>' for s in op_stats) + '</table>' if len(op_stats) > 1 else ''}
+        def _change_table(items, heading, badge_cls, label):
+            if not items:
+                return ''
+            rows = ''.join(
+                '<tr><td>' + _clean(r.get('test_name', '')) + '</td>'
+                '<td>' + str(r.get('operator', '')) + '</td>'
+                '<td><span class="badge ' + badge_cls + '">' + label + '</span></td></tr>'
+                for r in items
+            )
+            return '<h2>' + heading + ' (' + str(len(items)) + ')</h2><table><tr><th>Test</th><th>Operator</th><th>Status</th></tr>' + rows + '</table>'
 
-{'<h2>Regressions (' + str(len(reg_list)) + ')</h2><table><tr><th>Test</th><th>Operator</th><th>Status</th></tr>' + ''.join(f'<tr><td>{clean(r.get("test_name",""))}</td><td>{r.get("operator","")}</td><td><span class="badge badge-fail">passed -&gt; failed</span></td></tr>' for r in reg_list) + '</table>' if reg_list else ''}
+        reg_html = _change_table(reg_list, 'Regressions', 'badge-fail', 'passed &rarr; failed')
+        fix_html = _change_table(fix_list, 'Fixes', 'badge-pass', 'failed &rarr; passed')
 
-{'<h2>Fixes (' + str(len(fix_list)) + ')</h2><table><tr><th>Test</th><th>Operator</th><th>Status</th></tr>' + ''.join(f'<tr><td>{clean(r.get("test_name",""))}</td><td>{r.get("operator","")}</td><td><span class="badge badge-pass">failed -&gt; passed</span></td></tr>' for r in fix_list) + '</table>' if fix_list else ''}
+        fail_html = ''
+        if failing:
+            rows = ''.join(
+                '<tr><td>' + _clean(t.get('test_name', '')) + '</td>'
+                '<td><strong class="red">' + '{:.1f}'.format(t.get('pass_rate', 0)) + '%</strong></td>'
+                '<td>' + str(t.get('total_runs', 0)) + '</td></tr>'
+                for t in failing[:10]
+            )
+            fail_html = '<h2>Failing Tests</h2><table><tr><th>Test</th><th>Pass Rate</th><th>Runs</th></tr>' + rows + '</table>'
+        else:
+            fail_html = '<p style="color:#73bf69;">All tests passing at 100%.</p>'
 
-{'<h2>Failing Tests</h2><table><tr><th>Test</th><th>Pass Rate</th><th>Runs</th></tr>' + ''.join(f'<tr><td>{clean(t.get("test_name",""))}</td><td><strong class="red">{t.get("pass_rate",0):.1f}%</strong></td><td>{t.get("total_runs",0)}</td></tr>' for t in failing[:10]) + '</table>' if failing else '<p style="color:#16a34a;">All tests passing at 100%.</p>'}
+        job_rows = ''
+        for r in job_runs[:15]:
+            jn = r.get('job_name', '') or ''
+            short = jn.split('e2e-')[-1] if 'e2e-' in jn else jn[:40]
+            st = r.get('status', '?')
+            bcls = 'badge-pass' if st == 'passed' else 'badge-fail'
+            rd = (r.get('run_date', '') or '')[:10]
+            job_rows += ('<tr><td>' + short + '</td><td><span class="badge ' + bcls + '">'
+                         + st + '</span></td><td>' + rd + '</td><td>'
+                         + str(r.get('passed_tests', 0)) + '/' + str(r.get('total_tests', 0))
+                         + '</td><td>' + str(r.get('ocp_version', '') or '') + '</td></tr>')
 
-<h2>Recent Job Runs</h2>
-<table><tr><th>Job</th><th>Status</th><th>Date</th><th>Tests</th><th>OCP</th></tr>
-{''.join(f"""<tr><td>{(r.get('job_name','') or '').split('e2e-')[-1] if 'e2e-' in (r.get('job_name','') or '') else r.get('job_name','')[:40]}</td><td><span class="badge {'badge-pass' if r.get('status')=='passed' else 'badge-fail'}">{r.get('status','?')}</span></td><td>{(r.get('run_date','') or '')[:10]}</td><td>{r.get('passed_tests',0)}/{r.get('total_tests',0)}</td><td>{r.get('ocp_version','') or ''}</td></tr>""" for r in job_runs[:15])}
-</table>
+        permalink = '/report?days=' + str(days)
+        if operator:
+            permalink += '&operator=' + operator
+        if version:
+            permalink += '&version=' + version
 
-<div class="footer">
-<a href="/" class="no-print">Back to Dashboard</a> |
-medik8s CI Dashboard | <a href="/report?days={days}{'&operator=' + operator if operator else ''}{'&version=' + version if version else ''}">Permalink</a>
-</div>
-</body></html>""", 200, {{'Content-Type': 'text/html'}}
+        css = """body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #d8d9da; background: #111217; }
+h1 { font-size: 22px; margin: 0; color: #f4f5f5; } h2 { font-size: 16px; margin: 20px 0 10px; border-bottom: 2px solid #2c3235; padding-bottom: 6px; color: #f4f5f5; }
+.subtitle { color: #9fa7b3; font-size: 14px; margin: 4px 0 20px; }
+.stats { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.stat { background: #1a1b21; border-radius: 8px; padding: 14px 20px; text-align: center; min-width: 120px; border: 1px solid #2c3235; }
+.stat .value { font-size: 28px; font-weight: 700; } .stat .label { font-size: 11px; color: #9fa7b3; text-transform: uppercase; }
+.green { color: #73bf69; } .red { color: #f2495c; } .blue { color: #5794f2; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+th { background: #22252b; text-align: left; padding: 8px 10px; border: 1px solid #2c3235; font-weight: 600; color: #d8d9da; }
+td { padding: 8px 10px; border: 1px solid #2c3235; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge-pass { background: rgba(115,191,105,0.15); color: #73bf69; } .badge-fail { background: rgba(242,73,92,0.15); color: #f2495c; }
+.footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #2c3235; font-size: 11px; color: #9fa7b3; }
+a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underline; }
+@media print { body { padding: 0; background: #111217; } .no-print { display: none; } }"""
+
+        html = ('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + title
+                + '</title><style>' + css + '</style></head><body>'
+                + '<h1>' + title + '</h1>'
+                + '<p class="subtitle">' + subtitle + ' | Generated: ' + now + '</p>'
+                + '<div class="stats">'
+                + '<div class="stat"><div class="value">' + str(summary.get('total_tests', 0)) + '</div><div class="label">Tests</div></div>'
+                + '<div class="stat"><div class="value ' + rate_cls + '">' + '{:.1f}'.format(pass_rate) + '%</div><div class="label">Pass Rate</div></div>'
+                + '<div class="stat"><div class="value red">' + str(summary.get('failed_tests', 0)) + '</div><div class="label">Failures</div></div>'
+                + '<div class="stat"><div class="value blue">' + str(len(job_runs)) + '</div><div class="label">Job Runs</div></div>'
+                + '<div class="stat"><div class="value red">' + str(len(reg_list)) + '</div><div class="label">Regressions</div></div>'
+                + '<div class="stat"><div class="value green">' + str(len(fix_list)) + '</div><div class="label">Fixes</div></div>'
+                + '</div>'
+                + ops_html + reg_html + fix_html + fail_html
+                + '<h2>Recent Job Runs</h2>'
+                + '<table><tr><th>Job</th><th>Status</th><th>Date</th><th>Tests</th><th>OCP</th></tr>'
+                + job_rows + '</table>'
+                + '<div class="footer"><a href="/" class="no-print">Back to Dashboard</a> | '
+                + 'medik8s CI Dashboard | <a href="' + permalink + '">Permalink</a></div>'
+                + '</body></html>')
+        return html, 200, {'Content-Type': 'text/html'}
 
     @app.route('/api/export')
     def api_export():
