@@ -859,12 +859,12 @@
             </div>
             <div class="header-tabs" role="tablist" aria-label="Dashboard views">
                 <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('regressions')">Changes</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-validation')">FBC Summary</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('regressions')">Changes</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
         </header>
@@ -4222,7 +4222,7 @@
                 var ocpChanged = r.ocp_version !== r.prev_ocp_version && r.prev_ocp_version;
                 var csvChanged = r.csv_version !== r.prev_csv_version && r.prev_csv_version;
 
-                var cellStyle = 'padding:8px 12px;font-size:12px;border:1px solid var(--border);';
+                var cellStyle = 'padding:8px 12px;font-size:12px;border:1px solid var(--border);text-align:left;';
                 function diffCell(label, prev, curr) {
                     if (!prev && !curr) return '';
                     var changed = prev && curr && prev !== curr;
@@ -4277,8 +4277,8 @@
                     errorSection + linksHtml +
                     '</div></td></tr>';
 
-                return '<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="var d=document.getElementById(\'' + id + '\');d.style.display=d.style.display===\'none\'?\'\':\'none\';">' +
-                    '<td style="padding:10px 12px;text-align:left;">' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) + '</td>' +
+                return '<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="var d=document.getElementById(\'' + id + '\');var a=this.querySelector(\'.expand-arrow\');d.style.display=d.style.display===\'none\'?\'\':\'none\';a.style.transform=d.style.display===\'none\'?\'\':\'rotate(90deg)\';">' +
+                    '<td style="padding:10px 12px;text-align:left;"><span class="expand-arrow" style="margin-right:8px;color:var(--text-muted);font-size:10px;">&#9654;</span>' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) + '</td>' +
                     '<td style="padding:10px 12px;text-align:left;white-space:nowrap;">' + statusArrow + '</td>' +
                     '<td style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-muted);white-space:nowrap;">' + esc(prevDate) + ' / ' + esc(currDate) +
                         (ocpChanged ? '<br><span style="color:var(--accent-orange);font-size:11px;">OCP changed</span>' : '') +
