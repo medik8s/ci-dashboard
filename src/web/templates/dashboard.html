@@ -696,6 +696,19 @@
 
         /* Operator filter chips */
         .op-filter-bar { display: flex; gap: 6px; align-items: center; margin-left: 16px; }
+        .table-search {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-surface);
+            color: var(--text-primary);
+            font-size: 13px;
+            width: 220px;
+            outline: none;
+        }
+        .table-search:focus { border-color: var(--accent-blue); }
+        .table-search::placeholder { color: var(--text-muted); }
+
         .op-filter-chip {
             width: 52px;
             min-height: 32px;
@@ -993,13 +1006,14 @@
                         <button class="op-filter-chip" data-op="MDR" style="border-color:#eab308;">MDR</button>
                         <button class="op-filter-chip" data-op="NMO" style="border-color:#06b6d4;">NMO</button>
                     </div>
+                    <input type="text" class="table-search" id="testResultsSearch" placeholder="Search tests..." oninput="filterTableRows('testResultsList', this.value)">
                 </div>
                 <button class="refresh-button" onclick="exportTestResultsXlsx()" style="display:flex; align-items:center; gap:6px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                     Export XLSX
                 </button>
             </div>
-            <div class="test-list">
+            <div class="test-list" id="testResultsList">
                 <h2>Test Results <span id="trCount" style="font-size:0.8rem; color:var(--text-muted);"></span></h2>
                 <table>
                     <thead>
@@ -1049,7 +1063,10 @@
                 <div id="jobScheduleTable" style="padding:0 16px 12px;font-size:0.8rem;"></div>
             </details>
             <div class="test-list">
-                <h2>Job Run History</h2>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <h2 style="margin:0;">Job Run History</h2>
+                    <input type="text" class="table-search" id="jobRunsSearch" placeholder="Search jobs..." oninput="filterTableRows('jobRunsBody', this.value)">
+                </div>
                 <table style="table-layout:fixed;width:100%;">
                     <thead>
                         <tr>
@@ -1201,6 +1218,7 @@
                 <button class="op-filter-chip" style="border-color:#a855f7;" onclick="regressionsOpFilter='NHC';loadRegressions();">NHC</button>
                 <button class="op-filter-chip" style="border-color:#eab308;" onclick="regressionsOpFilter='MDR';loadRegressions();">MDR</button>
                 <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="regressionsOpFilter='NMO';loadRegressions();">NMO</button>
+                <input type="text" class="table-search" id="changesSearch" placeholder="Search tests..." oninput="filterTableRows('regressionsContent', this.value)" style="margin-left:12px;">
             </div>
             <div id="regressionsContent" style="color:var(--text-muted);padding:30px;text-align:center;">Loading...</div>
         </div>
@@ -3439,6 +3457,16 @@
             FAR: '#2563eb', SBR: '#f97316', SNR: '#22c55e',
             NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4'
         };
+        function filterTableRows(containerId, query) {
+            var container = document.getElementById(containerId);
+            if (!container) return;
+            var q = (query || '').toLowerCase();
+            container.querySelectorAll('table tbody tr').forEach(function(tr) {
+                if (tr.id && tr.id.startsWith('chg-detail-')) return;
+                tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) ? '' : 'none';
+            });
+        }
+
         function opChip(op) {
             if (!op) return '';
             var safeClass = op.toLowerCase().replace(/[^a-z0-9-]/g, '');
