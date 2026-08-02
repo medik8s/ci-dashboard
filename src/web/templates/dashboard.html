@@ -4222,13 +4222,15 @@
                 var ocpChanged = r.ocp_version !== r.prev_ocp_version && r.prev_ocp_version;
                 var csvChanged = r.csv_version !== r.prev_csv_version && r.prev_csv_version;
 
+                var cellStyle = 'padding:8px 12px;font-size:12px;border:1px solid var(--border);';
                 function diffCell(label, prev, curr) {
                     if (!prev && !curr) return '';
                     var changed = prev && curr && prev !== curr;
-                    var style = changed ? 'color:var(--accent-orange);font-weight:600;' : 'color:var(--text-muted);';
-                    return '<tr><td style="padding:4px 8px;font-size:12px;color:var(--text-muted);white-space:nowrap;width:120px;">' + label + '</td>' +
-                        '<td style="padding:4px 8px;font-size:12px;' + style + '">' + esc(prev || '-') + '</td>' +
-                        '<td style="padding:4px 8px;font-size:12px;' + (changed ? 'color:var(--accent-orange);font-weight:600;' : '') + '">' + esc(curr || '-') + '</td></tr>';
+                    var prevStyle = changed ? cellStyle + 'color:var(--accent-orange);font-weight:600;' : cellStyle + 'color:var(--text-muted);';
+                    var currStyle = changed ? cellStyle + 'color:var(--accent-orange);font-weight:600;' : cellStyle;
+                    return '<tr><td style="' + cellStyle + 'color:var(--text-muted);white-space:nowrap;font-weight:600;">' + label + '</td>' +
+                        '<td style="' + prevStyle + '">' + esc(prev || '-') + '</td>' +
+                        '<td style="' + currStyle + '">' + esc(curr || '-') + '</td></tr>';
                 }
 
                 var detailRows = '';
@@ -4242,8 +4244,8 @@
                 var errorSection = '';
                 if (r.error_message) {
                     var errText = r.error_message.length > 500 ? r.error_message.substring(0, 500) + '...' : r.error_message;
-                    errorSection = '<div style="margin-top:10px;"><span style="font-size:12px;font-weight:600;color:var(--accent-red);">Error Message:</span>' +
-                        '<pre style="margin-top:4px;padding:8px;background:var(--bg-body);border:1px solid var(--border);border-radius:4px;font-size:11px;color:var(--text-muted);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;">' + esc(errText) + '</pre></div>';
+                    errorSection = '<div style="margin-top:12px;text-align:left;"><span style="font-size:12px;font-weight:600;color:var(--accent-red);">Error Message:</span>' +
+                        '<pre style="margin-top:4px;padding:10px;background:var(--bg-body);border:1px solid var(--border);border-radius:4px;font-size:11px;color:var(--text-muted);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;text-align:left;">' + esc(errText) + '</pre></div>';
                 }
 
                 var linksHtml = '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
@@ -4254,12 +4256,13 @@
                 if (r.artifacts_url) linksHtml += '<a href="' + esc(r.artifacts_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Artifacts</a>';
                 linksHtml += '</div>';
 
+                var thStyle = 'padding:8px 12px;font-size:12px;color:var(--text-heading);text-align:left;border:1px solid var(--border);background:var(--bg-table-header);font-weight:600;';
                 var detail = '<tr id="' + id + '" style="display:none;"><td colspan="3" style="padding:0 12px 16px 12px;background:var(--bg-body);">' +
-                    '<div style="padding:12px;border:1px solid var(--border);border-radius:6px;margin-top:4px;">' +
-                    '<table style="border-collapse:collapse;">' +
-                    '<thead><tr><th style="padding:4px 8px;font-size:11px;color:var(--text-muted);text-align:left;"></th>' +
-                    '<th style="padding:4px 8px;font-size:11px;color:var(--text-muted);text-align:left;">Previous Run</th>' +
-                    '<th style="padding:4px 8px;font-size:11px;color:var(--text-muted);text-align:left;">Current Run</th></tr></thead>' +
+                    '<div style="padding:16px;border:1px solid var(--border);border-radius:6px;margin-top:4px;">' +
+                    '<table style="border-collapse:collapse;width:100%;max-width:700px;">' +
+                    '<thead><tr><th style="' + thStyle + 'width:120px;"></th>' +
+                    '<th style="' + thStyle + '">Previous Run</th>' +
+                    '<th style="' + thStyle + '">Current Run</th></tr></thead>' +
                     '<tbody>' + detailRows + '</tbody></table>' +
                     errorSection + linksHtml +
                     '</div></td></tr>';
