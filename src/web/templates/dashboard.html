@@ -1050,6 +1050,7 @@
                     <button onclick="loadFbcData()" style="padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);cursor:pointer;font-size:0.75rem;">Go</button>
                 </div>
                 <span id="triggerStatus" style="font-size:0.8rem;"></span>
+                <input type="text" class="table-search" id="jobRunsSearch" placeholder="Search jobs..." oninput="filterTableRows('jobRunsBody', this.value)" style="margin-left:auto;">
             </div>
             <div id="recentTriggersSection" style="display:none; margin-bottom:16px; padding:12px; border-radius:8px; background:var(--card-bg); border:1px solid var(--border);">
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
@@ -1063,10 +1064,7 @@
                 <div id="jobScheduleTable" style="padding:0 16px 12px;font-size:0.8rem;"></div>
             </details>
             <div class="test-list">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                    <h2 style="margin:0;">Job Run History</h2>
-                    <input type="text" class="table-search" id="jobRunsSearch" placeholder="Search jobs..." oninput="filterTableRows('jobRunsBody', this.value)">
-                </div>
+                <h2>Job Run History</h2>
                 <table style="table-layout:fixed;width:100%;">
                     <thead>
                         <tr>
