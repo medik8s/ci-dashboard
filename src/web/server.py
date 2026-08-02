@@ -935,6 +935,11 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             build_id = row.get('build_id') or ''
             urls = _build_log_urls(job_name, build_id, step_name)
 
+            curr_fbc = row.get('fbc_image') or ''
+            prev_fbc = row.get('prev_fbc_image') or ''
+            curr_fbc_urls = _build_fbc_urls(curr_fbc)
+            prev_fbc_urls = _build_fbc_urls(prev_fbc)
+
             entry = {
                 'test_name': row.get('test_name'),
                 'operator': row.get('operator'),
@@ -951,8 +956,12 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'csv_version': row.get('csv_version'),
                 'prev_ocp_version': row.get('prev_ocp_version'),
                 'prev_csv_version': row.get('prev_csv_version'),
-                'prev_fbc_image': _fbc_short(row.get('prev_fbc_image') or ''),
-                'fbc_image_short': _fbc_short(row.get('fbc_image') or ''),
+                'fbc_image_short': curr_fbc_urls.get('fbc_image_short', ''),
+                'fbc_konflux_url': curr_fbc_urls.get('fbc_konflux_url', ''),
+                'fbc_snapshot_name': curr_fbc_urls.get('snapshot_name', ''),
+                'prev_fbc_image_short': prev_fbc_urls.get('fbc_image_short', ''),
+                'prev_fbc_konflux_url': prev_fbc_urls.get('fbc_konflux_url', ''),
+                'prev_fbc_snapshot_name': prev_fbc_urls.get('snapshot_name', ''),
                 'prev_error_message': row.get('prev_error_message'),
                 'polarion_id': row.get('polarion_id'),
                 'polarion_url': _polarion_url(row.get('polarion_id') or ''),

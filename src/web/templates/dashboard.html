@@ -4238,8 +4238,18 @@
                 detailRows += diffCell('Date', prevDate, currDate);
                 detailRows += diffCell('OCP Version', r.prev_ocp_version, r.ocp_version);
                 detailRows += diffCell('CSV Version', r.prev_csv_version, r.csv_version);
-                if (r.fbc_image_short || r.prev_fbc_image)
-                    detailRows += diffCell('FBC Image', r.prev_fbc_image, r.fbc_image_short);
+                if (r.fbc_snapshot_name || r.prev_fbc_snapshot_name) {
+                    var prevSnap = r.prev_fbc_snapshot_name || '-';
+                    var currSnap = r.fbc_snapshot_name || '-';
+                    if (r.prev_fbc_konflux_url && prevSnap !== '-') prevSnap = '<a href="' + esc(r.prev_fbc_konflux_url) + '" target="_blank" style="color:var(--accent-blue);">' + esc(prevSnap) + '</a>';
+                    if (r.fbc_konflux_url && currSnap !== '-') currSnap = '<a href="' + esc(r.fbc_konflux_url) + '" target="_blank" style="color:var(--accent-blue);">' + esc(currSnap) + '</a>';
+                    var snapChanged = r.fbc_snapshot_name && r.prev_fbc_snapshot_name && r.fbc_snapshot_name !== r.prev_fbc_snapshot_name;
+                    detailRows += '<tr><td style="' + cellStyle + 'color:var(--text-muted);font-weight:600;">FBC Snapshot</td>' +
+                        '<td style="' + cellStyle + (snapChanged ? 'color:var(--accent-orange);' : '') + '">' + prevSnap + '</td>' +
+                        '<td style="' + cellStyle + (snapChanged ? 'color:var(--accent-orange);' : '') + '">' + currSnap + '</td></tr>';
+                }
+                if (r.fbc_image_short || r.prev_fbc_image_short)
+                    detailRows += diffCell('FBC SHA', r.prev_fbc_image_short, r.fbc_image_short);
 
                 var errorSection = '';
                 if (r.error_message) {
@@ -4256,7 +4266,7 @@
                 if (r.artifacts_url) linksHtml += '<a href="' + esc(r.artifacts_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Artifacts</a>';
                 linksHtml += '</div>';
 
-                var thStyle = 'padding:8px 12px;font-size:12px;color:var(--text-heading);text-align:left;border:1px solid var(--border);background:var(--bg-table-header);font-weight:600;';
+                var thStyle = 'padding:8px 12px;font-size:12px;color:var(--text-heading);text-align:center;border:1px solid var(--border);background:var(--bg-table-header);font-weight:600;';
                 var detail = '<tr id="' + id + '" style="display:none;"><td colspan="3" style="padding:0 12px 16px 12px;background:var(--bg-body);">' +
                     '<div style="padding:16px;border:1px solid var(--border);border-radius:6px;margin-top:4px;">' +
                     '<table style="border-collapse:collapse;width:100%;max-width:700px;">' +
