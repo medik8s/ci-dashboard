@@ -2061,21 +2061,21 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         return f"""<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>{title}</title>
 <style>
-body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #1a1a2e; background: #fff; }}
-h1 {{ font-size: 22px; margin: 0; }} h2 {{ font-size: 16px; margin: 20px 0 10px; border-bottom: 2px solid #e0e0e0; padding-bottom: 6px; }}
-.subtitle {{ color: #666; font-size: 14px; margin: 4px 0 20px; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #d8d9da; background: #111217; }}
+h1 {{ font-size: 22px; margin: 0; color: #f4f5f5; }} h2 {{ font-size: 16px; margin: 20px 0 10px; border-bottom: 2px solid #2c3235; padding-bottom: 6px; color: #f4f5f5; }}
+.subtitle {{ color: #9fa7b3; font-size: 14px; margin: 4px 0 20px; }}
 .stats {{ display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }}
-.stat {{ background: #f5f7fa; border-radius: 8px; padding: 14px 20px; text-align: center; min-width: 120px; border: 1px solid #e0e0e0; }}
-.stat .value {{ font-size: 28px; font-weight: 700; }} .stat .label {{ font-size: 11px; color: #666; text-transform: uppercase; }}
-.green {{ color: #16a34a; }} .red {{ color: #dc2626; }} .blue {{ color: #2563eb; }}
+.stat {{ background: #1a1b21; border-radius: 8px; padding: 14px 20px; text-align: center; min-width: 120px; border: 1px solid #2c3235; }}
+.stat .value {{ font-size: 28px; font-weight: 700; }} .stat .label {{ font-size: 11px; color: #9fa7b3; text-transform: uppercase; }}
+.green {{ color: #73bf69; }} .red {{ color: #f2495c; }} .blue {{ color: #5794f2; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }}
-th {{ background: #f1f5f9; text-align: left; padding: 8px 10px; border: 1px solid #e0e0e0; font-weight: 600; }}
-td {{ padding: 8px 10px; border: 1px solid #e0e0e0; }}
+th {{ background: #22252b; text-align: left; padding: 8px 10px; border: 1px solid #2c3235; font-weight: 600; color: #d8d9da; }}
+td {{ padding: 8px 10px; border: 1px solid #2c3235; }}
 .badge {{ display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }}
-.badge-pass {{ background: #dcfce7; color: #166534; }} .badge-fail {{ background: #fee2e2; color: #991b1b; }}
-.footer {{ margin-top: 30px; padding-top: 10px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #999; }}
-a {{ color: #2563eb; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
-@media print {{ body {{ padding: 0; }} .no-print {{ display: none; }} }}
+.badge-pass {{ background: rgba(115,191,105,0.15); color: #73bf69; }} .badge-fail {{ background: rgba(242,73,92,0.15); color: #f2495c; }}
+.footer {{ margin-top: 30px; padding-top: 10px; border-top: 1px solid #2c3235; font-size: 11px; color: #9fa7b3; }}
+a {{ color: #5794f2; text-decoration: none; }} a:hover {{ text-decoration: underline; }}
+@media print {{ body {{ padding: 0; background: #111217; }} .no-print {{ display: none; }} }}
 </style></head><body>
 <h1>{title}</h1>
 <p class="subtitle">{subtitle} | Generated: {now}</p>
