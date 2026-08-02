@@ -913,6 +913,69 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         stats = db.get_operator_stats(days=days, version=version)
         return jsonify({'operators': stats})
 
+    @app.route('/api/regressions')
+    def api_regressions():
+        """Detect regressions by comparing latest vs previous periodic run per job."""
+        operator = request.args.get('operator')
+        version = normalize_version(request.args.get('version'))
+        rows = db.get_regressions(operator=operator, version=version)
+
+        regressions = []
+        fixes = []
+        persistent = []
+        new_failures = []
+
+        for row in rows:
+            change_type = row.get('change_type', 'stable')
+            if change_type == 'stable':
+                continue
+
+            step_name = row.get('step_name') or ''
+            job_name = row.get('job_name') or ''
+            build_id = row.get('build_id') or ''
+            urls = _build_log_urls(job_name, build_id, step_name)
+
+            entry = {
+                'test_name': row.get('test_name'),
+                'operator': row.get('operator'),
+                'prev_status': row.get('prev_status'),
+                'curr_status': row.get('curr_status'),
+                'error_message': row.get('error_message'),
+                'job_name': job_name,
+                'build_id': build_id,
+                'curr_run_date': row.get('curr_run_date'),
+                'prev_run_date': row.get('prev_run_date'),
+                'curr_job_url': row.get('curr_job_url') or '',
+                'prev_job_url': row.get('prev_job_url') or '',
+                'ocp_version': row.get('ocp_version'),
+                'csv_version': row.get('csv_version'),
+                'polarion_id': row.get('polarion_id'),
+                'polarion_url': _polarion_url(row.get('polarion_id') or ''),
+                **urls,
+            }
+
+            if change_type == 'regression':
+                regressions.append(entry)
+            elif change_type == 'fix':
+                fixes.append(entry)
+            elif change_type == 'persistent':
+                persistent.append(entry)
+            elif change_type == 'new_failure':
+                new_failures.append(entry)
+
+        return jsonify({
+            'regressions': regressions,
+            'fixes': fixes,
+            'persistent': persistent,
+            'new_failures': new_failures,
+            'counts': {
+                'regressions': len(regressions),
+                'fixes': len(fixes),
+                'persistent': len(persistent),
+                'new_failures': len(new_failures),
+            }
+        })
+
     @app.route('/api/job-runs')
     def api_job_runs():
         """Get job run history with enriched metadata"""

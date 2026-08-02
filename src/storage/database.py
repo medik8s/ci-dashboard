@@ -1300,6 +1300,82 @@ class DashboardDatabase:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_regressions(
+        self,
+        operator: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Compare latest vs previous periodic run per job to detect regressions."""
+        cursor = self.conn.cursor()
+
+        query = """
+            WITH ranked_runs AS (
+                SELECT job_name, build_id, timestamp,
+                       ROW_NUMBER() OVER (PARTITION BY job_name ORDER BY timestamp DESC) AS rn
+                FROM job_runs
+                WHERE COALESCE(job_type, 'periodic') = 'periodic'
+                AND total_tests > 0
+            ),
+            curr AS (
+                SELECT tr.test_name, tr.operator, tr.status, tr.error_message,
+                       tr.job_name, tr.build_id, tr.polarion_id,
+                       jr.timestamp AS run_date, jr.job_url, jr.ocp_version,
+                       jr.fbc_image, jr.csv_version, jr.step_name
+                FROM test_results tr
+                JOIN ranked_runs rr ON tr.job_name = rr.job_name AND tr.build_id = rr.build_id AND rr.rn = 1
+                JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
+                WHERE tr.status != 'skipped'
+            ),
+            prev AS (
+                SELECT tr.test_name, tr.operator, tr.status, tr.error_message,
+                       tr.job_name, tr.build_id,
+                       jr.timestamp AS run_date, jr.job_url
+                FROM test_results tr
+                JOIN ranked_runs rr ON tr.job_name = rr.job_name AND tr.build_id = rr.build_id AND rr.rn = 2
+                JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
+                WHERE tr.status != 'skipped'
+            )
+            SELECT
+                curr.test_name,
+                curr.operator,
+                COALESCE(prev.status, 'new') AS prev_status,
+                curr.status AS curr_status,
+                CASE
+                    WHEN prev.status = 'passed' AND curr.status = 'failed' THEN 'regression'
+                    WHEN prev.status = 'failed' AND curr.status = 'passed' THEN 'fix'
+                    WHEN prev.status = 'failed' AND curr.status = 'failed' THEN 'persistent'
+                    WHEN prev.status IS NULL AND curr.status = 'failed' THEN 'new_failure'
+                    ELSE 'stable'
+                END AS change_type,
+                curr.error_message,
+                curr.job_name,
+                curr.build_id,
+                curr.run_date AS curr_run_date,
+                curr.job_url AS curr_job_url,
+                curr.ocp_version,
+                curr.fbc_image,
+                curr.csv_version,
+                curr.step_name,
+                curr.polarion_id,
+                prev.run_date AS prev_run_date,
+                prev.job_url AS prev_job_url
+            FROM curr
+            LEFT JOIN prev ON curr.test_name = prev.test_name AND curr.job_name = prev.job_name
+            WHERE 1=1
+        """
+        params: list = []
+
+        if operator:
+            query += " AND curr.operator = ?"
+            params.append(operator)
+        if version:
+            query += " AND curr.job_name LIKE ?"
+            params.append(f'%{version}%')
+
+        query += " ORDER BY change_type, curr.operator, curr.test_name"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
     def record_collection_start(self, trigger='cron'):
         cursor = self.conn.cursor()
         cursor.execute(
