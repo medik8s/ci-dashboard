@@ -4203,8 +4203,11 @@
             }
         }
 
+        var _chgIdx = 0;
         function renderRegressionTable(items, changeType) {
             var rows = items.map(function(r) {
+                _chgIdx++;
+                var id = 'chg-detail-' + _chgIdx;
                 var op = r.operator || '';
                 var name = cleanTestName(r.test_name);
                 var statusArrow = '';
@@ -4213,33 +4216,69 @@
                 else if (changeType === 'persistent') statusArrow = '<span style="color:var(--accent-red);">failed</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
                 else if (changeType === 'new_failure') statusArrow = '<span style="color:var(--text-muted);">new</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
 
-                var links = '';
-                if (r.curr_job_url) links += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Current</a> ';
-                if (r.prev_job_url) links += '<a href="' + esc(r.prev_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Previous</a> ';
-                if (r.e2e_log_url) links += '<a href="' + esc(r.e2e_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Log</a> ';
-
                 var currDate = r.curr_run_date ? r.curr_run_date.split('T')[0] : '';
                 var prevDate = r.prev_run_date ? r.prev_run_date.split('T')[0] : '';
 
-                var runInfo = '';
-                if (r.ocp_version) runInfo += 'OCP ' + esc(r.ocp_version);
-                if (r.csv_version) runInfo += (runInfo ? ' | ' : '') + esc(r.csv_version);
+                var ocpChanged = r.ocp_version !== r.prev_ocp_version && r.prev_ocp_version;
+                var csvChanged = r.csv_version !== r.prev_csv_version && r.prev_csv_version;
 
-                return '<tr style="border-bottom:1px solid var(--border);">' +
-                    '<td style="padding:10px 12px;text-align:left;">' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) +
-                        (runInfo ? '<br><span style="font-size:11px;color:var(--text-muted);">' + runInfo + '</span>' : '') + '</td>' +
+                function diffCell(label, prev, curr) {
+                    if (!prev && !curr) return '';
+                    var changed = prev && curr && prev !== curr;
+                    var style = changed ? 'color:var(--accent-orange);font-weight:600;' : 'color:var(--text-muted);';
+                    return '<tr><td style="padding:4px 8px;font-size:12px;color:var(--text-muted);white-space:nowrap;width:120px;">' + label + '</td>' +
+                        '<td style="padding:4px 8px;font-size:12px;' + style + '">' + esc(prev || '-') + '</td>' +
+                        '<td style="padding:4px 8px;font-size:12px;' + (changed ? 'color:var(--accent-orange);font-weight:600;' : '') + '">' + esc(curr || '-') + '</td></tr>';
+                }
+
+                var detailRows = '';
+                detailRows += diffCell('Result', r.prev_status, r.curr_status);
+                detailRows += diffCell('Date', prevDate, currDate);
+                detailRows += diffCell('OCP Version', r.prev_ocp_version, r.ocp_version);
+                detailRows += diffCell('CSV Version', r.prev_csv_version, r.csv_version);
+                if (r.fbc_image_short || r.prev_fbc_image)
+                    detailRows += diffCell('FBC Image', r.prev_fbc_image, r.fbc_image_short);
+
+                var errorSection = '';
+                if (r.error_message) {
+                    var errText = r.error_message.length > 500 ? r.error_message.substring(0, 500) + '...' : r.error_message;
+                    errorSection = '<div style="margin-top:10px;"><span style="font-size:12px;font-weight:600;color:var(--accent-red);">Error Message:</span>' +
+                        '<pre style="margin-top:4px;padding:8px;background:var(--bg-body);border:1px solid var(--border);border-radius:4px;font-size:11px;color:var(--text-muted);white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto;">' + esc(errText) + '</pre></div>';
+                }
+
+                var linksHtml = '<div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">';
+                if (r.prev_job_url) linksHtml += '<a href="' + esc(r.prev_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Previous Prow Job</a>';
+                if (r.curr_job_url) linksHtml += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Current Prow Job</a>';
+                if (r.e2e_log_url) linksHtml += '<a href="' + esc(r.e2e_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Test Log</a>';
+                if (r.install_log_url) linksHtml += '<a href="' + esc(r.install_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Install Log</a>';
+                if (r.artifacts_url) linksHtml += '<a href="' + esc(r.artifacts_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Artifacts</a>';
+                linksHtml += '</div>';
+
+                var detail = '<tr id="' + id + '" style="display:none;"><td colspan="3" style="padding:0 12px 16px 12px;background:var(--bg-body);">' +
+                    '<div style="padding:12px;border:1px solid var(--border);border-radius:6px;margin-top:4px;">' +
+                    '<table style="border-collapse:collapse;">' +
+                    '<thead><tr><th style="padding:4px 8px;font-size:11px;color:var(--text-muted);text-align:left;"></th>' +
+                    '<th style="padding:4px 8px;font-size:11px;color:var(--text-muted);text-align:left;">Previous Run</th>' +
+                    '<th style="padding:4px 8px;font-size:11px;color:var(--text-muted);text-align:left;">Current Run</th></tr></thead>' +
+                    '<tbody>' + detailRows + '</tbody></table>' +
+                    errorSection + linksHtml +
+                    '</div></td></tr>';
+
+                return '<tr style="border-bottom:1px solid var(--border);cursor:pointer;" onclick="var d=document.getElementById(\'' + id + '\');d.style.display=d.style.display===\'none\'?\'\':\'none\';">' +
+                    '<td style="padding:10px 12px;text-align:left;">' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) + '</td>' +
                     '<td style="padding:10px 12px;text-align:left;white-space:nowrap;">' + statusArrow + '</td>' +
-                    '<td style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-muted);white-space:nowrap;">' + esc(prevDate) + '<br><span style="color:var(--text-primary);">' + esc(currDate) + '</span></td>' +
-                    '<td style="padding:10px 12px;text-align:left;">' + links + '</td>' +
-                    '</tr>';
+                    '<td style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-muted);white-space:nowrap;">' + esc(prevDate) + ' / ' + esc(currDate) +
+                        (ocpChanged ? '<br><span style="color:var(--accent-orange);font-size:11px;">OCP changed</span>' : '') +
+                        (csvChanged ? '<br><span style="color:var(--accent-orange);font-size:11px;">CSV changed</span>' : '') + '</td>' +
+                    '</tr>' + detail;
             }).join('');
 
+            _chgIdx = 0;
             return '<table style="width:100%;border-collapse:collapse;">' +
                 '<thead><tr style="background:var(--bg-table-header);border-bottom:2px solid var(--border);">' +
                 '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Test</th>' +
                 '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Status</th>' +
-                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Previous / Current</th>' +
-                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Links</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Runs</th>' +
                 '</tr></thead><tbody>' + rows + '</tbody></table>';
         }
 

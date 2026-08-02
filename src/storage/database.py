@@ -1329,7 +1329,8 @@ class DashboardDatabase:
             prev AS (
                 SELECT tr.test_name, tr.operator, tr.status, tr.error_message,
                        tr.job_name, tr.build_id,
-                       jr.timestamp AS run_date, jr.job_url
+                       jr.timestamp AS run_date, jr.job_url,
+                       jr.ocp_version, jr.csv_version, jr.fbc_image
                 FROM test_results tr
                 JOIN ranked_runs rr ON tr.job_name = rr.job_name AND tr.build_id = rr.build_id AND rr.rn = 2
                 JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
@@ -1358,7 +1359,11 @@ class DashboardDatabase:
                 curr.step_name,
                 curr.polarion_id,
                 prev.run_date AS prev_run_date,
-                prev.job_url AS prev_job_url
+                prev.job_url AS prev_job_url,
+                prev.ocp_version AS prev_ocp_version,
+                prev.csv_version AS prev_csv_version,
+                prev.fbc_image AS prev_fbc_image,
+                prev.error_message AS prev_error_message
             FROM curr
             LEFT JOIN prev ON curr.test_name = prev.test_name AND curr.job_name = prev.job_name
             WHERE 1=1
