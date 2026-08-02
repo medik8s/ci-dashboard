@@ -864,7 +864,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-validation')">FBC Summary</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('regressions')">Regressions</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('regressions')">Changes</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
         </header>
@@ -1187,13 +1187,21 @@
             </div>
         </div>
 
-        <!-- Regressions Tab -->
+        <!-- Changes Tab -->
         <div id="regressions-tab" class="tab-content">
             <div class="card" style="margin-bottom:20px;">
-                <h3 style="color:var(--text-heading);margin-bottom:6px;">Regressions</h3>
-                <p style="color:var(--text-muted);font-size:13px;">Automatically compares each operator's latest periodic run against its previous run. Tests that flipped from pass to fail are regressions; fail to pass are fixes.</p>
+                <h3 style="color:var(--text-heading);margin-bottom:6px;">Changes Between Runs</h3>
+                <p style="color:var(--text-muted);font-size:13px;">Compares each operator's latest periodic run against its previous run. Shows what changed: regressions (pass to fail), fixes (fail to pass), and persistent failures.</p>
             </div>
-            <div id="regressionsOpFilters" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
+            <div id="regressionsOpFilters" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                <button class="op-filter-chip active" onclick="regressionsOpFilter=null;loadRegressions();">All</button>
+                <button class="op-filter-chip" style="border-color:#2563eb;" onclick="regressionsOpFilter='FAR';loadRegressions();">FAR</button>
+                <button class="op-filter-chip" style="border-color:#f97316;" onclick="regressionsOpFilter='SBR';loadRegressions();">SBR</button>
+                <button class="op-filter-chip" style="border-color:#22c55e;" onclick="regressionsOpFilter='SNR';loadRegressions();">SNR</button>
+                <button class="op-filter-chip" style="border-color:#a855f7;" onclick="regressionsOpFilter='NHC';loadRegressions();">NHC</button>
+                <button class="op-filter-chip" style="border-color:#eab308;" onclick="regressionsOpFilter='MDR';loadRegressions();">MDR</button>
+                <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="regressionsOpFilter='NMO';loadRegressions();">NMO</button>
+            </div>
             <div id="regressionsContent" style="color:var(--text-muted);padding:30px;text-align:center;">Loading...</div>
         </div>
 
@@ -1908,7 +1916,7 @@
                     (tabName === 'fbc-validation' && btn.textContent.trim() === 'FBC Summary') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
                     (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report') ||
-                    (tabName === 'regressions' && btn.textContent.trim() === 'Regressions') ||
+                    (tabName === 'regressions' && btn.textContent.trim() === 'Changes') ||
                     (tabName === 'pipeline' && btn.textContent.trim() === 'Pipeline')) {
                     btn.classList.add('active');
                     btn.setAttribute('aria-selected', 'true');
@@ -4141,23 +4149,19 @@
 
         async function loadRegressions() {
             var container = document.getElementById('regressionsContent');
-            var filterBar = document.getElementById('regressionsOpFilters');
-            container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Loading regressions...</div>';
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</div>';
+
+            document.querySelectorAll('#regressionsOpFilters .op-filter-chip').forEach(function(btn) {
+                var op = btn.textContent.trim();
+                if (op === 'All') btn.classList.toggle('active', !regressionsOpFilter);
+                else btn.classList.toggle('active', regressionsOpFilter === op);
+            });
+
             try {
                 var params = new URLSearchParams();
                 if (regressionsOpFilter) params.set('operator', regressionsOpFilter);
                 var resp = await fetch('/api/regressions?' + params.toString());
                 var data = await resp.json();
-
-                var allOps = new Set();
-                [data.regressions, data.fixes, data.persistent, data.new_failures].forEach(function(arr) {
-                    (arr || []).forEach(function(r) { if (r.operator) allOps.add(r.operator); });
-                });
-                var sortedOps = Array.from(allOps).sort();
-                filterBar.innerHTML = '<button class="op-filter-chip' + (!regressionsOpFilter ? ' active' : '') + '" onclick="regressionsOpFilter=null;loadRegressions();">All</button>' +
-                    sortedOps.map(function(op) {
-                        return '<button class="op-filter-chip' + (regressionsOpFilter === op ? ' active' : '') + '" onclick="regressionsOpFilter=\'' + op + '\';loadRegressions();">' + op + '</button>';
-                    }).join('');
 
                 var html = '';
 
@@ -4203,7 +4207,6 @@
             var rows = items.map(function(r) {
                 var op = r.operator || '';
                 var name = cleanTestName(r.test_name);
-                var shortJob = (r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-\d+\.\d+-[^-]+-/, '');
                 var statusArrow = '';
                 if (changeType === 'regression') statusArrow = '<span style="color:var(--accent-green);">passed</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
                 else if (changeType === 'fix') statusArrow = '<span style="color:var(--accent-red);">failed</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-green);">passed</span>';
@@ -4211,25 +4214,31 @@
                 else if (changeType === 'new_failure') statusArrow = '<span style="color:var(--text-muted);">new</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
 
                 var links = '';
-                if (r.curr_job_url) links += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Prow</a> ';
+                if (r.curr_job_url) links += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Current</a> ';
+                if (r.prev_job_url) links += '<a href="' + esc(r.prev_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Previous</a> ';
                 if (r.e2e_log_url) links += '<a href="' + esc(r.e2e_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Log</a> ';
 
-                var date = r.curr_run_date ? r.curr_run_date.split('T')[0] : '';
+                var currDate = r.curr_run_date ? r.curr_run_date.split('T')[0] : '';
+                var prevDate = r.prev_run_date ? r.prev_run_date.split('T')[0] : '';
+
+                var runInfo = '';
+                if (r.ocp_version) runInfo += 'OCP ' + esc(r.ocp_version);
+                if (r.csv_version) runInfo += (runInfo ? ' | ' : '') + esc(r.csv_version);
+
                 return '<tr style="border-bottom:1px solid var(--border);">' +
-                    '<td style="padding:10px 12px;">' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) + '</td>' +
-                    '<td style="padding:10px 12px;white-space:nowrap;">' + statusArrow + '</td>' +
-                    '<td style="padding:10px 12px;font-size:12px;color:var(--text-muted);">' + esc(shortJob) + '</td>' +
-                    '<td style="padding:10px 12px;font-size:12px;color:var(--text-muted);">' + esc(date) + '</td>' +
-                    '<td style="padding:10px 12px;">' + links + '</td>' +
+                    '<td style="padding:10px 12px;text-align:left;">' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) +
+                        (runInfo ? '<br><span style="font-size:11px;color:var(--text-muted);">' + runInfo + '</span>' : '') + '</td>' +
+                    '<td style="padding:10px 12px;text-align:left;white-space:nowrap;">' + statusArrow + '</td>' +
+                    '<td style="padding:10px 12px;text-align:left;font-size:12px;color:var(--text-muted);white-space:nowrap;">' + esc(prevDate) + '<br><span style="color:var(--text-primary);">' + esc(currDate) + '</span></td>' +
+                    '<td style="padding:10px 12px;text-align:left;">' + links + '</td>' +
                     '</tr>';
             }).join('');
 
             return '<table style="width:100%;border-collapse:collapse;">' +
                 '<thead><tr style="background:var(--bg-table-header);border-bottom:2px solid var(--border);">' +
                 '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Test</th>' +
-                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Status Change</th>' +
-                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Job</th>' +
-                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Date</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Status</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Previous / Current</th>' +
                 '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Links</th>' +
                 '</tr></thead><tbody>' + rows + '</tbody></table>';
         }
