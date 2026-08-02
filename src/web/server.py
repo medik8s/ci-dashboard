@@ -507,6 +507,8 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
         logger.info("Saving to database...")
         db = DashboardDatabase(db_path)
 
+        run_id = db.record_collection_start(trigger='web')
+
         inserted_jobs = db.insert_job_runs(job_runs)
         inserted_tests = db.insert_test_results(test_results)
 
@@ -548,6 +550,8 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
         db.conn.commit()
         logger.info("Job runs updated with test counts")
 
+        db.record_collection_end(run_id, 'ok', jobs=inserted_jobs, tests=inserted_tests)
+
         # Close connection after write
         db.close()
 
@@ -558,6 +562,12 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
 
     except Exception as e:
         logger.error(f"Collection failed: {e}", exc_info=True)
+        try:
+            fail_db = DashboardDatabase(db_path)
+            fail_db.record_collection_end(run_id, 'failed', error=str(e))
+            fail_db.close()
+        except Exception:
+            pass
         collection_status['error'] = str(e)
         collection_status['progress'] = 'Failed'
         collection_status['completed_at'] = None
