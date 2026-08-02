@@ -803,6 +803,51 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         stats = calculator.get_summary_stats(days=days, version=version, platform=platform)
         return jsonify(stats)
 
+    @app.route('/api/collector-status')
+    def api_collector_status():
+        status = db.get_collection_status()
+        if not status:
+            return jsonify({
+                'status': 'unknown',
+                'message': 'No collection has run yet',
+                'freshness': 'stale',
+                'last_finished': None,
+                'jobs_collected': 0,
+                'tests_collected': 0,
+            })
+
+        finished = status.get('finished_at')
+        current_status = status.get('status', 'unknown')
+        hours_ago = None
+        freshness = 'stale'
+
+        if finished:
+            try:
+                fin_dt = datetime.fromisoformat(finished)
+                hours_ago = (datetime.utcnow() - fin_dt).total_seconds() / 3600
+                if hours_ago < 26:
+                    freshness = 'fresh'
+                elif hours_ago < 50:
+                    freshness = 'warning'
+                else:
+                    freshness = 'stale'
+            except (ValueError, TypeError):
+                pass
+        elif current_status == 'running':
+            freshness = 'running'
+
+        return jsonify({
+            'status': current_status,
+            'freshness': freshness,
+            'last_started': status.get('started_at'),
+            'last_finished': finished,
+            'hours_ago': round(hours_ago, 1) if hours_ago is not None else None,
+            'jobs_collected': status.get('jobs_collected', 0),
+            'tests_collected': status.get('tests_collected', 0),
+            'error_message': status.get('error_message'),
+            'trigger': status.get('trigger', 'unknown'),
+        })
+
     @app.route('/api/test-results')
     def api_test_results():
         """Get enriched test results with all 17 spreadsheet columns"""

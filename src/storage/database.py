@@ -312,6 +312,19 @@ class DashboardDatabase:
             if 'duplicate column' not in str(e).lower():
                 raise
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS collection_status (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TEXT NOT NULL,
+                finished_at TEXT,
+                status TEXT NOT NULL,
+                jobs_collected INTEGER DEFAULT 0,
+                tests_collected INTEGER DEFAULT 0,
+                error_message TEXT,
+                trigger TEXT DEFAULT 'cron'
+            )
+        """)
+
         self.conn.commit()
 
     def insert_job_runs(self, job_runs: List[JobRun]) -> int:
@@ -1284,6 +1297,32 @@ class DashboardDatabase:
     def get_gangway_execution(self, execution_id):
         cursor = self.conn.cursor()
         cursor.execute("SELECT * FROM gangway_executions WHERE execution_id = ?", (execution_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def record_collection_start(self, trigger='cron'):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO collection_status (started_at, status, trigger) VALUES (datetime('now'), 'running', ?)",
+            (trigger,)
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def record_collection_end(self, run_id, status, jobs=0, tests=0, error=None):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """UPDATE collection_status
+               SET finished_at = datetime('now'), status = ?, jobs_collected = ?,
+                   tests_collected = ?, error_message = ?
+               WHERE id = ?""",
+            (status, jobs, tests, (error or '')[:2000] or None, run_id)
+        )
+        self.conn.commit()
+
+    def get_collection_status(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT * FROM collection_status ORDER BY id DESC LIMIT 1")
         row = cursor.fetchone()
         return dict(row) if row else None
 

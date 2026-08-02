@@ -104,6 +104,28 @@
             font-size: 12px;
             color: var(--text-muted);
             white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .sync-dot.fresh { background: var(--accent-green); }
+        .sync-dot.warning { background: var(--accent-orange); }
+        .sync-dot.stale { background: var(--accent-red); }
+        .sync-dot.running { background: var(--accent-blue); animation: pulse-dot 1.5s ease-in-out infinite; }
+        .sync-dot.unknown { background: var(--text-muted); }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
 
         h1 {
@@ -824,7 +846,7 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
                         Tests
                     </a>
-                    <span class="header-sync" id="headerLastSync">Last sync: checking...</span>
+                    <span class="header-sync" id="headerLastSync"><span class="sync-dot unknown" id="syncDot"></span><span id="syncText">Checking...</span></span>
                     <button class="refresh-button" id="headerRefreshBtn" onclick="triggerCollection()" title="Collect latest test results from Prow">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1793,18 +1815,48 @@
         }
 
         function updateSyncLabel() {
-            var el = document.getElementById('headerLastSync');
-            if (!el) return;
+            var textEl = document.getElementById('syncText');
+            var dotEl = document.getElementById('syncDot');
+            if (!textEl || !dotEl) return;
             if (lastSyncTime && !isNaN(lastSyncTime.getTime())) {
-                el.textContent = 'Last sync: ' + timeAgo(lastSyncTime);
-                el.title = lastSyncTime.toISOString();
-            } else {
-                el.textContent = 'Last sync: never';
-                el.title = '';
+                textEl.textContent = timeAgo(lastSyncTime);
             }
         }
 
-        var syncLabelInterval = setInterval(updateSyncLabel, 60000);
+        function fetchCollectorStatus() {
+            fetch('/api/collector-status')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var textEl = document.getElementById('syncText');
+                    var dotEl = document.getElementById('syncDot');
+                    var headerEl = document.getElementById('headerLastSync');
+                    if (!textEl || !dotEl) return;
+
+                    dotEl.className = 'sync-dot ' + (data.freshness || 'unknown');
+
+                    if (data.status === 'running') {
+                        textEl.textContent = 'Collecting...';
+                        headerEl.title = 'Data collection is in progress';
+                    } else if (data.status === 'ok') {
+                        var ago = data.hours_ago !== null ? (data.hours_ago < 1 ? 'just now' : Math.round(data.hours_ago) + 'h ago') : 'unknown';
+                        textEl.textContent = ago;
+                        headerEl.title = 'Last collection: ' + (data.last_finished || 'unknown') + ' UTC\nJobs: ' + (data.jobs_collected || 0) + ' | Tests: ' + (data.tests_collected || 0);
+                        if (data.last_finished) {
+                            lastSyncTime = new Date(data.last_finished + 'Z');
+                        }
+                    } else if (data.status === 'failed') {
+                        textEl.textContent = 'Collection failed';
+                        headerEl.title = 'Error: ' + (data.error_message || 'unknown');
+                    } else {
+                        textEl.textContent = 'No data yet';
+                        headerEl.title = 'No collection has run yet';
+                    }
+                })
+                .catch(function() {});
+        }
+
+        fetchCollectorStatus();
+        var syncLabelInterval = setInterval(function() { updateSyncLabel(); fetchCollectorStatus(); }, 60000);
 
         function refreshActiveTab() {
             var active = document.querySelector('.tab-content.active');
@@ -3119,11 +3171,12 @@
                 if (status.running) {
                     wasRunning = true;
                     if (headerRefreshBtn) headerRefreshBtn.disabled = true;
-                    var syncEl = document.getElementById('headerLastSync');
-                    if (syncEl) {
-                        syncEl.textContent = 'Syncing...';
-                        syncEl.title = '';
-                    }
+                    var syncTextEl = document.getElementById('syncText');
+                    var syncDotEl = document.getElementById('syncDot');
+                    if (syncTextEl) syncTextEl.textContent = 'Syncing...';
+                    if (syncDotEl) syncDotEl.className = 'sync-dot running';
+                    var headerEl = document.getElementById('headerLastSync');
+                    if (headerEl) headerEl.title = '';
                     banner.classList.add('show');
                     banner.classList.remove('error', 'success');
                     message.textContent = status.progress || 'Collecting data...';
@@ -3171,12 +3224,12 @@
                         collectionPolling = null;
                     }
                 } else if (wasRunning && status.completed_at) {
-                    // Collection just completed successfully
                     wasRunning = false;
                     if (headerRefreshBtn) headerRefreshBtn.disabled = false;
                     var completed = new Date(status.completed_at);
                     lastSyncTime = !isNaN(completed.getTime()) ? completed : new Date();
                     updateSyncLabel();
+                    fetchCollectorStatus();
                     banner.classList.add('show', 'success');
                     banner.classList.remove('error');
                     message.textContent = status.progress || 'Data collection completed! Refreshing data...';

@@ -278,21 +278,32 @@ def collect(ctx, days, dry_run):
         db_path = config['database']['path']
         db = DashboardDatabase(db_path)
 
-        console.print(f"\n[bold]Saving data to database: {db_path}[/bold]")
+        run_id = db.record_collection_start(trigger='cli')
 
-        inserted = db.insert_job_runs(job_runs)
-        console.print(f"[green]✓ Saved {inserted} job runs[/green]")
+        try:
+            console.print(f"\n[bold]Saving data to database: {db_path}[/bold]")
 
-        inserted_tests = db.insert_test_results(test_results)
-        console.print(f"[green]✓ Saved {inserted_tests} test results[/green]")
+            inserted = db.insert_job_runs(job_runs)
+            console.print(f"[green]✓ Saved {inserted} job runs[/green]")
 
-        if presubmit_job_runs:
-            inserted_pre = db.insert_job_runs(presubmit_job_runs)
-            console.print(f"[green]✓ Saved {inserted_pre} presubmit job runs[/green]")
+            inserted_tests = db.insert_test_results(test_results)
+            console.print(f"[green]✓ Saved {inserted_tests} test results[/green]")
 
-        if presubmit_test_results:
-            inserted_pre_tests = db.insert_test_results(presubmit_test_results)
-            console.print(f"[green]✓ Saved {inserted_pre_tests} presubmit test results[/green]")
+            if presubmit_job_runs:
+                inserted_pre = db.insert_job_runs(presubmit_job_runs)
+                console.print(f"[green]✓ Saved {inserted_pre} presubmit job runs[/green]")
+                inserted += inserted_pre
+
+            if presubmit_test_results:
+                inserted_pre_tests = db.insert_test_results(presubmit_test_results)
+                console.print(f"[green]✓ Saved {inserted_pre_tests} presubmit test results[/green]")
+                inserted_tests += inserted_pre_tests
+
+            db.record_collection_end(run_id, 'ok', jobs=inserted, tests=inserted_tests)
+        except Exception as e:
+            db.record_collection_end(run_id, 'failed', error=str(e))
+            db.close()
+            raise
 
         db.close()
 
