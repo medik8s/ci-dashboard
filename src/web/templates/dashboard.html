@@ -4148,6 +4148,7 @@
         let regressionsOpFilter = null;
 
         async function loadRegressions() {
+            _chgIdx = 0;
             var container = document.getElementById('regressionsContent');
             container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</div>';
 
@@ -4286,7 +4287,6 @@
                     '</tr>' + detail;
             }).join('');
 
-            _chgIdx = 0;
             return '<table style="width:100%;border-collapse:collapse;">' +
                 '<thead><tr style="background:var(--bg-table-header);border-bottom:2px solid var(--border);">' +
                 '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Test</th>' +
