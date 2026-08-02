@@ -864,6 +864,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-validation')">FBC Summary</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('regressions')">Regressions</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
         </header>
@@ -1184,6 +1185,16 @@
                     </table>
                 </div>
             </div>
+        </div>
+
+        <!-- Regressions Tab -->
+        <div id="regressions-tab" class="tab-content">
+            <div class="card" style="margin-bottom:20px;">
+                <h3 style="color:var(--text-heading);margin-bottom:6px;">Regressions</h3>
+                <p style="color:var(--text-muted);font-size:13px;">Automatically compares each operator's latest periodic run against its previous run. Tests that flipped from pass to fail are regressions; fail to pass are fixes.</p>
+            </div>
+            <div id="regressionsOpFilters" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;"></div>
+            <div id="regressionsContent" style="color:var(--text-muted);padding:30px;text-align:center;">Loading...</div>
         </div>
 
         <!-- Pipeline Tab -->
@@ -1867,6 +1878,7 @@
             else if (id === 'job-runs') loadJobRuns();
             else if (id === 'fbc-validation') loadFbcValidation();
             else if (id === 'presubmit') loadPresubmitResults();
+            else if (id === 'regressions') loadRegressions();
         }
 
         function showTab(tabName) {
@@ -4122,6 +4134,103 @@
             });
             loadPresubmitResults();
         });
+
+        let regressionsOpFilter = null;
+
+        async function loadRegressions() {
+            var container = document.getElementById('regressionsContent');
+            var filterBar = document.getElementById('regressionsOpFilters');
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Loading regressions...</div>';
+            try {
+                var params = new URLSearchParams();
+                if (regressionsOpFilter) params.set('operator', regressionsOpFilter);
+                var resp = await fetch('/api/regressions?' + params.toString());
+                var data = await resp.json();
+
+                var allOps = new Set();
+                [data.regressions, data.fixes, data.persistent, data.new_failures].forEach(function(arr) {
+                    (arr || []).forEach(function(r) { if (r.operator) allOps.add(r.operator); });
+                });
+                var sortedOps = Array.from(allOps).sort();
+                filterBar.innerHTML = '<button class="op-filter-chip' + (!regressionsOpFilter ? ' active' : '') + '" onclick="regressionsOpFilter=null;loadRegressions();">All</button>' +
+                    sortedOps.map(function(op) {
+                        return '<button class="op-filter-chip' + (regressionsOpFilter === op ? ' active' : '') + '" onclick="regressionsOpFilter=\'' + op + '\';loadRegressions();">' + op + '</button>';
+                    }).join('');
+
+                var html = '';
+
+                if (data.regressions && data.regressions.length > 0) {
+                    html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-red);">';
+                    html += '<h3 style="color:var(--accent-red);margin-bottom:12px;">Regressions (' + data.regressions.length + ')</h3>';
+                    html += renderRegressionTable(data.regressions, 'regression');
+                    html += '</div>';
+                }
+
+                if (data.new_failures && data.new_failures.length > 0) {
+                    html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-orange);">';
+                    html += '<h3 style="color:var(--accent-orange);margin-bottom:12px;">New Failures (' + data.new_failures.length + ')</h3>';
+                    html += renderRegressionTable(data.new_failures, 'new_failure');
+                    html += '</div>';
+                }
+
+                if (data.fixes && data.fixes.length > 0) {
+                    html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-green);">';
+                    html += '<h3 style="color:var(--accent-green);margin-bottom:12px;">Fixes (' + data.fixes.length + ')</h3>';
+                    html += renderRegressionTable(data.fixes, 'fix');
+                    html += '</div>';
+                }
+
+                if (data.persistent && data.persistent.length > 0) {
+                    html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-orange);">';
+                    html += '<h3 style="color:var(--accent-orange);margin-bottom:12px;">Persistent Failures (' + data.persistent.length + ')</h3>';
+                    html += renderRegressionTable(data.persistent, 'persistent');
+                    html += '</div>';
+                }
+
+                if (!html) {
+                    html = '<div class="card" style="text-align:center;padding:40px;border-left:4px solid var(--accent-green);"><h3 style="color:var(--accent-green);">All Stable</h3><p style="color:var(--text-muted);margin-top:8px;">No regressions detected between the latest and previous periodic runs.</p></div>';
+                }
+
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<div style="color:var(--accent-red);padding:30px;text-align:center;">Failed to load regressions: ' + esc(e.message) + '</div>';
+            }
+        }
+
+        function renderRegressionTable(items, changeType) {
+            var rows = items.map(function(r) {
+                var op = r.operator || '';
+                var name = cleanTestName(r.test_name);
+                var shortJob = (r.job_name || '').replace(/^periodic-ci-medik8s-system-tests-main-\d+\.\d+-[^-]+-/, '');
+                var statusArrow = '';
+                if (changeType === 'regression') statusArrow = '<span style="color:var(--accent-green);">passed</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
+                else if (changeType === 'fix') statusArrow = '<span style="color:var(--accent-red);">failed</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-green);">passed</span>';
+                else if (changeType === 'persistent') statusArrow = '<span style="color:var(--accent-red);">failed</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
+                else if (changeType === 'new_failure') statusArrow = '<span style="color:var(--text-muted);">new</span> <span style="color:var(--text-muted);">-></span> <span style="color:var(--accent-red);">failed</span>';
+
+                var links = '';
+                if (r.curr_job_url) links += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Prow</a> ';
+                if (r.e2e_log_url) links += '<a href="' + esc(r.e2e_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Log</a> ';
+
+                var date = r.curr_run_date ? r.curr_run_date.split('T')[0] : '';
+                return '<tr style="border-bottom:1px solid var(--border);">' +
+                    '<td style="padding:10px 12px;">' + opChip(op) + ' ' + polarionLink(r.polarion_id, name) + '</td>' +
+                    '<td style="padding:10px 12px;white-space:nowrap;">' + statusArrow + '</td>' +
+                    '<td style="padding:10px 12px;font-size:12px;color:var(--text-muted);">' + esc(shortJob) + '</td>' +
+                    '<td style="padding:10px 12px;font-size:12px;color:var(--text-muted);">' + esc(date) + '</td>' +
+                    '<td style="padding:10px 12px;">' + links + '</td>' +
+                    '</tr>';
+            }).join('');
+
+            return '<table style="width:100%;border-collapse:collapse;">' +
+                '<thead><tr style="background:var(--bg-table-header);border-bottom:2px solid var(--border);">' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Test</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Status Change</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Job</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Date</th>' +
+                '<th style="padding:10px 12px;text-align:left;font-size:13px;color:var(--text-muted);">Links</th>' +
+                '</tr></thead><tbody>' + rows + '</tbody></table>';
+        }
 
         async function loadPresubmitResults() {
             var container = document.getElementById('presubmit-content');
