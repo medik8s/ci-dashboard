@@ -2219,12 +2219,6 @@
             var section = document.getElementById('recentTriggersSection');
             var list = document.getElementById('recentTriggersList');
             if (refresh && btn) { btn.disabled = true; btn.textContent = 'Refreshing...'; btn.style.cursor = 'not-allowed'; }
-            if (!_fbcCache) {
-                try {
-                    var fbcResp = await fetch('/api/fbc-summary?' + new URLSearchParams({days: document.getElementById('timeRange').value}));
-                    if (fbcResp.ok) _fbcCache = await fbcResp.json();
-                } catch (e) {}
-            }
             try {
                 var url = '/api/trigger-job/history?limit=20' + (refresh ? '&refresh=1' : '');
                 var resp = await fetch(url);
@@ -2257,14 +2251,10 @@
                     else if (t.job_name) { prowLink = linkEl('https://prow.ci.openshift.org/job-history/gs/test-platform-results/logs/' + encodeURIComponent(t.job_name), 'View Job'); }
                     html += '<tr style="border-top:1px solid var(--border);">';
                     var fbcCell = '';
-                    if (t.fbc_commit_sha) {
-                        var trigShort = t.fbc_commit_sha.slice(0,8).toLowerCase();
-                        var matchedName = '';
-                        if (_fbcCache && _fbcCache.fbc_summaries) {
-                            var ms = _fbcCache.fbc_summaries.find(function(s) { return s.fbc_short === trigShort.slice(0,7) || s.fbc_full === t.fbc_commit_sha; });
-                            if (ms) matchedName = ms.snapshot_name || (ms.iib_id ? 'IIB ' + ms.iib_id : '');
-                        }
-                        fbcCell = matchedName ? '<code style="font-size:0.7rem;color:var(--accent-purple);">' + esc(matchedName) + '</code>' : '<code style="font-size:0.7rem;color:var(--text-muted);">' + esc(trigShort) + '</code>';
+                    if (t.snapshot_name) {
+                        fbcCell = '<code style="font-size:0.7rem;color:var(--accent-purple);">' + esc(t.snapshot_name) + '</code>';
+                    } else if (t.fbc_commit_sha) {
+                        fbcCell = '<code style="font-size:0.7rem;color:var(--text-muted);">' + esc(t.fbc_commit_sha.slice(0,8)) + '</code>';
                     } else {
                         var st = (t.status || '').toUpperCase();
                         var isTerminal = (st === 'SUCCESS' || st === 'FAILURE' || st === 'ABORTED' || st === 'ERROR');

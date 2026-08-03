@@ -1836,6 +1836,24 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 except Exception:
                     app.logger.exception("Failed to reconcile trigger %s with Prow",
                                          ex.get('execution_id'))
+        resolved_snaps = {}
+        for ex in executions:
+            sha = ex.get('fbc_commit_sha')
+            job_name = ex.get('job_name') or ''
+            if sha and _FBC_SHA_RE.fullmatch(sha):
+                ver_match = re.search(r'(?:release|main)-(\d+)\.(\d+)', job_name)
+                app_name = f"rhwa-fbc-{ver_match.group(1)}{ver_match.group(2)}" if ver_match else None
+                cache_key = (sha, app_name or '')
+                if cache_key not in resolved_snaps:
+                    try:
+                        snap_name, _ = _resolve_konflux_snapshot(sha, expected_app=app_name)
+                        resolved_snaps[cache_key] = snap_name or ''
+                    except Exception:
+                        app.logger.warning("Snapshot lookup failed for %s", sha[:8], exc_info=True)
+                        resolved_snaps[cache_key] = ''
+                ex['snapshot_name'] = resolved_snaps[cache_key]
+            else:
+                ex['snapshot_name'] = ''
         return jsonify(executions)
 
     _SAFE_ID = re.compile(r'^[A-Za-z0-9_-]+$')
