@@ -2266,7 +2266,11 @@
                         }
                         fbcCell = matchedName ? '<code style="font-size:0.7rem;color:var(--accent-purple);">' + esc(matchedName) + '</code>' : '<code style="font-size:0.7rem;color:var(--text-muted);">' + esc(trigShort) + '</code>';
                     } else {
-                        fbcCell = '<span style="color:var(--text-muted);font-size:0.7rem;">latest</span>';
+                        var st = (t.status || '').toUpperCase();
+                        var isTerminal = (st === 'SUCCESS' || st === 'FAILURE' || st === 'ABORTED' || st === 'ERROR');
+                        fbcCell = isTerminal
+                            ? '<span style="color:var(--text-muted);font-size:0.7rem;">N/A</span>'
+                            : '<span style="color:var(--text-muted);font-size:0.7rem;">latest</span>';
                     }
                     html += '<td style="padding:4px 8px;">' + opChip(op) + ' <span style="font-size:0.75rem;">' + esc(jobLabel) + '</span></td>';
                     html += '<td style="padding:4px 8px;">' + stHtml + '</td>';

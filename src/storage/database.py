@@ -1265,7 +1265,8 @@ class DashboardDatabase:
         """, (execution_id, job_name, status, placeholder_id))
         self.conn.commit()
 
-    def update_gangway_execution(self, execution_id, status, prow_job_url=None, error_message=None):
+    def update_gangway_execution(self, execution_id, status, prow_job_url=None,
+                                  error_message=None, fbc_commit_sha=None):
         cursor = self.conn.cursor()
         sets = ["status = ?", "updated_at = CURRENT_TIMESTAMP"]
         params = [status]
@@ -1275,6 +1276,9 @@ class DashboardDatabase:
         if error_message is not None:
             sets.append("error_message = ?")
             params.append(error_message)
+        if fbc_commit_sha is not None:
+            sets.append("fbc_commit_sha = ?")
+            params.append(fbc_commit_sha)
         params.append(execution_id)
         cursor.execute(
             f"UPDATE gangway_executions SET {', '.join(sets)} WHERE execution_id = ?",
@@ -1300,6 +1304,18 @@ class DashboardDatabase:
         cursor.execute("SELECT * FROM gangway_executions WHERE execution_id = ?", (execution_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def get_executions_missing_fbc_sha(self, limit=10):
+        """Return discovered executions with terminal status but no FBC SHA."""
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT * FROM gangway_executions
+            WHERE execution_id LIKE 'prow-%'
+            AND (fbc_commit_sha IS NULL OR fbc_commit_sha = '')
+            AND status IN ('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR')
+            ORDER BY triggered_at DESC LIMIT ?
+        """, (limit,))
+        return [dict(row) for row in cursor.fetchall()]
 
     def get_tracked_prow_build_ids(self):
         """Return a set of Prow build IDs already tracked in gangway_executions.

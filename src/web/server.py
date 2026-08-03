@@ -1736,7 +1736,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             try:
                 from integrations.gangway_client import (
                     discover_untracked_builds, get_all_triggerable_jobs,
-                    build_spyglass_url, fetch_fbc_sha_from_artifacts,
+                    build_spyglass_url,
                 )
                 known_ids = db.get_tracked_prow_build_ids()
                 job_names = get_all_triggerable_jobs()
@@ -1744,20 +1744,31 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 inserted = 0
                 for build in discovered[:20]:
                     prow_url = build_spyglass_url(build['job_name'], build['build_id'])
-                    fbc_sha = None
-                    if build.get('result') in ('SUCCESS', 'FAILURE', 'ABORTED'):
-                        fbc_sha = fetch_fbc_sha_from_artifacts(
-                            build['job_name'], build['build_id'])
                     if db.insert_discovered_execution(
                         build['build_id'], build['operator'], build['job_name'],
                         build['result'], build['started'], prow_url,
-                        fbc_commit_sha=fbc_sha,
                     ):
                         inserted += 1
                 if inserted:
                     app.logger.info("Discovered %d untracked Prow builds", inserted)
             except Exception:
                 app.logger.exception("Failed to discover untracked Prow builds")
+            try:
+                from integrations.gangway_client import fetch_fbc_sha_from_artifacts
+                backfilled = 0
+                for ex in db.get_executions_missing_fbc_sha(limit=10):
+                    eid = ex['execution_id']
+                    bid = eid[5:] if eid.startswith('prow-') else None
+                    if not bid:
+                        continue
+                    sha = fetch_fbc_sha_from_artifacts(ex['job_name'], bid)
+                    if sha:
+                        db.update_gangway_execution(eid, ex['status'], fbc_commit_sha=sha)
+                        backfilled += 1
+                if backfilled:
+                    app.logger.info("Backfilled FBC SHA for %d builds", backfilled)
+            except Exception:
+                app.logger.exception("Failed to backfill FBC SHAs")
         executions = db.get_gangway_executions(operator, limit)
         if refresh:
             from integrations import get_gangway_client
