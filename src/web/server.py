@@ -1736,7 +1736,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             try:
                 from integrations.gangway_client import (
                     discover_untracked_builds, get_all_triggerable_jobs,
-                    build_spyglass_url,
+                    build_spyglass_url, fetch_fbc_sha_from_artifacts,
                 )
                 known_ids = db.get_tracked_prow_build_ids()
                 job_names = get_all_triggerable_jobs()
@@ -1744,9 +1744,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 inserted = 0
                 for build in discovered[:20]:
                     prow_url = build_spyglass_url(build['job_name'], build['build_id'])
+                    fbc_sha = None
+                    if build.get('result') in ('SUCCESS', 'FAILURE', 'ABORTED'):
+                        fbc_sha = fetch_fbc_sha_from_artifacts(
+                            build['job_name'], build['build_id'])
                     if db.insert_discovered_execution(
                         build['build_id'], build['operator'], build['job_name'],
                         build['result'], build['started'], prow_url,
+                        fbc_commit_sha=fbc_sha,
                     ):
                         inserted += 1
                 if inserted:

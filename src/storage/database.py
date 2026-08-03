@@ -1323,20 +1323,34 @@ class DashboardDatabase:
         return ids
 
     def insert_discovered_execution(self, build_id, operator, job_name, status,
-                                     triggered_at, prow_job_url):
-        """Insert a Prow build discovered externally (not triggered via dashboard)."""
+                                     triggered_at, prow_job_url,
+                                     fbc_commit_sha=None):
+        """Insert or update a Prow build discovered externally.
+
+        Uses INSERT OR IGNORE for new rows. If the row already exists and
+        fbc_commit_sha is provided, backfills the SHA (handles the case where
+        a build was discovered while still running and later re-discovered
+        after completion with artifacts available).
+        """
         cursor = self.conn.cursor()
         execution_id = f"prow-{build_id}"
         try:
             cursor.execute("""
                 INSERT OR IGNORE INTO gangway_executions
                     (execution_id, operator, job_name, status, triggered_at,
-                     updated_at, prow_job_url)
-                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+                     updated_at, prow_job_url, fbc_commit_sha)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
             """, (execution_id, operator, job_name, status,
-                  triggered_at, prow_job_url))
+                  triggered_at, prow_job_url, fbc_commit_sha))
+            inserted = cursor.rowcount > 0
+            if not inserted and fbc_commit_sha:
+                cursor.execute("""
+                    UPDATE gangway_executions
+                    SET fbc_commit_sha = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE execution_id = ? AND (fbc_commit_sha IS NULL OR fbc_commit_sha = '')
+                """, (fbc_commit_sha, status, execution_id))
             self.conn.commit()
-            return cursor.rowcount > 0
+            return inserted or cursor.rowcount > 0
         except Exception as e:
             self.conn.rollback()
             logger.warning("insert_discovered_execution failed for build %s: %s",

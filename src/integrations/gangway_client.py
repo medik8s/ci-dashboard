@@ -190,6 +190,47 @@ def _find_best_prow_build(job_name, triggered_at_str):
         return None
 
 
+_STEP_NAME_RE = re.compile(
+    r'periodic-ci-medik8s-system-tests-main-[\d.]+-(?:konflux|disconnected|upgrade)-(.+)')
+
+
+def _step_name_from_job(job_name):
+    """Derive the Prow step name from a periodic job name.
+
+    E.g. 'periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws'
+    returns 'e2e-far-weekly-aws'.
+    """
+    m = _STEP_NAME_RE.match(job_name)
+    return m.group(1) if m else None
+
+
+def fetch_fbc_sha_from_artifacts(job_name, build_id):
+    """Fetch the FBC commit SHA from a completed Prow build's GCS artifacts.
+
+    Reads the medik8s-catalogsource step log and extracts the SHA from
+    the 'FBC image verified: ...<sha>' line.
+    Returns the 40-char hex SHA string, or None if unavailable.
+    """
+    step_name = _step_name_from_job(job_name)
+    if not step_name:
+        return None
+    url = (f"https://storage.googleapis.com/{PROW_GCS_BUCKET}"
+           f"/logs/{quote(job_name, safe='')}/{build_id}"
+           f"/artifacts/{step_name}/medik8s-catalogsource/build-log.txt")
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            for line in resp:
+                decoded = line.decode(errors='replace')
+                if 'FBC image verified:' in decoded:
+                    m = re.search(r'[0-9a-f]{40}', decoded)
+                    if m:
+                        return m.group(0)
+    except Exception as e:
+        logger.debug("fetch_fbc_sha_from_artifacts: %s/%s: %s", job_name, build_id, e)
+    return None
+
+
 def discover_untracked_builds(job_names, known_build_ids, since_hours=168):
     """Query Prow for recent builds not already tracked in the DB.
 
