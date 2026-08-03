@@ -1732,6 +1732,27 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         limit = request.args.get('limit', 20, type=int)
         limit = max(1, min(limit, 100))
         refresh = request.args.get('refresh', '0') == '1'
+        if refresh:
+            try:
+                from integrations.gangway_client import (
+                    discover_untracked_builds, get_all_triggerable_jobs,
+                    build_spyglass_url,
+                )
+                known_ids = db.get_tracked_prow_build_ids()
+                job_names = get_all_triggerable_jobs()
+                discovered = discover_untracked_builds(job_names, known_ids, since_hours=168)
+                inserted = 0
+                for build in discovered[:20]:
+                    prow_url = build_spyglass_url(build['job_name'], build['build_id'])
+                    if db.insert_discovered_execution(
+                        build['build_id'], build['operator'], build['job_name'],
+                        build['result'], build['started'], prow_url,
+                    ):
+                        inserted += 1
+                if inserted:
+                    app.logger.info("Discovered %d untracked Prow builds", inserted)
+            except Exception:
+                app.logger.exception("Failed to discover untracked Prow builds")
         executions = db.get_gangway_executions(operator, limit)
         if refresh:
             from integrations import get_gangway_client

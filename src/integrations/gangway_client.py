@@ -13,7 +13,7 @@ import urllib.request
 from urllib.parse import quote
 import urllib.error
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -107,49 +107,72 @@ def resolve_trigger_target(job_name_or_operator):
         )
 
 
-def _build_spyglass_url(job_name, build_id):
+def build_spyglass_url(job_name, build_id):
     """Build a Prow Spyglass URL from a job name and build ID."""
     return (f"{PROW_BASE_URL}/view/gs/{PROW_GCS_BUCKET}"
             f"/logs/{quote(job_name, safe='')}/{build_id}")
+
+
+def _parse_prow_timestamp(ts_str):
+    """Parse a Prow ISO 8601 timestamp into a timezone-aware datetime, or None."""
+    if not ts_str:
+        return None
+    try:
+        return datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+
+
+def _fetch_prow_builds(job_name):
+    """Fetch and parse the allBuilds array from the Prow job-history page.
+
+    Returns a list of build dicts (keys: ID, Result, Started) or empty list.
+    """
+    if not job_name:
+        return []
+    history_url = (f"{PROW_BASE_URL}/job-history/gs/{PROW_GCS_BUCKET}"
+                   f"/logs/{quote(job_name, safe='')}")
+    try:
+        req = urllib.request.Request(history_url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode()
+        marker_idx = html.find('var allBuilds')
+        if marker_idx == -1:
+            logger.warning("_fetch_prow_builds: allBuilds not found for %s", job_name)
+            return []
+        arr_start = html.find('[', marker_idx)
+        if arr_start == -1:
+            return []
+        try:
+            builds, _ = json.JSONDecoder().raw_decode(html[arr_start:])
+        except json.JSONDecodeError:
+            logger.warning("_fetch_prow_builds: invalid allBuilds JSON for %s", job_name)
+            return []
+        return builds or []
+    except Exception as e:
+        logger.warning("_fetch_prow_builds failed for %s: %s", job_name, e)
+        return []
 
 
 def _find_best_prow_build(job_name, triggered_at_str):
     """Fetch Prow job history and return the build dict closest to triggered_at_str."""
     if not job_name or not triggered_at_str:
         return None
-    history_url = (f"{PROW_BASE_URL}/job-history/gs/{PROW_GCS_BUCKET}"
-                   f"/logs/{quote(job_name, safe='')}")
     try:
-        req = urllib.request.Request(history_url)
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            html = resp.read().decode()
-        marker_idx = html.find('var allBuilds')
-        if marker_idx == -1:
-            logger.warning("_find_best_prow_build: allBuilds not found for %s", job_name)
-            return None
-        arr_start = html.find('[', marker_idx)
-        if arr_start == -1:
-            return None
-        try:
-            builds, _ = json.JSONDecoder().raw_decode(html[arr_start:])
-        except json.JSONDecodeError:
-            logger.warning("_find_best_prow_build: invalid allBuilds JSON for %s", job_name)
-            return None
+        builds = _fetch_prow_builds(job_name)
         if not builds:
             return None
         ts = triggered_at_str.replace(' ', 'T')
         if not re.search(r'(?:Z|[+-]\d{2}:\d{2})$', ts):
             ts += '+00:00'
-        trigger_ts = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        trigger_ts = _parse_prow_timestamp(ts)
+        if not trigger_ts:
+            return None
         best = None
         best_delta = None
         for b in builds:
-            started = b.get('Started', '')
-            if not started:
-                continue
-            try:
-                build_ts = datetime.fromisoformat(started.replace('Z', '+00:00'))
-            except ValueError:
+            build_ts = _parse_prow_timestamp(b.get('Started', ''))
+            if not build_ts:
                 continue
             delta = (build_ts - trigger_ts).total_seconds()
             if delta < -30 or delta > 600:
@@ -164,7 +187,39 @@ def _find_best_prow_build(job_name, triggered_at_str):
         return best
     except Exception as e:
         logger.warning("_find_best_prow_build failed for %s: %s", job_name, e)
-    return None
+        return None
+
+
+def discover_untracked_builds(job_names, known_build_ids, since_hours=168):
+    """Query Prow for recent builds not already tracked in the DB.
+
+    Args:
+        job_names: list of periodic job names to check
+        known_build_ids: set of build IDs already in gangway_executions
+        since_hours: only return builds from the last N hours (default 7 days)
+
+    Returns list of dicts with keys: job_name, build_id, result, started, operator
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
+    discovered = []
+    for job_name in job_names:
+        builds = _fetch_prow_builds(job_name)
+        op = operator_from_job_name(job_name)
+        for b in builds:
+            build_id = b.get('ID', '')
+            if not build_id or build_id in known_build_ids:
+                continue
+            build_ts = _parse_prow_timestamp(b.get('Started', ''))
+            if not build_ts or build_ts < cutoff:
+                continue
+            discovered.append({
+                'job_name': job_name,
+                'build_id': build_id,
+                'result': b.get('Result', ''),
+                'started': b.get('Started', ''),
+                'operator': op or 'unknown',
+            })
+    return discovered
 
 
 class GangwayClient:
@@ -242,7 +297,7 @@ class GangwayClient:
         build_id = build.get('ID', '')
         if not build_id:
             return None
-        return _build_spyglass_url(job_name, build_id)
+        return build_spyglass_url(job_name, build_id)
 
     @staticmethod
     def resolve_prow_result(job_name, triggered_at_str):
@@ -258,7 +313,7 @@ class GangwayClient:
         result = build.get('Result', '')
         if not build_id or not result:
             return None, None
-        return result, _build_spyglass_url(job_name, build_id)
+        return result, build_spyglass_url(job_name, build_id)
 
 
 _gangway_client = GangwayClient()

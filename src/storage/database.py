@@ -3,6 +3,7 @@ SQLite database for storing historical test results and metrics
 """
 
 import logging
+import re
 import sqlite3
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -1299,6 +1300,48 @@ class DashboardDatabase:
         cursor.execute("SELECT * FROM gangway_executions WHERE execution_id = ?", (execution_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+    def get_tracked_prow_build_ids(self):
+        """Return a set of Prow build IDs already tracked in gangway_executions.
+
+        Extracts build IDs from two sources:
+        - execution_id values starting with 'prow-' (discovered builds)
+        - prow_job_url values (dashboard-triggered builds that resolved a Prow URL)
+        """
+        cursor = self.conn.cursor()
+        ids = set()
+        cursor.execute("SELECT execution_id, prow_job_url FROM gangway_executions")
+        for row in cursor.fetchall():
+            eid = row['execution_id'] or ''
+            if eid.startswith('prow-'):
+                ids.add(eid[5:])
+            prow_url = row['prow_job_url'] or ''
+            if prow_url:
+                m = re.search(r'/(\d{10,})(?:\?|$|/)', prow_url)
+                if m:
+                    ids.add(m.group(1))
+        return ids
+
+    def insert_discovered_execution(self, build_id, operator, job_name, status,
+                                     triggered_at, prow_job_url):
+        """Insert a Prow build discovered externally (not triggered via dashboard)."""
+        cursor = self.conn.cursor()
+        execution_id = f"prow-{build_id}"
+        try:
+            cursor.execute("""
+                INSERT OR IGNORE INTO gangway_executions
+                    (execution_id, operator, job_name, status, triggered_at,
+                     updated_at, prow_job_url)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            """, (execution_id, operator, job_name, status,
+                  triggered_at, prow_job_url))
+            self.conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            self.conn.rollback()
+            logger.warning("insert_discovered_execution failed for build %s: %s",
+                           build_id, e)
+            return False
 
     def get_regressions(
         self,
