@@ -681,6 +681,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             return get_latest_version()
         return version
 
+    @app.route('/healthz')
+    def healthz():
+        return 'ok', 200
+
     @app.route('/')
     def index():
         """Render main dashboard page"""
