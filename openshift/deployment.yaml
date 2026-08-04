@@ -34,9 +34,18 @@ spec:
             secretKeyRef:
               name: konflux-token
               key: token
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/run/vertex-ai-sa/key.json
+        - name: ANTHROPIC_VERTEX_PROJECT_ID
+          value: medik8s-qe-ci-dashboard
+        - name: CLOUD_ML_REGION
+          value: global
         volumeMounts:
         - name: data
           mountPath: /data
+        - name: vertex-ai-sa
+          mountPath: /var/run/vertex-ai-sa
+          readOnly: true
         resources:
           requests:
             memory: "256Mi"
@@ -62,3 +71,6 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: dashboard-data
+      - name: vertex-ai-sa
+        secret:
+          secretName: vertex-ai-sa
