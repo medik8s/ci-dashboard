@@ -1944,7 +1944,7 @@
             }
             if (tabName === 'weekly-report') refreshWeeklyReport();
             if (tabName === 'test-results') loadTestResults();
-            if (tabName === 'job-runs') { loadJobRuns(); loadTriggerButtons(); loadRecentTriggers(); }
+            if (tabName === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
             if (tabName === 'fbc-validation') loadFbcValidation();
             if (tabName === 'presubmit') loadPresubmitResults();
             if (tabName === 'regressions') loadRegressions();
@@ -2012,8 +2012,13 @@
                     if (ib === -1) ib = 999;
                     return ia - ib;
                 });
+                var selVer = (document.getElementById('versionFilter') || {}).value || '';
                 sortedOps.forEach(function(op) {
                     var jobs = operators[op];
+                    if (selVer) {
+                        jobs = jobs.filter(function(j) { return j.indexOf(selVer) !== -1; });
+                    }
+                    if (jobs.length === 0) return;
                     var color = OP_COLORS[op.toUpperCase()] || '#6b7280';
                     var wrapper = document.createElement('div');
                     wrapper.style.cssText = 'position:relative;display:inline-block;margin-right:6px;';
