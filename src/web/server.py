@@ -119,6 +119,7 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
     if app_name and '@' not in fbc_image and ':' in fbc_image:
         sha = fbc_image.split(':')[-1]
         if _FBC_SHA_RE.fullmatch(sha):
+            sha = _maybe_expand_sha(sha, app_name)
             iib_data = _resolve_konflux_release(sha, app_name=app_name)
     return {
         'fbc_image_short': _fbc_short(fbc_image),
@@ -136,7 +137,9 @@ _FBC_SHA_RE = re.compile(r'[0-9a-fA-F]{7,40}')
 KONFLUX_API = "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443"
 KONFLUX_NAMESPACE = "rhwa-tenant"
 KONFLUX_UI = "https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com"
+QUAY_FBC_REPO_PREFIX = f"redhat-user-workloads/{KONFLUX_NAMESPACE}/rhwa-fbc"
 _konflux_token = os.environ.get("KONFLUX_TOKEN", "")
+_sha_expansion_cache = {}
 _snapshot_cache = {}
 _recent_snapshots_cache = {}
 _recent_snapshots_ts = 0
@@ -185,6 +188,35 @@ def _list_recent_snapshots(app_name, limit=5):
     return []
 
 
+def _expand_short_sha(short_sha, app_name):
+    """Expand a short FBC commit SHA to the full 40-char SHA via Quay tags API."""
+    if len(short_sha) < 7:
+        return None
+    cache_key = (short_sha, app_name)
+    if cache_key in _sha_expansion_cache:
+        return _sha_expansion_cache[cache_key]
+    repo = f"{QUAY_FBC_REPO_PREFIX}/{app_name}"
+    url = (f"https://quay.io/api/v1/repository/{repo}/tag/"
+           f"?filter_tag_name=like:{short_sha}&limit=5&onlyActiveTags=true")
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            for tag in json.loads(resp.read()).get('tags', []):
+                name = tag.get('name', '')
+                if len(name) == 40 and name.startswith(short_sha):
+                    _sha_expansion_cache[cache_key] = name
+                    return name
+    except (urllib.error.URLError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        logger.warning("Quay SHA expansion failed for %s/%s: %s", short_sha, app_name, exc)
+    return None
+
+
+def _maybe_expand_sha(sha, app_name):
+    """Return expanded 40-char SHA if input is short, otherwise return as-is."""
+    if len(sha) < 40 and app_name:
+        return _expand_short_sha(sha, app_name) or sha
+    return sha
+
+
 def _resolve_konflux_snapshot(commit_sha, expected_app=None):
     """Look up a Konflux Snapshot name by FBC commit SHA.
 
@@ -197,6 +229,7 @@ def _resolve_konflux_snapshot(commit_sha, expected_app=None):
     cache_key = (commit_sha, expected_app or '')
     if cache_key in _snapshot_cache:
         return _snapshot_cache[cache_key]
+    commit_sha = _maybe_expand_sha(commit_sha, expected_app)
     label = f"pac.test.appstudio.openshift.io/sha={commit_sha}"
     url = (f"{KONFLUX_API}/apis/appstudio.redhat.com/v1alpha1"
            f"/namespaces/{KONFLUX_NAMESPACE}/snapshots"
@@ -1170,7 +1203,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 if short not in existing_shas:
                     existing_shas.add(short)
                     fbc_urls = _build_fbc_urls(
-                        f"quay.io/redhat-user-workloads/rhwa-tenant/rhwa-fbc/{app_name}:{snap['commit_sha']}")
+                        f"quay.io/{QUAY_FBC_REPO_PREFIX}/{app_name}:{snap['commit_sha']}")
                     summaries.append({
                         'fbc_short': short,
                         'fbc_full': snap['commit_sha'],

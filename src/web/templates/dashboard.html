@@ -2227,7 +2227,7 @@
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
                 section.style.display = '';
                 var html = '<table style="width:100%;border-collapse:collapse;">';
-                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Job</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">Snapshot / FBC</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
+                html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Job</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">FBC Snapshot</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
                 items.forEach(function(t) {
                     var op = (t.operator || '').toUpperCase();
                     var jobLabel = t.job_name ? _shortJobLabel(t.job_name) : '';
