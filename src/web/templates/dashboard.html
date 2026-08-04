@@ -2230,6 +2230,11 @@
                 if (!resp.ok) { section.style.display = 'none'; return; }
                 var items = await resp.json();
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
+                var selVer = (document.getElementById('versionFilter') || {}).value || '';
+                if (selVer) {
+                    items = items.filter(function(t) { return !t.job_name || t.job_name.indexOf(selVer) !== -1; });
+                }
+                if (items.length === 0) { section.style.display = 'none'; return; }
                 section.style.display = '';
                 var html = '<table style="width:100%;border-collapse:collapse;">';
                 html += '<tr style="color:var(--text-muted);font-size:0.7rem;"><th style="text-align:left;padding:2px 8px;">Job</th><th style="text-align:left;padding:2px 8px;">Status</th><th style="text-align:left;padding:2px 8px;">FBC Snapshot</th><th style="text-align:left;padding:2px 8px;">Triggered</th><th style="text-align:left;padding:2px 8px;">Prow Job</th></tr>';
