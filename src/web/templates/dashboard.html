@@ -1898,7 +1898,7 @@
             var id = active.id.replace('-tab', '');
             if (id === 'overview') refreshDashboard();
             else if (id === 'test-results') loadTestResults();
-            else if (id === 'job-runs') loadJobRuns();
+            else if (id === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
             else if (id === 'fbc-validation') loadFbcValidation();
             else if (id === 'presubmit') loadPresubmitResults();
             else if (id === 'regressions') loadRegressions();
