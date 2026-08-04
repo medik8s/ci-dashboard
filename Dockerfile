@@ -17,5 +17,7 @@ RUN mkdir -p /data
 # Expose port
 EXPOSE 8080
 
-# Run gunicorn with 1 worker (collection status is in-memory)
-CMD ["python3", "-m", "gunicorn", "-w", "1", "-b", "0.0.0.0:8080", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "wsgi:app"]
+# Run gunicorn with 1 worker + 4 threads (threads allow health probes
+# to succeed while a slow API request occupies the main thread;
+# SQLite WAL mode handles concurrent reads safely)
+CMD ["python3", "-m", "gunicorn", "-w", "1", "--threads", "4", "-b", "0.0.0.0:8080", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "wsgi:app"]
