@@ -2864,7 +2864,7 @@
                         const statusIcon = j.status === 'passed' ? '✓' : j.status === 'failed' ? '✗' : '?';
                         const statusColor = j.status === 'passed' ? 'var(--accent-green)' : j.status === 'failed' ? 'var(--accent-red)' : 'var(--text-muted)';
                         const variantText = j.variant ? ` (${j.variant})` : '';
-                        const inner = `<span class="ws-op" style="color:${color};">${j.label}</span>` +
+                        const inner = opChip(j.label) +
                             `<span class="ws-variant">${variantText}</span>` +
                             `<span class="ws-status" style="color:${statusColor};">${statusIcon}</span>`;
                         if (j.prowUrl) {
