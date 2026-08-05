@@ -871,6 +871,8 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
+            max-height: 350px;
+            overflow-y: auto;
         }
         @media (max-width: 900px) {
             .recent-changes-grid { grid-template-columns: 1fr; }
@@ -983,12 +985,10 @@
         <!-- Overview Tab -->
         <div id="overview-tab" class="tab-content active">
 
-        <div class="stat-panels" id="statPanels">
-            <div class="stat-panel"><div class="sp-label">Total Tests</div><div class="sp-value" id="spTotal">--</div></div>
-            <div class="stat-panel stat-panel--green"><div class="sp-label">Pass Rate</div><div class="sp-value" id="spPassRate">--</div><div class="sp-unit" id="spPassUnit"></div></div>
-            <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div></div>
-            <div class="stat-panel stat-panel--blue"><div class="sp-label">Jobs Run</div><div class="sp-value" id="spJobs">--</div></div>
-            <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div></div>
+        <div class="stat-panels" id="statPanels" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="stat-panel stat-panel--green"><div class="sp-label">Pass Rate</div><div class="sp-value" id="spPassRate">--</div></div>
+            <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div><div class="sp-unit"><span id="spTotal">--</span> total</div></div>
+            <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div><div class="sp-unit"><span id="spJobs">--</span> jobs</div></div>
             <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem; line-height:1.4; overflow-wrap:break-word;">--</div></div>
         </div>
 
@@ -3092,11 +3092,13 @@
             html += '<div class="rc-section">';
             if (regs.length > 0) {
                 html += `<h3 style="color:var(--accent-red);">Regressions (${regs.length})</h3>`;
-                html += regs.slice(0, 10).map(e => changeItem(e, '⚠️', 'regression')).join('');
+                html += regs.slice(0, 5).map(e => changeItem(e, '⚠️', 'regression')).join('');
+                if (regs.length > 5) html += `<div style="text-align:center; padding:6px; color:var(--text-muted); font-size:0.8rem;">+${regs.length - 5} more</div>`;
             }
             if (newFails.length > 0) {
                 html += `<h3 style="color:#f97316; margin-top:${regs.length ? '12px' : '0'};">New Failures (${newFails.length})</h3>`;
-                html += newFails.slice(0, 10).map(e => changeItem(e, '❗', 'new failure')).join('');
+                html += newFails.slice(0, 5).map(e => changeItem(e, '❗', 'new failure')).join('');
+                if (newFails.length > 5) html += `<div style="text-align:center; padding:6px; color:var(--text-muted); font-size:0.8rem;">+${newFails.length - 5} more</div>`;
             }
             if (persistent.length > 0) {
                 html += `<h3 style="color:var(--text-muted); margin-top:${(regs.length || newFails.length) ? '12px' : '0'};">Persistent Failures (${persistent.length})</h3>`;
@@ -3111,7 +3113,10 @@
             html += '<div class="rc-section">';
             if (fixes.length > 0) {
                 html += `<h3 style="color:var(--accent-green);">Fixes (${fixes.length})</h3>`;
-                html += fixes.slice(0, 15).map(e => changeItem(e, '✅', 'fix')).join('');
+                html += fixes.slice(0, 5).map(e => changeItem(e, '✅', 'fix')).join('');
+                if (fixes.length > 5) {
+                    html += `<div style="text-align:center; padding:6px; color:var(--text-muted); font-size:0.8rem;">+${fixes.length - 5} more</div>`;
+                }
             } else {
                 html += '<h3 style="color:var(--text-muted);">Fixes</h3>';
                 html += '<div style="padding:20px; color:var(--text-muted); text-align:center;">No recent fixes</div>';
