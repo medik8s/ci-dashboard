@@ -1186,15 +1186,20 @@
                 <h3 style="color:var(--text-heading);margin-bottom:6px;">Changes Between Runs</h3>
                 <p style="color:var(--text-muted);font-size:13px;">Compares each operator's latest periodic run against its previous run. Shows what changed: regressions (pass to fail), fixes (fail to pass), and persistent failures.</p>
             </div>
-            <div id="regressionsOpFilters" style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
-                <button class="op-filter-chip active" onclick="regressionsOpFilter=null;loadRegressions();">All</button>
-                <button class="op-filter-chip" style="border-color:#2563eb;" onclick="regressionsOpFilter='FAR';loadRegressions();">FAR</button>
-                <button class="op-filter-chip" style="border-color:#f97316;" onclick="regressionsOpFilter='SBR';loadRegressions();">SBR</button>
-                <button class="op-filter-chip" style="border-color:#22c55e;" onclick="regressionsOpFilter='SNR';loadRegressions();">SNR</button>
-                <button class="op-filter-chip" style="border-color:#a855f7;" onclick="regressionsOpFilter='NHC';loadRegressions();">NHC</button>
-                <button class="op-filter-chip" style="border-color:#eab308;" onclick="regressionsOpFilter='MDR';loadRegressions();">MDR</button>
-                <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="regressionsOpFilter='NMO';loadRegressions();">NMO</button>
-                <input type="text" class="table-search" id="changesSearch" placeholder="Search tests..." oninput="filterTableRows('regressionsContent', this.value)" style="margin-left:12px;">
+            <div class="controls" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label>Operator:</label>
+                    <div class="op-filter-bar" id="regressionsOpFilters">
+                        <button class="op-filter-chip active" onclick="regressionsOpFilter=null;loadRegressions();">All</button>
+                        <button class="op-filter-chip" style="border-color:#2563eb;" onclick="regressionsOpFilter='FAR';loadRegressions();">FAR</button>
+                        <button class="op-filter-chip" style="border-color:#f97316;" onclick="regressionsOpFilter='SBR';loadRegressions();">SBR</button>
+                        <button class="op-filter-chip" style="border-color:#22c55e;" onclick="regressionsOpFilter='SNR';loadRegressions();">SNR</button>
+                        <button class="op-filter-chip" style="border-color:#a855f7;" onclick="regressionsOpFilter='NHC';loadRegressions();">NHC</button>
+                        <button class="op-filter-chip" style="border-color:#eab308;" onclick="regressionsOpFilter='MDR';loadRegressions();">MDR</button>
+                        <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="regressionsOpFilter='NMO';loadRegressions();">NMO</button>
+                    </div>
+                    <input type="text" class="table-search" id="changesSearch" placeholder="Search tests..." oninput="filterTableRows('regressionsContent', this.value)">
+                </div>
             </div>
             <div id="regressionsContent" style="color:var(--text-muted);padding:30px;text-align:center;">Loading...</div>
         </div>
