@@ -3748,7 +3748,7 @@
                             ? ' title="' + esc(failCat || failReason) + '"' : '';
 
                         tbl += '<tr>' +
-                            '<td><a href="#" onclick="switchToTab(\'test-results-tab\'); setOperatorFilter(\'' + op + '\'); return false;" style="text-decoration:none;">' + opChip(op) + '</a></td>' +
+                            '<td><a href="#" onclick="setOperatorFilter(\'' + op + '\'); switchToTab(\'test-results-tab\'); return false;" style="text-decoration:none;">' + opChip(op) + '</a></td>' +
                             '<td style="font-weight:700; color:' + rateColor + ';">' + rateStr + '</td>' +
                             '<td style="color:var(--accent-green);">' + passed + '</td>' +
                             '<td style="color:' + (failed > 0 ? 'var(--accent-red)' : 'var(--text-muted)') + ';">' + failed + '</td>' +
