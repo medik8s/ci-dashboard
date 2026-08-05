@@ -941,8 +941,8 @@
         <div id="overview-tab" class="tab-content active">
 
         <div class="stat-panels" id="statPanels" style="grid-template-columns: repeat(4, 1fr);">
-            <div class="stat-panel stat-panel--green"><div class="sp-label">Pass Rate</div><div class="sp-value" id="spPassRate">--</div></div>
-            <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div><div class="sp-unit"><span id="spTotal">--</span> total</div></div>
+            <div class="stat-panel stat-panel--green"><div class="sp-label">Pass Rate</div><div class="sp-value" id="spPassRate">--</div><div class="sp-unit"><span id="spPassed">--</span>/<span id="spTotalPR">--</span> passed</div></div>
+            <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div><div class="sp-unit">of <span id="spTotal">--</span> tests</div></div>
             <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div><div class="sp-unit"><span id="spJobs">--</span> jobs</div></div>
             <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem; line-height:1.4; overflow-wrap:break-word;">--</div></div>
         </div>
@@ -3678,6 +3678,8 @@
 
                 document.getElementById('spTotal').textContent = total;
                 document.getElementById('spPassRate').textContent = total > 0 ? Math.round(passed / total * 100) + '%' : '-';
+                document.getElementById('spPassed').textContent = passed;
+                document.getElementById('spTotalPR').textContent = total;
                 document.getElementById('spFails').textContent = failed;
 
                 // Populate Jobs Run, Last Run, OCP Version from job-runs API
