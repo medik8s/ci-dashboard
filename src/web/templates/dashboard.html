@@ -842,57 +842,12 @@
         .ws-variant { color: var(--text-muted); font-size: 0.75rem; }
         .ws-status { font-weight: 700; font-size: 0.9rem; }
 
-        /* Operator health grid */
-        .op-health-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 10px;
-            padding: 8px 0;
-        }
-        .op-health-card {
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            padding: 12px;
-            text-align: center;
-            border: 2px solid var(--border);
-            transition: border-color 0.2s;
-        }
-        .op-health-card.health-pass { border-color: var(--accent-green); }
-        .op-health-card.health-fail { border-color: var(--accent-red); }
-        .op-health-card.health-none { border-color: var(--border); opacity: 0.6; }
-        .op-health-card .op-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
-        .op-health-card .op-rate { font-size: 1.4rem; font-weight: 700; }
-        .op-health-card .op-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
-        .op-health-card a { text-decoration: none; color: inherit; }
-        .op-health-card a:hover { text-decoration: underline; }
-
-        /* Recent changes section */
-        .recent-changes-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            max-height: 350px;
-            overflow-y: auto;
-        }
-        @media (max-width: 900px) {
-            .recent-changes-grid { grid-template-columns: 1fr; }
-        }
-        .rc-section { padding: 0; }
-        .rc-section h3 { font-size: 0.9rem; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
-        .rc-item {
-            background: var(--bg-secondary);
-            border-radius: 6px;
-            padding: 8px 12px;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-        }
-        .rc-item .rc-icon { font-size: 1rem; flex-shrink: 0; }
-        .rc-item .rc-test { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .rc-item a { color: var(--accent-blue); text-decoration: none; }
-        .rc-item a:hover { text-decoration: underline; }
+        /* Operator health table */
+        .op-health-tbl { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .op-health-tbl th { text-align: left; padding: 6px 10px; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+        .op-health-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        .op-health-tbl tr:last-child td { border-bottom: none; }
+        .op-health-tbl tr:hover { background: var(--bg-secondary); }
     </style>
 </head>
 <body>
@@ -992,6 +947,13 @@
             <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem; line-height:1.4; overflow-wrap:break-word;">--</div></div>
         </div>
 
+        <div class="chart-container" style="margin-bottom:16px;">
+            <h2>Operator Health</h2>
+            <div id="operatorHealthTable" style="overflow-x:auto;">
+                <div style="text-align:center; padding:20px; color:var(--text-muted);">Loading...</div>
+            </div>
+        </div>
+
         <div class="charts-grid">
             <div class="chart-container" style="flex:1; min-width:0;">
                 <h2>Weekly Schedule</h2>
@@ -1001,32 +963,10 @@
             </div>
 
             <div class="chart-container" style="flex:1; min-width:0;">
-                <h2>Operator Health</h2>
-                <div id="operatorHealthCards" class="op-health-grid">
-                    <div style="text-align:center; padding:40px; color:var(--text-muted);">Loading...</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="charts-grid" style="margin-top:0;">
-            <div class="chart-container" style="flex:1; min-width:0;">
                 <h2>Failure Breakdown</h2>
-                <div class="chart-wrapper" style="height:220px;">
+                <div class="chart-wrapper" style="height:250px;">
                     <canvas id="failureCategoryChart"></canvas>
                 </div>
-            </div>
-            <div class="chart-container" style="flex:1; min-width:0;">
-                <h2>Operator Pass Rate</h2>
-                <div class="chart-wrapper" style="height:220px;">
-                    <canvas id="operatorBarChart"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="test-list">
-            <h2 id="recentChangesHeader">Recent Changes</h2>
-            <div id="recentChangesContent" style="padding:8px 0;">
-                <div style="text-align:center; padding:20px; color:var(--text-muted);">Loading...</div>
             </div>
         </div>
         </div>
@@ -2846,20 +2786,14 @@
             document.getElementById('loadingOverlay').classList.add('active');
 
             try {
-                // Fetch data for overview widgets
-                const [regressions, jobRuns] = await Promise.all([
-                    fetchData('regressions', { version }),
-                    fetchData('job-runs', { days, version })
-                ]);
+                // Fetch job runs for overview widgets
+                const jobRuns = await fetchData('job-runs', { days, version });
 
                 // Update weekly schedule
                 updateWeeklySchedule(jobRuns.job_runs || []);
 
                 // Update failure breakdown chart
                 updateFailureBreakdown(jobRuns.job_runs || []);
-
-                // Update recent changes
-                updateRecentChanges(regressions);
             } finally {
                 // Hide loading overlay
                 document.getElementById('loadingOverlay').classList.remove('active');
@@ -2934,7 +2868,6 @@
         }
 
         var failureCatChart = null;
-        var operatorBarChart = null;
 
         function updateFailureBreakdown(jobRuns) {
             // Count failures by category
@@ -3009,42 +2942,6 @@
             });
         }
 
-        function updateOperatorBarChart(ops) {
-            const ctx = document.getElementById('operatorBarChart');
-            if (!ctx) return;
-            if (operatorBarChart) operatorBarChart.destroy();
-
-            const sorted = [...ops].sort((a, b) => a.operator.localeCompare(b.operator));
-            const labels = sorted.map(o => o.operator);
-            const rates = sorted.map(o => o.total_tests > 0 ? Math.round(o.passed / o.total_tests * 100) : 0);
-            const colors = sorted.map(o => OP_COLORS[o.operator] || '#6b7280');
-
-            operatorBarChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Pass Rate %',
-                        data: rates,
-                        backgroundColor: colors.map(c => c + 'cc'),
-                        borderColor: colors,
-                        borderWidth: 1,
-                        borderRadius: 4,
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: { min: 0, max: 105, ticks: { callback: v => v <= 100 ? v + '%' : '' } },
-                        y: { ticks: { color: '#d8d9da', font: { size: 12, weight: 'bold' } } }
-                    }
-                }
-            });
-        }
-
         function formatLastRun(timestamp) {
             if (!timestamp) return '';
             const date = new Date(timestamp);
@@ -3052,79 +2949,6 @@
             const day = String(date.getDate()).padStart(2, '0');
             const year = date.getFullYear();
             return `${month}/${day}/${year}`;
-        }
-
-        function updateRecentChanges(data) {
-            const container = document.getElementById('recentChangesContent');
-            const header = document.getElementById('recentChangesHeader');
-            const regs = data.regressions || [];
-            const fixes = data.fixes || [];
-            const persistent = data.persistent || [];
-            const newFails = data.new_failures || [];
-
-            const totalChanges = regs.length + fixes.length + newFails.length;
-            header.textContent = totalChanges > 0
-                ? `Recent Changes (${totalChanges})`
-                : 'Recent Changes';
-
-            if (totalChanges === 0 && persistent.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-green); font-weight:600;">No changes between latest runs - all stable</div>';
-                return;
-            }
-
-            function changeItem(entry, icon, label) {
-                const op = entry.operator || '';
-                const name = cleanTestName(entry.test_name);
-                const prowUrl = entry.curr_job_url || '';
-                const date = (entry.curr_run_date || '').split('T')[0];
-                return `<div class="rc-item">
-                    <span class="rc-icon">${icon}</span>
-                    ${opChip(op)}
-                    <span class="rc-test" title="${esc(name)}">${esc(name)}</span>
-                    ${date ? `<span style="color:var(--text-muted); font-size:0.75rem; flex-shrink:0;">${date}</span>` : ''}
-                    ${prowUrl ? `<a href="${prowUrl}" target="_blank" rel="noopener" style="flex-shrink:0; font-size:0.75rem;">View</a>` : ''}
-                </div>`;
-            }
-
-            let html = '<div class="recent-changes-grid">';
-
-            // Left column: regressions + new failures
-            html += '<div class="rc-section">';
-            if (regs.length > 0) {
-                html += `<h3 style="color:var(--accent-red);">Regressions (${regs.length})</h3>`;
-                html += regs.slice(0, 5).map(e => changeItem(e, '⚠️', 'regression')).join('');
-                if (regs.length > 5) html += `<div style="text-align:center; padding:6px; color:var(--text-muted); font-size:0.8rem;">+${regs.length - 5} more</div>`;
-            }
-            if (newFails.length > 0) {
-                html += `<h3 style="color:#f97316; margin-top:${regs.length ? '12px' : '0'};">New Failures (${newFails.length})</h3>`;
-                html += newFails.slice(0, 5).map(e => changeItem(e, '❗', 'new failure')).join('');
-                if (newFails.length > 5) html += `<div style="text-align:center; padding:6px; color:var(--text-muted); font-size:0.8rem;">+${newFails.length - 5} more</div>`;
-            }
-            if (persistent.length > 0) {
-                html += `<h3 style="color:var(--text-muted); margin-top:${(regs.length || newFails.length) ? '12px' : '0'};">Persistent Failures (${persistent.length})</h3>`;
-                html += persistent.slice(0, 5).map(e => changeItem(e, '🔴', 'persistent')).join('');
-            }
-            if (regs.length === 0 && newFails.length === 0 && persistent.length === 0) {
-                html += '<div style="padding:20px; color:var(--accent-green); text-align:center;">No failures</div>';
-            }
-            html += '</div>';
-
-            // Right column: fixes
-            html += '<div class="rc-section">';
-            if (fixes.length > 0) {
-                html += `<h3 style="color:var(--accent-green);">Fixes (${fixes.length})</h3>`;
-                html += fixes.slice(0, 5).map(e => changeItem(e, '✅', 'fix')).join('');
-                if (fixes.length > 5) {
-                    html += `<div style="text-align:center; padding:6px; color:var(--text-muted); font-size:0.8rem;">+${fixes.length - 5} more</div>`;
-                }
-            } else {
-                html += '<h3 style="color:var(--text-muted);">Fixes</h3>';
-                html += '<div style="padding:20px; color:var(--text-muted); text-align:center;">No recent fixes</div>';
-            }
-            html += '</div>';
-
-            html += '</div>';
-            container.innerHTML = html;
         }
 
         async function refreshWeeklyReport() {
@@ -3866,9 +3690,9 @@
                     }
                 } catch (jrErr) { console.error('job-runs stats error:', jrErr); }
 
-                // Build operator health cards from job-runs (latest run per operator)
-                var healthContainer = document.getElementById('operatorHealthCards');
-                if (healthContainer) {
+                // Build operator health table from job-runs (latest run per operator)
+                var healthTable = document.getElementById('operatorHealthTable');
+                if (healthTable) {
                     var latestByOp = {};
                     jrRuns.forEach(function(run) {
                         var m = (run.step_name || run.job_name || '').match(/e2e-([a-z]+)/);
@@ -3879,47 +3703,47 @@
                         }
                     });
 
-                    // Merge operator-stats pass rates
                     var opStatsMap = {};
                     ops.forEach(function(o) { opStatsMap[o.operator] = o; });
 
                     var allOps = ['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO'];
-                    var cardsHtml = allOps.map(function(op) {
+                    var tbl = '<table class="op-health-tbl"><thead><tr>' +
+                        '<th>Operator</th><th>Pass Rate</th><th>Passed</th><th>Failed</th>' +
+                        '<th>Last Job</th><th>Last Run</th><th>Prow</th></tr></thead><tbody>';
+
+                    allOps.forEach(function(op) {
                         var run = latestByOp[op];
                         var stats = opStatsMap[op];
                         var color = OP_COLORS[op] || '#6b7280';
-                        if (!run && !stats) {
-                            return '<div class="op-health-card health-none">' +
-                                '<div class="op-name" style="color:' + color + ';">' + op + '</div>' +
-                                '<div class="op-rate" style="color:var(--text-muted);">--</div>' +
-                                '<div class="op-meta">No data</div></div>';
-                        }
                         var rate = stats ? (stats.total_tests > 0 ? Math.round(stats.passed / stats.total_tests * 100) : 0) : 0;
-                        var status = run ? run.status : '';
-                        var healthClass = status === 'passed' ? 'health-pass' : status === 'failed' ? 'health-fail' : 'health-none';
-                        var statusIcon = status === 'passed' ? '✓' : status === 'failed' ? '✗' : '?';
-                        var statusColor = status === 'passed' ? 'var(--accent-green)' : status === 'failed' ? 'var(--accent-red)' : 'var(--text-muted)';
-                        var date = run ? (run.run_date || '').split('T')[0] : '';
+                        var passed = stats ? stats.passed : 0;
+                        var failed = stats ? stats.failed : 0;
+                        var rateColor = rate >= 100 ? 'var(--accent-green)' : rate >= 80 ? '#eab308' : 'var(--accent-red)';
+                        var lastStatus = run ? run.status : '';
+                        var statusDot = lastStatus === 'passed' ? '<span style="color:var(--accent-green);">&#9679;</span>' :
+                                        lastStatus === 'failed' ? '<span style="color:var(--accent-red);">&#9679;</span>' :
+                                        '<span style="color:var(--text-muted);">&#9679;</span>';
+                        var date = run ? (run.run_date || '').split('T')[0] : '-';
                         var prowUrl = run ? run.prow_url : '';
-                        var passedTests = run ? (run.passed_tests || 0) : 0;
-                        var failedTests = run ? (run.failed_tests || 0) : 0;
+                        var failReason = (run && run.failure_reason) ? run.failure_reason : '';
+                        var failCat = (run && run.failure_category) ? run.failure_category.replace(/_/g, ' ') : '';
+                        var failHint = (lastStatus === 'failed' && (failReason || failCat))
+                            ? ' title="' + esc(failCat || failReason) + '"' : '';
 
-                        var inner = '<div class="op-name" style="color:' + color + ';">' + op + '</div>' +
-                            '<div class="op-rate" style="color:' + statusColor + ';">' + statusIcon + ' ' + rate + '%</div>' +
-                            '<div class="op-meta">' + passedTests + 'P / ' + failedTests + 'F</div>' +
-                            (date ? '<div class="op-meta">' + date + '</div>' : '');
+                        tbl += '<tr>' +
+                            '<td style="font-weight:700; color:' + color + ';">' + op + '</td>' +
+                            '<td style="font-weight:700; color:' + rateColor + ';">' + rate + '%</td>' +
+                            '<td style="color:var(--accent-green);">' + passed + '</td>' +
+                            '<td style="color:' + (failed > 0 ? 'var(--accent-red)' : 'var(--text-muted)') + ';">' + failed + '</td>' +
+                            '<td' + failHint + '>' + statusDot + ' ' + (lastStatus || '-') + '</td>' +
+                            '<td>' + date + '</td>' +
+                            '<td>' + (prowUrl ? '<a href="' + prowUrl + '" target="_blank" rel="noopener" style="color:var(--accent-blue);">View</a>' : '-') + '</td>' +
+                            '</tr>';
+                    });
 
-                        if (prowUrl) {
-                            return '<div class="op-health-card ' + healthClass + '"><a href="' + prowUrl + '" target="_blank" rel="noopener">' + inner + '</a></div>';
-                        }
-                        return '<div class="op-health-card ' + healthClass + '">' + inner + '</div>';
-                    }).join('');
-
-                    healthContainer.innerHTML = cardsHtml;
+                    tbl += '</tbody></table>';
+                    healthTable.innerHTML = tbl;
                 }
-
-                // Update operator bar chart
-                updateOperatorBarChart(ops);
             } catch (e) { console.error('operator-stats error:', e); }
         }
 
