@@ -1922,7 +1922,7 @@
                 }
             });
             var sharedFilters = document.getElementById('sharedFilters');
-            if (sharedFilters) sharedFilters.style.display = (tabName === 'weekly-report' || tabName === 'pipeline' || tabName === 'regressions') ? 'none' : 'flex';
+            if (sharedFilters) sharedFilters.style.display = (tabName === 'weekly-report' || tabName === 'pipeline') ? 'none' : 'flex';
             if (tabName === 'pipeline' && typeof drawPipeArrows === 'function') {
                 setTimeout(drawPipeArrows, 50);
             }
@@ -4259,6 +4259,8 @@
             try {
                 var params = new URLSearchParams();
                 if (regressionsOpFilter) params.set('operator', regressionsOpFilter);
+                var version = document.getElementById('versionFilter').value;
+                if (version) params.set('version', version);
                 var resp = await fetch('/api/regressions?' + params.toString());
                 var data = await resp.json();
 
