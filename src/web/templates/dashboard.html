@@ -1929,6 +1929,21 @@
             if (tabName === 'regressions') loadRegressions();
         }
 
+        function switchToTab(tabId) {
+            var name = tabId.replace(/-tab$/, '');
+            showTab(name);
+        }
+
+        function setOperatorFilter(op) {
+            selectedOperator = op;
+            var bar = document.getElementById('opFilterBar');
+            if (bar) {
+                bar.querySelectorAll('.op-filter-chip').forEach(function(c) {
+                    c.classList.toggle('active', c.dataset.op === op);
+                });
+            }
+        }
+
         async function fetchData(endpoint, params = {}) {
             const queryString = new URLSearchParams(params).toString();
             const response = await fetch(`/api/${endpoint}?${queryString}`);
@@ -3715,10 +3730,12 @@
                         var run = latestByOp[op];
                         var stats = opStatsMap[op];
                         var color = OP_COLORS[op] || '#6b7280';
-                        var rate = stats ? (stats.total_tests > 0 ? Math.round(stats.passed / stats.total_tests * 100) : 0) : 0;
+                        var totalTests = stats ? stats.total_tests : 0;
+                        var rate = totalTests > 0 ? Math.round(stats.passed / totalTests * 100) : -1;
                         var passed = stats ? stats.passed : 0;
                         var failed = stats ? stats.failed : 0;
-                        var rateColor = rate >= 100 ? 'var(--accent-green)' : rate >= 80 ? '#eab308' : 'var(--accent-red)';
+                        var rateStr = rate >= 0 ? rate + '%' : '-';
+                        var rateColor = rate < 0 ? 'var(--text-muted)' : rate >= 100 ? 'var(--accent-green)' : rate >= 80 ? '#eab308' : 'var(--accent-red)';
                         var lastStatus = run ? run.status : '';
                         var statusDot = lastStatus === 'passed' ? '<span style="color:var(--accent-green);">&#9679;</span>' :
                                         lastStatus === 'failed' ? '<span style="color:var(--accent-red);">&#9679;</span>' :
@@ -3731,8 +3748,8 @@
                             ? ' title="' + esc(failCat || failReason) + '"' : '';
 
                         tbl += '<tr>' +
-                            '<td style="font-weight:700; color:' + color + ';">' + op + '</td>' +
-                            '<td style="font-weight:700; color:' + rateColor + ';">' + rate + '%</td>' +
+                            '<td style="font-weight:700;"><a href="#" onclick="switchToTab(\'test-results-tab\'); setOperatorFilter(\'' + op + '\'); return false;" style="color:' + color + '; text-decoration:none;">' + op + '</a></td>' +
+                            '<td style="font-weight:700; color:' + rateColor + ';">' + rateStr + '</td>' +
                             '<td style="color:var(--accent-green);">' + passed + '</td>' +
                             '<td style="color:' + (failed > 0 ? 'var(--accent-red)' : 'var(--text-muted)') + ';">' + failed + '</td>' +
                             '<td' + failHint + '>' + statusDot + ' ' + (lastStatus || '-') + '</td>' +
