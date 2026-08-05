@@ -201,13 +201,6 @@
             color: var(--text-primary);
         }
 
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
         .card {
             background: var(--bg-card);
             padding: 25px;
@@ -833,8 +826,71 @@
         .fbc-date { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; }
         .fbc-missing-marker tr td:first-child { border-left: 3px solid #f59e0b; }
 
-        /* Donut chart container */
-        .donut-container { display: flex; justify-content: center; align-items: center; min-width: 0; }
+        /* Weekly schedule */
+        .weekly-sched { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+        .ws-day { display: flex; align-items: flex-start; gap: 10px; }
+        .ws-day-label { width: 36px; font-weight: 700; font-size: 0.8rem; color: var(--text-muted); padding-top: 6px; flex-shrink: 0; }
+        .ws-day-jobs { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+        .ws-job {
+            display: flex; align-items: center; gap: 6px;
+            background: var(--bg-secondary); border-radius: 6px; padding: 5px 10px;
+            font-size: 0.8rem; text-decoration: none; color: inherit;
+            border: 1px solid var(--border); transition: border-color 0.2s;
+        }
+        .ws-job:hover { border-color: var(--accent-blue); }
+        .ws-op { font-weight: 700; }
+        .ws-variant { color: var(--text-muted); font-size: 0.75rem; }
+        .ws-status { font-weight: 700; font-size: 0.9rem; }
+
+        /* Operator health grid */
+        .op-health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            padding: 8px 0;
+        }
+        .op-health-card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            border: 2px solid var(--border);
+            transition: border-color 0.2s;
+        }
+        .op-health-card.health-pass { border-color: var(--accent-green); }
+        .op-health-card.health-fail { border-color: var(--accent-red); }
+        .op-health-card.health-none { border-color: var(--border); opacity: 0.6; }
+        .op-health-card .op-name { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+        .op-health-card .op-rate { font-size: 1.4rem; font-weight: 700; }
+        .op-health-card .op-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+        .op-health-card a { text-decoration: none; color: inherit; }
+        .op-health-card a:hover { text-decoration: underline; }
+
+        /* Recent changes section */
+        .recent-changes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 900px) {
+            .recent-changes-grid { grid-template-columns: 1fr; }
+        }
+        .rc-section { padding: 0; }
+        .rc-section h3 { font-size: 0.9rem; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+        .rc-item {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+        .rc-item .rc-icon { font-size: 1rem; flex-shrink: 0; }
+        .rc-item .rc-test { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rc-item a { color: var(--accent-blue); text-decoration: none; }
+        .rc-item a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -936,59 +992,42 @@
             <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem; line-height:1.4; overflow-wrap:break-word;">--</div></div>
         </div>
 
-        <div class="summary-cards">
-            <div class="card">
-                <h3>Test Pass Rate</h3>
-                <div class="value" id="avgPassRate">--%</div>
-                <div style="margin-top:10px; font-size:14px; color:var(--text-muted);">
-                    <span id="testBreakdown">-- executions: -- passed, -- failed</span>
-                    <br>
-                    <span id="uniqueTests">-- unique tests</span>
+        <div class="charts-grid">
+            <div class="chart-container" style="flex:1; min-width:0;">
+                <h2>Weekly Schedule</h2>
+                <div id="weeklyScheduleGrid" class="weekly-sched">
+                    <div style="text-align:center; padding:40px; color:var(--text-muted);">Loading...</div>
                 </div>
-                <div class="trend" id="trendIndicator">Loading...</div>
             </div>
-            <div class="card">
-                <h3>Date Range</h3>
-                <div id="dateRange" style="margin-top:15px; font-size:18px; color:var(--text-primary); font-weight:600;">--</div>
-                <div style="margin-top:15px; padding-top:15px; border-top:1px solid var(--border);">
-                    <div class="label">Trend</div>
-                    <div id="trendText" style="margin-top:5px; font-size:16px; color:var(--text-primary); font-weight:600;">--</div>
+
+            <div class="chart-container" style="flex:1; min-width:0;">
+                <h2>Operator Health</h2>
+                <div id="operatorHealthCards" class="op-health-grid">
+                    <div style="text-align:center; padding:40px; color:var(--text-muted);">Loading...</div>
                 </div>
             </div>
         </div>
 
-        <div class="charts-grid">
-            <div class="chart-container">
-                <h2>Pass Rate Trend Over Time</h2>
-                <div class="chart-wrapper">
-                    <canvas id="trendChart"></canvas>
+        <div class="charts-grid" style="margin-top:0;">
+            <div class="chart-container" style="flex:1; min-width:0;">
+                <h2>Failure Breakdown</h2>
+                <div class="chart-wrapper" style="height:220px;">
+                    <canvas id="failureCategoryChart"></canvas>
                 </div>
             </div>
-
-            <div class="chart-container">
-                <h2>Test Results by Operator</h2>
-                <div class="chart-wrapper donut-container">
-                    <canvas id="operatorDonutChart"></canvas>
+            <div class="chart-container" style="flex:1; min-width:0;">
+                <h2>Operator Pass Rate</h2>
+                <div class="chart-wrapper" style="height:220px;">
+                    <canvas id="operatorBarChart"></canvas>
                 </div>
             </div>
         </div>
 
         <div class="test-list">
-            <h2 id="testListHeader">Lowest Performing Tests (Last 30 Days)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width:40%;">Test Name</th>
-                        <th style="width:10%;">Version</th>
-                        <th style="width:8%;">Runs</th>
-                        <th style="width:12%;">Pass Rate</th>
-                        <th style="width:30%;">Performance</th>
-                    </tr>
-                </thead>
-                <tbody id="testRankings">
-                    <tr><td colspan="5" class="loading">Loading...</td></tr>
-                </tbody>
-            </table>
+            <h2 id="recentChangesHeader">Recent Changes</h2>
+            <div id="recentChangesContent" style="padding:8px 0;">
+                <div style="text-align:center; padding:20px; color:var(--text-muted);">Loading...</div>
+            </div>
         </div>
         </div>
 
@@ -1832,7 +1871,7 @@
 
         const accentBlue = cssVar('--accent-blue');
 
-        let trendChart;
+        // (trendChart removed - replaced by weekly schedule and operator bar chart)
         let currentLogData = {}; // Store current log data for AI analysis and Jira creation
         let lastSyncTime = null;
 
@@ -2807,82 +2846,200 @@
             document.getElementById('loadingOverlay').classList.add('active');
 
             try {
-                // Update test list header based on selected time range
-                document.getElementById('testListHeader').textContent = `Lowest Performing Tests (Last ${days} Days)`;
-
-                // Fetch all data
-                const [summary, trend, testRankings] = await Promise.all([
-                    fetchData('summary', { days, version }),
-                    fetchData('trend', { days, version }),
-                    fetchData('test-rankings', { days, version, limit: 100 })
+                // Fetch data for overview widgets
+                const [regressions, jobRuns] = await Promise.all([
+                    fetchData('regressions', { version }),
+                    fetchData('job-runs', { days, version })
                 ]);
 
-                // Update summary cards
-                document.getElementById('avgPassRate').textContent = `${summary.avg_pass_rate}%`;
-                document.getElementById('testBreakdown').textContent =
-                    `${summary.passed_tests + summary.failed_tests} executions: ${summary.passed_tests} passed, ${summary.failed_tests} failed`;
-                document.getElementById('uniqueTests').textContent = `${summary.total_tests} unique tests`;
-                document.getElementById('dateRange').textContent = summary.date_range;
-                document.getElementById('trendText').textContent = summary.trend.charAt(0).toUpperCase() + summary.trend.slice(1);
+                // Update weekly schedule
+                updateWeeklySchedule(jobRuns.job_runs || []);
 
-                const trendEl = document.getElementById('trendIndicator');
-                trendEl.textContent = `Trend: ${summary.trend}`;
-                trendEl.className = `trend ${summary.trend}`;
+                // Update failure breakdown chart
+                updateFailureBreakdown(jobRuns.job_runs || []);
 
-                // Update trend chart
-                updateTrendChart(trend);
-
-                // Update test rankings table
-                updateTestRankings(testRankings, days, version);
+                // Update recent changes
+                updateRecentChanges(regressions);
             } finally {
                 // Hide loading overlay
                 document.getElementById('loadingOverlay').classList.remove('active');
             }
         }
 
-        function updateTrendChart(data) {
-            const ctx = document.getElementById('trendChart').getContext('2d');
+        function updateWeeklySchedule(jobRuns) {
+            const container = document.getElementById('weeklyScheduleGrid');
+            if (!container) return;
 
-            if (trendChart) {
-                trendChart.destroy();
+            // Build latest run per job key from job_schedules
+            const latestByKey = {};
+            jobRuns.forEach(run => {
+                const step = run.step_name || run.job_name || '';
+                const m = step.match(/e2e-(.+)/);
+                const key = m ? m[1] : '';
+                if (!key) return;
+                if (!latestByKey[key] || (run.run_date || '') > (latestByKey[key].run_date || '')) {
+                    latestByKey[key] = run;
+                }
+            });
+
+            // Fetch schedules from API
+            fetch('/api/job-schedules').then(r => r.json()).then(data => {
+                const schedules = data.job_schedules || {};
+                const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                const dayMap = {};
+
+                Object.entries(schedules).forEach(([key, sched]) => {
+                    const dayPart = (sched.day || '').split(' ')[0] || '';
+                    if (!dayPart) return;
+                    if (!dayMap[dayPart]) dayMap[dayPart] = [];
+                    const run = latestByKey[key];
+                    dayMap[dayPart].push({
+                        key,
+                        label: sched.label || key,
+                        variant: sched.variant || '',
+                        status: run ? run.status : null,
+                        prowUrl: run ? run.prow_url : '',
+                        date: run ? (run.run_date || '').split('T')[0] : '',
+                    });
+                });
+
+                let html = '';
+                dayOrder.forEach(day => {
+                    const jobs = dayMap[day];
+                    if (!jobs || jobs.length === 0) return;
+                    html += `<div class="ws-day">`;
+                    html += `<div class="ws-day-label">${day}</div>`;
+                    html += `<div class="ws-day-jobs">`;
+                    jobs.forEach(j => {
+                        const color = OP_COLORS[j.label] || '#6b7280';
+                        const statusIcon = j.status === 'passed' ? '✓' : j.status === 'failed' ? '✗' : '?';
+                        const statusColor = j.status === 'passed' ? 'var(--accent-green)' : j.status === 'failed' ? 'var(--accent-red)' : 'var(--text-muted)';
+                        const variantText = j.variant ? ` (${j.variant})` : '';
+                        const inner = `<span class="ws-op" style="color:${color};">${j.label}</span>` +
+                            `<span class="ws-variant">${variantText}</span>` +
+                            `<span class="ws-status" style="color:${statusColor};">${statusIcon}</span>`;
+                        if (j.prowUrl) {
+                            html += `<a href="${j.prowUrl}" target="_blank" rel="noopener" class="ws-job" title="${j.date}">${inner}</a>`;
+                        } else {
+                            html += `<div class="ws-job" title="${j.date || 'No runs yet'}">${inner}</div>`;
+                        }
+                    });
+                    html += '</div></div>';
+                });
+
+                container.innerHTML = html || '<div style="text-align:center; padding:20px; color:var(--text-muted);">No schedule data</div>';
+            }).catch(() => {
+                container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">Failed to load schedule</div>';
+            });
+        }
+
+        var failureCatChart = null;
+        var operatorBarChart = null;
+
+        function updateFailureBreakdown(jobRuns) {
+            // Count failures by category
+            const catCounts = {};
+            let totalPassed = 0;
+            jobRuns.forEach(run => {
+                if (run.status === 'passed') {
+                    totalPassed++;
+                    return;
+                }
+                const cat = run.failure_category || 'unknown';
+                catCounts[cat] = (catCounts[cat] || 0) + 1;
+            });
+
+            const catColors = {
+                'test_failure': '#ef4444',
+                'infra_failure': '#f97316',
+                'install_failure': '#eab308',
+                'operator_install_failure': '#a855f7',
+                'unknown': '#6b7280',
+                'passed': '#22c55e',
+            };
+            const catLabels = {
+                'test_failure': 'Test Failure',
+                'infra_failure': 'Infra Failure',
+                'install_failure': 'Install Failure',
+                'operator_install_failure': 'Operator Install',
+                'unknown': 'Unknown',
+                'passed': 'Passed',
+            };
+
+            const labels = [];
+            const values = [];
+            const colors = [];
+
+            if (totalPassed > 0) {
+                labels.push('Passed');
+                values.push(totalPassed);
+                colors.push(catColors['passed']);
             }
+            Object.entries(catCounts).sort((a, b) => b[1] - a[1]).forEach(([cat, count]) => {
+                labels.push(catLabels[cat] || cat);
+                values.push(count);
+                colors.push(catColors[cat] || '#6b7280');
+            });
 
-            trendChart = new Chart(ctx, {
-                type: 'line',
+            const ctx = document.getElementById('failureCategoryChart');
+            if (!ctx) return;
+            if (failureCatChart) failureCatChart.destroy();
+
+            failureCatChart = new Chart(ctx, {
+                type: 'doughnut',
                 data: {
-                    labels: data.dates,
+                    labels: labels,
                     datasets: [{
-                        label: 'Pass Rate %',
-                        data: data.pass_rates,
-                        borderColor: accentBlue,
-                        backgroundColor: accentBlue + '26',
-                        tension: 0.4,
-                        fill: true,
-                        pointRadius: 5,
-                        pointHoverRadius: 7
+                        data: values,
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: '#111217',
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    layout: {
-                        padding: { top: 15, right: 15 }
-                    },
                     plugins: {
                         legend: {
-                            display: false
+                            position: 'right',
+                            labels: { color: '#d8d9da', boxWidth: 10, padding: 8, usePointStyle: true, font: { size: 11 } }
                         }
-                    },
+                    }
+                }
+            });
+        }
+
+        function updateOperatorBarChart(ops) {
+            const ctx = document.getElementById('operatorBarChart');
+            if (!ctx) return;
+            if (operatorBarChart) operatorBarChart.destroy();
+
+            const sorted = [...ops].sort((a, b) => a.operator.localeCompare(b.operator));
+            const labels = sorted.map(o => o.operator);
+            const rates = sorted.map(o => o.total_tests > 0 ? Math.round(o.passed / o.total_tests * 100) : 0);
+            const colors = sorted.map(o => OP_COLORS[o.operator] || '#6b7280');
+
+            operatorBarChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Pass Rate %',
+                        data: rates,
+                        backgroundColor: colors.map(c => c + 'cc'),
+                        borderColor: colors,
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            suggestedMax: 105,
-                            ticks: {
-                                callback: function(value) {
-                                    return value <= 100 ? value + '%' : '';
-                                }
-                            }
-                        }
+                        x: { min: 0, max: 105, ticks: { callback: v => v <= 100 ? v + '%' : '' } },
+                        y: { ticks: { color: '#d8d9da', font: { size: 12, weight: 'bold' } } }
                     }
                 }
             });
@@ -2897,47 +3054,72 @@
             return `${month}/${day}/${year}`;
         }
 
-        function updateTestRankings(rankings, days, version) {
-            const tbody = document.getElementById('testRankings');
+        function updateRecentChanges(data) {
+            const container = document.getElementById('recentChangesContent');
+            const header = document.getElementById('recentChangesHeader');
+            const regs = data.regressions || [];
+            const fixes = data.fixes || [];
+            const persistent = data.persistent || [];
+            const newFails = data.new_failures || [];
 
-            if (rankings.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);">No data available</td></tr>';
+            const totalChanges = regs.length + fixes.length + newFails.length;
+            header.textContent = totalChanges > 0
+                ? `Recent Changes (${totalChanges})`
+                : 'Recent Changes';
+
+            if (totalChanges === 0 && persistent.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:30px; color:var(--accent-green); font-weight:600;">No changes between latest runs - all stable</div>';
                 return;
             }
 
-            const hasFailures = rankings.some(t => t.pass_rate < 100);
-            if (!hasFailures) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--accent-green);">All tests passing at 100%</td></tr>';
-                return;
+            function changeItem(entry, icon, label) {
+                const op = entry.operator || '';
+                const name = cleanTestName(entry.test_name);
+                const prowUrl = entry.curr_job_url || '';
+                const date = (entry.curr_run_date || '').split('T')[0];
+                return `<div class="rc-item">
+                    <span class="rc-icon">${icon}</span>
+                    ${opChip(op)}
+                    <span class="rc-test" title="${esc(name)}">${esc(name)}</span>
+                    ${date ? `<span style="color:var(--text-muted); font-size:0.75rem; flex-shrink:0;">${date}</span>` : ''}
+                    ${prowUrl ? `<a href="${prowUrl}" target="_blank" rel="noopener" style="flex-shrink:0; font-size:0.75rem;">View</a>` : ''}
+                </div>`;
             }
 
-            tbody.innerHTML = rankings.filter(t => t.pass_rate < 100).map(test => {
-                const showLogs = test.pass_rate < 100 && test.sample_error;
-                const lastRun = formatLastRun(test.last_run_timestamp);
-                const op = test.operator || deriveOperator(test.test_name) || deriveOperator(test.test_description || '');
-                const displayName = cleanTestName(test.test_name);
-                const cleanedDesc = cleanTestName(test.test_description || '');
-                const showDesc = cleanedDesc && cleanedDesc !== displayName;
+            let html = '<div class="recent-changes-grid">';
 
-                return `
-                <tr>
-                    <td style="vertical-align: top;">
-                        <div>${opChip(op)} <strong>${polarionLink(test.polarion_id, displayName)}</strong></div>
-                        ${showDesc ? `<div style="font-size:12px; color:var(--text-muted); margin-top:2px;">${esc(cleanedDesc)}</div>` : ''}
-                        ${showLogs ? `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">${formatError(test.sample_error, test.test_name, test.test_description, null, test.sample_error_timestamp, test.sample_error_platform, test.sample_error_job_name, test.sample_error_build_id, test.sample_error_job_url, test.version, days)}</div>` : ''}
-                    </td>
-                    <td style="vertical-align: top;">${test.version}</td>
-                    <td style="vertical-align: top;">${test.total_runs}</td>
-                    <td style="vertical-align: top;"><strong>${test.pass_rate.toFixed(1)}%</strong></td>
-                    <td style="vertical-align: top;">
-                        <div class="pass-rate-bar">
-                            <div class="fill" style="width: ${test.pass_rate}%"></div>
-                            <div class="label">${test.pass_rate.toFixed(1)}%</div>
-                        </div>
-                        ${lastRun ? `<div style="font-size:12px; color:var(--text-muted); margin-top:4px; text-align:right;">Last run: ${lastRun}</div>` : ''}
-                    </td>
-                </tr>
-            `}).join('');
+            // Left column: regressions + new failures
+            html += '<div class="rc-section">';
+            if (regs.length > 0) {
+                html += `<h3 style="color:var(--accent-red);">Regressions (${regs.length})</h3>`;
+                html += regs.slice(0, 10).map(e => changeItem(e, '⚠️', 'regression')).join('');
+            }
+            if (newFails.length > 0) {
+                html += `<h3 style="color:#f97316; margin-top:${regs.length ? '12px' : '0'};">New Failures (${newFails.length})</h3>`;
+                html += newFails.slice(0, 10).map(e => changeItem(e, '❗', 'new failure')).join('');
+            }
+            if (persistent.length > 0) {
+                html += `<h3 style="color:var(--text-muted); margin-top:${(regs.length || newFails.length) ? '12px' : '0'};">Persistent Failures (${persistent.length})</h3>`;
+                html += persistent.slice(0, 5).map(e => changeItem(e, '🔴', 'persistent')).join('');
+            }
+            if (regs.length === 0 && newFails.length === 0 && persistent.length === 0) {
+                html += '<div style="padding:20px; color:var(--accent-green); text-align:center;">No failures</div>';
+            }
+            html += '</div>';
+
+            // Right column: fixes
+            html += '<div class="rc-section">';
+            if (fixes.length > 0) {
+                html += `<h3 style="color:var(--accent-green);">Fixes (${fixes.length})</h3>`;
+                html += fixes.slice(0, 15).map(e => changeItem(e, '✅', 'fix')).join('');
+            } else {
+                html += '<h3 style="color:var(--text-muted);">Fixes</h3>';
+                html += '<div style="padding:20px; color:var(--text-muted); text-align:center;">No recent fixes</div>';
+            }
+            html += '</div>';
+
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         async function refreshWeeklyReport() {
@@ -3636,8 +3818,7 @@
             loadTestResults();
         });
 
-        // ---- Stat panels + donut chart ----
-        var donutChart = null;
+        // ---- Stat panels + operator health cards ----
         async function loadOperatorStats() {
             try {
                 var days = document.getElementById('timeRange').value;
@@ -3656,10 +3837,11 @@
                 document.getElementById('spFails').textContent = failed;
 
                 // Populate Jobs Run, Last Run, OCP Version from job-runs API
+                var jrRuns = [];
                 try {
                     var jrResp = await fetch('/api/job-runs?' + new URLSearchParams(params));
                     var jrData = await jrResp.json();
-                    var jrRuns = jrData.job_runs || [];
+                    jrRuns = jrData.job_runs || [];
                     document.getElementById('spJobs').textContent = jrRuns.length;
                     if (jrRuns.length > 0) {
                         document.getElementById('spLastRun').textContent = fmtDate(jrRuns[0].run_date);
@@ -3679,26 +3861,60 @@
                     }
                 } catch (jrErr) { console.error('job-runs stats error:', jrErr); }
 
-                // Donut chart
-                var ctx = document.getElementById('operatorDonutChart');
-                if (ctx) {
-                    if (donutChart) donutChart.destroy();
-                    donutChart = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: {
-                            labels: ops.map(function(o) { return o.operator; }),
-                            datasets: [{
-                                data: ops.map(function(o) { return o.total_tests; }),
-                                backgroundColor: ops.map(function(o) { return OP_COLORS[o.operator] || '#6b7280'; }),
-                                borderWidth: 1, borderColor: '#111217'
-                            }]
-                        },
-                        options: {
-                            responsive: true, maintainAspectRatio: true,
-                            plugins: { legend: { position: 'bottom', labels: { color: '#d8d9da', boxWidth: 8, padding: 6, usePointStyle: true, font: { size: 11 } } } }
+                // Build operator health cards from job-runs (latest run per operator)
+                var healthContainer = document.getElementById('operatorHealthCards');
+                if (healthContainer) {
+                    var latestByOp = {};
+                    jrRuns.forEach(function(run) {
+                        var m = (run.step_name || run.job_name || '').match(/e2e-([a-z]+)/);
+                        var op = m ? m[1].toUpperCase() : '';
+                        if (!op) return;
+                        if (!latestByOp[op] || (run.run_date || '') > (latestByOp[op].run_date || '')) {
+                            latestByOp[op] = run;
                         }
                     });
+
+                    // Merge operator-stats pass rates
+                    var opStatsMap = {};
+                    ops.forEach(function(o) { opStatsMap[o.operator] = o; });
+
+                    var allOps = ['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO'];
+                    var cardsHtml = allOps.map(function(op) {
+                        var run = latestByOp[op];
+                        var stats = opStatsMap[op];
+                        var color = OP_COLORS[op] || '#6b7280';
+                        if (!run && !stats) {
+                            return '<div class="op-health-card health-none">' +
+                                '<div class="op-name" style="color:' + color + ';">' + op + '</div>' +
+                                '<div class="op-rate" style="color:var(--text-muted);">--</div>' +
+                                '<div class="op-meta">No data</div></div>';
+                        }
+                        var rate = stats ? (stats.total_tests > 0 ? Math.round(stats.passed / stats.total_tests * 100) : 0) : 0;
+                        var status = run ? run.status : '';
+                        var healthClass = status === 'passed' ? 'health-pass' : status === 'failed' ? 'health-fail' : 'health-none';
+                        var statusIcon = status === 'passed' ? '✓' : status === 'failed' ? '✗' : '?';
+                        var statusColor = status === 'passed' ? 'var(--accent-green)' : status === 'failed' ? 'var(--accent-red)' : 'var(--text-muted)';
+                        var date = run ? (run.run_date || '').split('T')[0] : '';
+                        var prowUrl = run ? run.prow_url : '';
+                        var passedTests = run ? (run.passed_tests || 0) : 0;
+                        var failedTests = run ? (run.failed_tests || 0) : 0;
+
+                        var inner = '<div class="op-name" style="color:' + color + ';">' + op + '</div>' +
+                            '<div class="op-rate" style="color:' + statusColor + ';">' + statusIcon + ' ' + rate + '%</div>' +
+                            '<div class="op-meta">' + passedTests + 'P / ' + failedTests + 'F</div>' +
+                            (date ? '<div class="op-meta">' + date + '</div>' : '');
+
+                        if (prowUrl) {
+                            return '<div class="op-health-card ' + healthClass + '"><a href="' + prowUrl + '" target="_blank" rel="noopener">' + inner + '</a></div>';
+                        }
+                        return '<div class="op-health-card ' + healthClass + '">' + inner + '</div>';
+                    }).join('');
+
+                    healthContainer.innerHTML = cardsHtml;
                 }
+
+                // Update operator bar chart
+                updateOperatorBarChart(ops);
             } catch (e) { console.error('operator-stats error:', e); }
         }
 
