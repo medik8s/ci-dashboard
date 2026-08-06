@@ -133,6 +133,7 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
 
 
 _FBC_SHA_RE = re.compile(r'[0-9a-fA-F]{7,40}')
+_SNAPSHOT_NAME_RE = re.compile(r'rhwa-fbc-\d{3}-\d{8}-\d+(-\d+)?')
 
 KONFLUX_API = "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443"
 KONFLUX_NAMESPACE = "rhwa-tenant"
@@ -258,6 +259,38 @@ def _resolve_konflux_snapshot(commit_sha, expected_app=None):
     return None, None
 
 
+def _resolve_snapshot_name_to_sha(snapshot_name):
+    """Resolve a Konflux snapshot name to its commit SHA via the API.
+
+    Queries the Konflux Snapshot CR by metadata.name and extracts the
+    pac.test.appstudio.openshift.io/sha label.
+    Returns the 40-char hex SHA string, or None if not found.
+    """
+    if not _konflux_token or not snapshot_name:
+        return None
+    url = (f"{KONFLUX_API}/apis/appstudio.redhat.com/v1alpha1"
+           f"/namespaces/{KONFLUX_NAMESPACE}/snapshots/{snapshot_name}")
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {_konflux_token}",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        sha = data.get("metadata", {}).get("labels", {}).get(
+            "pac.test.appstudio.openshift.io/sha", "")
+        if sha and _FBC_SHA_RE.fullmatch(sha):
+            return sha
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            logger.debug("Snapshot %s not found in Konflux", snapshot_name)
+        else:
+            logger.warning("Snapshot lookup HTTP %s for %s: %s", exc.code, snapshot_name, exc)
+    except Exception as exc:
+        logger.warning("Snapshot name lookup failed for %s: %s", snapshot_name, exc)
+    return None
+
+
 _release_cache = {}
 
 
@@ -330,18 +363,27 @@ def _resolve_konflux_release(commit_sha, app_name=None):
 def _parse_fbc_overrides(data):
     """Parse FBC commit SHA from request data and return (env_overrides, error_msg).
 
+    Accepts hex SHAs (7-40 chars) directly, and resolves Konflux snapshot
+    names (e.g. 'rhwa-fbc-422-20260728-080906-000') to their commit SHA
+    via the Konflux API.
+
     Returns ({}, None) when no SHA is provided.
-    Returns ({'FBC_COMMIT_SHA': sha}, None) on valid SHA.
-    Returns (None, 'error message') on invalid SHA.
+    Returns ({'FBC_COMMIT_SHA': sha}, None) on valid/resolved SHA.
+    Returns (None, 'error message') on invalid input or failed resolution.
     """
     if not isinstance(data, dict):
         return {}, None
     fbc_sha = (data.get('fbc_commit_sha') or '').strip()
     if not fbc_sha:
         return {}, None
-    if not _FBC_SHA_RE.fullmatch(fbc_sha):
-        return None, f'Invalid fbc_commit_sha: must be 7-40 hex chars'
-    return {'FBC_COMMIT_SHA': fbc_sha}, None
+    if _FBC_SHA_RE.fullmatch(fbc_sha):
+        return {'FBC_COMMIT_SHA': fbc_sha}, None
+    if _SNAPSHOT_NAME_RE.fullmatch(fbc_sha):
+        resolved = _resolve_snapshot_name_to_sha(fbc_sha)
+        if resolved:
+            return {'FBC_COMMIT_SHA': resolved}, None
+        return None, f'Snapshot {fbc_sha!r} not found in Konflux'
+    return None, f'Invalid input: expected a hex SHA (7-40 chars) or a snapshot name (rhwa-fbc-NNN-...)'
 
 
 def _format_export_row(row, empty_placeholder='-'):

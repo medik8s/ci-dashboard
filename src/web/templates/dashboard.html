@@ -1025,8 +1025,7 @@
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                     <label style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">Snapshot or SHA:</label>
-                    <input id="fbcShaInput" type="text" maxlength="64" placeholder="e.g. rhwa-fbc-422-20260730... or 831c2ada" style="width:200px; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.75rem; font-family:monospace;" title="Enter a snapshot name, IIB build ID (numeric), or FBC commit SHA (hex). The dashboard will find the matching FBC entry.">
-                    <button onclick="loadFbcData()" style="padding:3px 10px;border-radius:4px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);cursor:pointer;font-size:0.75rem;">Go</button>
+                    <input id="fbcShaInput" type="text" maxlength="64" placeholder="e.g. rhwa-fbc-422-20260730... or 831c2ada" style="width:200px; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.75rem; font-family:monospace;" title="Enter a snapshot name, IIB build ID (numeric), or FBC commit SHA (hex). Auto-resolves on trigger.">
                 </div>
                 <span id="triggerStatus" style="font-size:0.8rem;"></span>
             </div>
@@ -2064,8 +2063,10 @@
             }
         }
 
-        function getFbcShaOrError() {
+        var _fbcLoadPromise = null;
+        async function getFbcShaOrError() {
             var input = document.getElementById('fbcShaInput');
+            var status = document.getElementById('triggerStatus');
             var val = (input.value || '').trim();
             if (!val) { input.style.borderColor = 'var(--border)'; return ''; }
             var isIib = /^\d+$/.test(val);
@@ -2073,22 +2074,44 @@
             var isSnapshot = val.indexOf('-') >= 0 && !isSha;
             if (!isIib && !isSha && !isSnapshot) {
                 input.style.borderColor = 'var(--accent-red)';
-                document.getElementById('triggerStatus').textContent = 'Enter a snapshot name, IIB ID, or FBC SHA';
-                document.getElementById('triggerStatus').style.color = 'var(--accent-red)';
+                status.textContent = 'Enter a snapshot name, IIB ID, or FBC SHA';
+                status.style.color = 'var(--accent-red)';
                 return null;
             }
-            if ((isIib || isSnapshot) && _fbcCache) {
-                var summaries = _fbcCache.fbc_summaries || [];
+            if (isIib || isSnapshot) {
+                if (!_fbcCache) {
+                    status.textContent = 'Loading FBC data...';
+                    status.style.color = 'var(--text-muted)';
+                    try {
+                        if (!_fbcLoadPromise) {
+                            var days = document.getElementById('timeRange').value;
+                            var version = document.getElementById('versionFilter').value;
+                            var params = {days: days};
+                            if (version) params.version = version;
+                            _fbcLoadPromise = fetch('/api/fbc-summary?' + new URLSearchParams(params))
+                                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+                        }
+                        _fbcCache = await _fbcLoadPromise;
+                    } catch (e) {
+                        _fbcLoadPromise = null;
+                        input.style.borderColor = 'var(--accent-red)';
+                        status.textContent = 'Failed to load FBC data. Enter a commit SHA directly.';
+                        status.style.color = 'var(--accent-red)';
+                        return null;
+                    }
+                }
+                var summaries = (_fbcCache.fbc_summaries || []);
                 var match = isIib
                     ? summaries.find(function(s) { return s.iib_id == val; })
                     : summaries.find(function(s) { return s.snapshot_name === val; });
                 if (match) {
                     input.style.borderColor = 'var(--border)';
+                    status.textContent = '';
                     return match.fbc_short;
                 }
                 input.style.borderColor = 'var(--accent-red)';
-                document.getElementById('triggerStatus').textContent = val + ' not found in cached FBC data. Load the FBC Summary tab first, or enter the FBC SHA directly.';
-                document.getElementById('triggerStatus').style.color = 'var(--accent-red)';
+                status.textContent = val + ' not found in FBC data. Enter a commit SHA directly.';
+                status.style.color = 'var(--accent-red)';
                 return null;
             }
             input.style.borderColor = 'var(--border)';
@@ -2096,7 +2119,7 @@
         }
 
         async function triggerJob(btn, jobName, label) {
-            var fbcSha = getFbcShaOrError();
+            var fbcSha = await getFbcShaOrError();
             if (fbcSha === null) return;
             var userInput = (document.getElementById('fbcShaInput').value || '').trim();
             var snapName = '';
@@ -2156,7 +2179,7 @@
         }
 
         async function triggerAllJobs(btn) {
-            var fbcSha = getFbcShaOrError();
+            var fbcSha = await getFbcShaOrError();
             if (fbcSha === null) return;
             var snapDisplay = fbcSha;
             if (_fbcCache && _fbcCache.fbc_summaries) {
