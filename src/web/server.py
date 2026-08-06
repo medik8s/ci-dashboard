@@ -1618,7 +1618,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if fbc_err:
             return jsonify({'error': fbc_err}), 400
 
-        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or 'latest'
+        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or None
 
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
@@ -1684,7 +1684,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if fbc_err:
             return jsonify({'error': fbc_err}), 400
 
-        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or 'latest'
+        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or None
 
         all_jobs = get_all_triggerable_jobs()
         reserved = []
