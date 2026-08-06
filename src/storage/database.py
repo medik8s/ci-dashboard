@@ -1291,12 +1291,14 @@ class DashboardDatabase:
         cursor = self.conn.cursor()
         if operator:
             cursor.execute("""
-                SELECT * FROM gangway_executions WHERE operator = ?
+                SELECT * FROM gangway_executions
+                WHERE operator = ? AND execution_id NOT LIKE 'prow-%'
                 ORDER BY triggered_at DESC LIMIT ?
             """, (operator, limit))
         else:
             cursor.execute("""
                 SELECT * FROM gangway_executions
+                WHERE execution_id NOT LIKE 'prow-%'
                 ORDER BY triggered_at DESC LIMIT ?
             """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
@@ -1352,6 +1354,7 @@ class DashboardDatabase:
         """
         cursor = self.conn.cursor()
         execution_id = f"prow-{build_id}"
+        norm_ts = triggered_at.replace('T', ' ').rstrip('Z') if triggered_at else None
         try:
             cursor.execute("""
                 INSERT OR IGNORE INTO gangway_executions
@@ -1359,7 +1362,7 @@ class DashboardDatabase:
                      updated_at, prow_job_url, fbc_commit_sha)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
             """, (execution_id, operator, job_name, status,
-                  triggered_at, prow_job_url, fbc_commit_sha))
+                  norm_ts, prow_job_url, fbc_commit_sha))
             inserted = cursor.rowcount > 0
             if not inserted and fbc_commit_sha:
                 cursor.execute("""
