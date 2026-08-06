@@ -2107,7 +2107,7 @@
                 if (match) {
                     input.style.borderColor = 'var(--border)';
                     status.textContent = '';
-                    return match.fbc_short;
+                    return match.fbc_full || match.fbc_short;
                 }
                 input.style.borderColor = 'var(--accent-red)';
                 status.textContent = val + ' not found in FBC data. Enter a commit SHA directly.';
