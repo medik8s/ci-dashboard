@@ -3583,7 +3583,11 @@
             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
         function fbcGroupKey(r) {
-            if (r.fbc_image) return r.fbc_image;
+            if (r.fbc_image) {
+                var tag = r.fbc_image.split(':').pop();
+                if (/^[0-9a-fA-F]{7,40}$/.test(tag)) return tag;
+                return r.fbc_image;
+            }
             var d = r.run_date ? new Date(r.run_date) : new Date();
             if (isNaN(d.getTime())) d = new Date();
             return NO_FBC_PREFIX + ':' + d.toISOString().slice(0, 10);
