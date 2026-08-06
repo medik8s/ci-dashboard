@@ -1233,8 +1233,10 @@ class DashboardDatabase:
             row = cursor.fetchone()
             if row and row['triggered_at']:
                 try:
-                    last_dt = datetime.fromisoformat(
-                        str(row['triggered_at']).replace(' ', 'T'))
+                    ts_str = str(row['triggered_at']).replace(' ', 'T')
+                    if ts_str.endswith('Z'):
+                        ts_str = ts_str[:-1] + '+00:00'
+                    last_dt = datetime.fromisoformat(ts_str)
                     if last_dt.tzinfo is None:
                         last_dt = last_dt.replace(tzinfo=timezone.utc)
                     elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
