@@ -208,7 +208,7 @@ def fetch_fbc_sha_from_artifacts(job_name, build_id):
     """Fetch the FBC commit SHA from a completed Prow build's GCS artifacts.
 
     Reads the medik8s-catalogsource step log and extracts the SHA from
-    the 'FBC image verified: ...<sha>' line.
+    either the 'FBC image verified:' or 'Resolved FBC_COMMIT_SHA:' line.
     Returns the 40-char hex SHA string, or None if unavailable.
     """
     step_name = _step_name_from_job(job_name)
@@ -222,7 +222,7 @@ def fetch_fbc_sha_from_artifacts(job_name, build_id):
         with urllib.request.urlopen(req, timeout=5) as resp:
             for line in resp:
                 decoded = line.decode(errors='replace')
-                if 'FBC image verified:' in decoded:
+                if 'FBC image verified:' in decoded or 'Resolved FBC_COMMIT_SHA:' in decoded:
                     m = re.search(r'[0-9a-f]{40}', decoded)
                     if m:
                         return m.group(0)
