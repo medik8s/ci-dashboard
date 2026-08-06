@@ -1291,14 +1291,12 @@ class DashboardDatabase:
         cursor = self.conn.cursor()
         if operator:
             cursor.execute("""
-                SELECT * FROM gangway_executions
-                WHERE operator = ? AND execution_id NOT LIKE 'prow-%'
+                SELECT * FROM gangway_executions WHERE operator = ?
                 ORDER BY triggered_at DESC LIMIT ?
             """, (operator, limit))
         else:
             cursor.execute("""
                 SELECT * FROM gangway_executions
-                WHERE execution_id NOT LIKE 'prow-%'
                 ORDER BY triggered_at DESC LIMIT ?
             """, (limit,))
         return [dict(row) for row in cursor.fetchall()]

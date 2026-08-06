@@ -231,8 +231,29 @@ def fetch_fbc_sha_from_artifacts(job_name, build_id):
     return None
 
 
+def _is_gangway_triggered(job_name, build_id):
+    """Check if a Prow build was triggered via Gangway (not cron-scheduled).
+
+    Gangway-triggered builds have a ci.openshift.io/executor: gangway
+    annotation in their prowjob.json. Cron-scheduled builds lack this.
+    """
+    url = (f"https://storage.googleapis.com/{PROW_GCS_BUCKET}"
+           f"/logs/{quote(job_name, safe='')}/{build_id}/prowjob.json")
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        annotations = data.get('metadata', {}).get('annotations', {})
+        return annotations.get('ci.openshift.io/executor') == 'gangway'
+    except Exception:
+        return False
+
+
 def discover_untracked_builds(job_names, known_build_ids, since_hours=168):
-    """Query Prow for recent builds not already tracked in the DB.
+    """Query Prow for recent Gangway-triggered builds not already tracked.
+
+    Only includes builds with the ci.openshift.io/executor: gangway
+    annotation, excluding cron-scheduled periodic runs.
 
     Args:
         job_names: list of periodic job names to check
@@ -252,6 +273,8 @@ def discover_untracked_builds(job_names, known_build_ids, since_hours=168):
                 continue
             build_ts = _parse_prow_timestamp(b.get('Started', ''))
             if not build_ts or build_ts < cutoff:
+                continue
+            if not _is_gangway_triggered(job_name, build_id):
                 continue
             discovered.append({
                 'job_name': job_name,
