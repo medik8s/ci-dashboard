@@ -1815,8 +1815,20 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             try:
                 from integrations.gangway_client import (
                     discover_untracked_builds, get_all_triggerable_jobs,
-                    build_spyglass_url,
+                    build_spyglass_url, GangwayClient,
                 )
+                gangway_pre = get_gangway_client()
+                if gangway_pre.enabled:
+                    for ex in db.get_gangway_executions(None, 20):
+                        if ex.get('prow_job_url') or not ex.get('job_name'):
+                            continue
+                        eid = ex.get('execution_id', '')
+                        if eid.startswith('prow-'):
+                            continue
+                        url = GangwayClient.resolve_prow_url(
+                            ex['job_name'], ex.get('triggered_at', ''))
+                        if url:
+                            db.update_gangway_execution(eid, ex.get('status'), url)
                 known_ids = db.get_tracked_prow_build_ids()
                 job_names = get_all_triggerable_jobs()
                 discovered = discover_untracked_builds(job_names, known_ids, since_hours=168)
