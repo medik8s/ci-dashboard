@@ -134,6 +134,7 @@ def _build_fbc_urls(fbc_image, gitlab_fbc_project=GITLAB_FBC_PROJECT):
 
 _FBC_SHA_RE = re.compile(r'[0-9a-fA-F]{7,40}')
 _SNAPSHOT_NAME_RE = re.compile(r'rhwa-fbc-\d{3}-\d{8}-\d+(-\d+)?')
+_FBC_OVERRIDE_KEY = 'MULTISTAGE_PARAM_OVERRIDE_FBC_COMMIT_SHA'
 
 KONFLUX_API = "https://api.stone-prod-p02.hjvn.p1.openshiftapps.com:6443"
 KONFLUX_NAMESPACE = "rhwa-tenant"
@@ -368,7 +369,7 @@ def _parse_fbc_overrides(data):
     via the Konflux API.
 
     Returns ({}, None) when no SHA is provided.
-    Returns ({'FBC_COMMIT_SHA': sha}, None) on valid/resolved SHA.
+    Returns ({_FBC_OVERRIDE_KEY: sha}, None) on valid/resolved SHA.
     Returns (None, 'error message') on invalid input or failed resolution.
     """
     if not isinstance(data, dict):
@@ -377,11 +378,11 @@ def _parse_fbc_overrides(data):
     if not fbc_sha:
         return {}, None
     if _FBC_SHA_RE.fullmatch(fbc_sha):
-        return {'FBC_COMMIT_SHA': fbc_sha}, None
+        return {_FBC_OVERRIDE_KEY: fbc_sha}, None
     if _SNAPSHOT_NAME_RE.fullmatch(fbc_sha):
         resolved = _resolve_snapshot_name_to_sha(fbc_sha)
         if resolved:
-            return {'FBC_COMMIT_SHA': resolved}, None
+            return {_FBC_OVERRIDE_KEY: resolved}, None
         return None, f'Snapshot {fbc_sha!r} not found in Konflux'
     return None, f'Invalid input: expected a hex SHA (7-40 chars) or a snapshot name (rhwa-fbc-NNN-...)'
 
@@ -1660,7 +1661,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if fbc_err:
             return jsonify({'error': fbc_err}), 400
 
-        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or None
+        fbc_display = env_overrides.get(_FBC_OVERRIDE_KEY) or None
 
         try:
             allowed, remaining, placeholder_id = db.check_cooldown_and_reserve(
@@ -1726,7 +1727,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if fbc_err:
             return jsonify({'error': fbc_err}), 400
 
-        fbc_display = env_overrides.get('FBC_COMMIT_SHA') or None
+        fbc_display = env_overrides.get(_FBC_OVERRIDE_KEY) or None
 
         all_jobs = get_all_triggerable_jobs()
         reserved = []
