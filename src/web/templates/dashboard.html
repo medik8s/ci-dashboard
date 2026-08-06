@@ -2222,7 +2222,11 @@
             try {
                 var url = '/api/trigger-job/history?limit=20' + (refresh ? '&refresh=1' : '');
                 var resp = await fetch(url);
-                if (!resp.ok) { section.style.display = 'none'; return; }
+                if (!resp.ok) {
+                    list.innerHTML = '<p style="color:var(--text-muted);font-size:0.75rem;padding:8px;">Failed to load triggers (HTTP ' + resp.status + '). Try again.</p>';
+                    section.style.display = '';
+                    return;
+                }
                 var items = await resp.json();
                 if (!items || items.length === 0) { section.style.display = 'none'; return; }
                 var selVer = (document.getElementById('versionFilter') || {}).value || '';
@@ -2276,7 +2280,10 @@
                 });
                 html += '</table>';
                 list.innerHTML = html;
-            } catch (e) { section.style.display = 'none'; }
+            } catch (e) {
+                list.innerHTML = '<p style="color:var(--text-muted);font-size:0.75rem;padding:8px;">Failed to load triggers. Try again.</p>';
+                section.style.display = '';
+            }
             finally { if (refresh && btn) { btn.disabled = false; btn.textContent = 'Refresh'; btn.style.cursor = 'pointer'; } }
         }
 
