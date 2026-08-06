@@ -1837,7 +1837,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 backfilled = 0
                 for ex in db.get_executions_missing_fbc_sha(limit=10):
                     eid = ex['execution_id']
-                    bid = eid[5:] if eid.startswith('prow-') else None
+                    bid = None
+                    if eid.startswith('prow-'):
+                        bid = eid[5:]
+                    elif ex.get('prow_job_url'):
+                        path = urllib.parse.urlparse(ex['prow_job_url']).path.rstrip('/')
+                        candidate = path.rsplit('/', 1)[-1] if '/' in path else ''
+                        if candidate.isdigit():
+                            bid = candidate
                     if not bid:
                         continue
                     sha = fetch_fbc_sha_from_artifacts(ex['job_name'], bid)

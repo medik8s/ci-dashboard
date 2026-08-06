@@ -1308,13 +1308,17 @@ class DashboardDatabase:
         return dict(row) if row else None
 
     def get_executions_missing_fbc_sha(self, limit=10):
-        """Return discovered executions with terminal status but no FBC SHA."""
+        """Return executions with terminal status but no FBC SHA.
+
+        Includes both discovered builds (prow-*) and Gangway-triggered builds
+        that have a resolved prow_job_url (needed to extract the build ID).
+        """
         cursor = self.conn.cursor()
         cursor.execute("""
             SELECT * FROM gangway_executions
-            WHERE execution_id LIKE 'prow-%'
-            AND (fbc_commit_sha IS NULL OR fbc_commit_sha = '')
+            WHERE (fbc_commit_sha IS NULL OR fbc_commit_sha = '')
             AND status IN ('SUCCESS', 'FAILURE', 'ABORTED', 'ERROR')
+            AND (execution_id LIKE 'prow-%' OR (prow_job_url IS NOT NULL AND prow_job_url != ''))
             ORDER BY triggered_at DESC LIMIT ?
         """, (limit,))
         return [dict(row) for row in cursor.fetchall()]
