@@ -2220,7 +2220,8 @@
                 var ms = _fbcCache.fbc_summaries.find(function(s) { return s.fbc_short === fbcSha.slice(0,7) || s.fbc_full === fbcSha; });
                 if (ms && ms.snapshot_name) snapDisplay = ms.snapshot_name;
             }
-            var confirmMsg = 'Trigger all configured periodic jobs?';
+            var curVer = (document.getElementById('versionFilter') || {}).value || '';
+            var confirmMsg = curVer ? 'Trigger all ' + curVer + ' periodic jobs?' : 'Trigger all configured periodic jobs?';
             if (fbcSha) confirmMsg += '\n\nFBC: ' + snapDisplay;
             if (!confirm(confirmMsg)) return;
             var status = document.getElementById('triggerStatus');
@@ -2230,6 +2231,7 @@
             status.style.color = 'var(--text-muted)';
             try {
                 var payload = {};
+                if (curVer) payload.version = curVer;
                 if (fbcSha) payload.fbc_commit_sha = fbcSha;
                 var resp = await fetch('/api/trigger-all-jobs', {
                     method: 'POST',

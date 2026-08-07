@@ -1730,6 +1730,12 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         fbc_display = env_overrides.get(_FBC_OVERRIDE_KEY) or None
 
         all_jobs = get_all_triggerable_jobs()
+        version_filter = data.get('version', '').strip()
+        if version_filter:
+            if not re.fullmatch(r'\d+\.\d+', version_filter):
+                return jsonify({'error': f'Invalid version format: {version_filter}'}), 400
+            tag = '-' + version_filter + '-'
+            all_jobs = [j for j in all_jobs if tag in j]
         reserved = []
         skipped = 0
 
