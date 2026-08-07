@@ -1883,6 +1883,31 @@
             else if (id === 'regressions') loadRegressions();
         }
 
+        var _pendingFbcSnapshot = null;
+        var VALID_TABS = ['overview','regressions','test-results','job-runs','presubmit','fbc-validation','weekly-report','pipeline'];
+
+        function parseHash() {
+            var raw = (location.hash || '').replace(/^#/, '');
+            if (!raw) return { tab: 'overview', snapshot: null };
+            var slash = raw.indexOf('/');
+            var tab = slash >= 0 ? raw.substring(0, slash) : raw;
+            var snapshot = null;
+            if (slash >= 0) {
+                try { snapshot = decodeURIComponent(raw.substring(slash + 1)); } catch (e) { snapshot = raw.substring(slash + 1); }
+            }
+            if (VALID_TABS.indexOf(tab) < 0) tab = 'overview';
+            return { tab: tab, snapshot: snapshot };
+        }
+
+        function updateHash(tabName, snapshot, replace) {
+            var hash = '#' + tabName;
+            if (tabName === 'fbc-validation' && snapshot) hash += '/' + encodeURIComponent(snapshot);
+            if (location.hash !== hash) {
+                if (replace) history.replaceState(null, '', hash);
+                else history.pushState(null, '', hash);
+            }
+        }
+
         function showTab(tabName) {
             var tabs = document.querySelectorAll('.header-tabs .tab-button');
 
@@ -1927,6 +1952,15 @@
             if (tabName === 'fbc-validation') loadFbcValidation();
             if (tabName === 'presubmit') loadPresubmitResults();
             if (tabName === 'regressions') loadRegressions();
+            if (tabName !== 'fbc-validation') {
+                _pendingFbcSnapshot = null;
+            }
+            var snapshotForHash = null;
+            if (tabName === 'fbc-validation') {
+                var sel = document.getElementById('fbcSelector');
+                snapshotForHash = _pendingFbcSnapshot || (sel && sel.value ? sel.value : null);
+            }
+            updateHash(tabName, snapshotForHash);
         }
 
         function switchToTab(tabId) {
@@ -4114,13 +4148,60 @@
                     opt.textContent = label;
                     sel.appendChild(opt);
                 });
-                renderFbcCard(summaries[0].fbc_short);
+                if (_pendingFbcSnapshot) {
+                    applyPendingFbcSnapshot();
+                } else {
+                    renderFbcCard(summaries[0].fbc_short);
+                }
             } catch (e) {
                 container.innerHTML = '<div style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</div>';
             }
         }
+        function getFbcSummaries() {
+            return (_fbcCache || {}).fbc_summaries || [];
+        }
+        function findFbcSnapshot(target) {
+            if (!target || typeof target !== 'string') return null;
+            var summaries = getFbcSummaries();
+            var lower = target.toLowerCase();
+            return summaries.find(function(s) { return s.snapshot_name === target || s.fbc_short === target; })
+                || summaries.find(function(s) { return (s.snapshot_name || '').toLowerCase().startsWith(lower) || (s.fbc_short || '').toLowerCase().startsWith(lower); });
+        }
+        function navigateToFbc(fbcShort, replace) {
+            var sel = document.getElementById('fbcSelector');
+            if (sel) {
+                for (var i = 0; i < sel.options.length; i++) {
+                    if (sel.options[i].value === fbcShort) { sel.selectedIndex = i; break; }
+                }
+            }
+            renderFbcCard(fbcShort);
+            updateHash('fbc-validation', fbcShort, replace);
+        }
+        function applyPendingFbcSnapshot() {
+            if (!_pendingFbcSnapshot) return;
+            var target = _pendingFbcSnapshot;
+            _pendingFbcSnapshot = null;
+            if (!target.trim()) {
+                var summaries = getFbcSummaries();
+                if (summaries.length > 0) renderFbcCard(summaries[0].fbc_short);
+                return;
+            }
+            var activeTab = document.getElementById('fbc-validation-tab');
+            if (!activeTab || !activeTab.classList.contains('active')) return;
+            var match = findFbcSnapshot(target);
+            if (match) {
+                navigateToFbc(match.fbc_short, true);
+            } else {
+                var summaries = getFbcSummaries();
+                if (summaries.length > 0) {
+                    navigateToFbc(summaries[0].fbc_short, true);
+                    var statusEl = document.getElementById('fbcValStatus');
+                    if (statusEl) statusEl.textContent = target + ' not found in current data. Showing latest snapshot.';
+                }
+            }
+        }
         document.getElementById('fbcSelector').addEventListener('change', function() {
-            if (this.value) renderFbcCard(this.value);
+            if (this.value) navigateToFbc(this.value);
         });
         function lookupFbc() {
             var input = document.getElementById('fbcLookupInput');
@@ -4132,14 +4213,12 @@
             var isSnapshot = val.indexOf('-') >= 0 && !isSha;
             if (!isIib && !isSha && !isSnapshot) { input.style.borderColor = 'var(--accent-red)'; document.getElementById('fbcValStatus').textContent = 'Enter a snapshot name, IIB ID, or FBC SHA'; return; }
             if (isIib || isSnapshot) {
-                var summaries = (_fbcCache || {}).fbc_summaries || [];
-                var match = isIib ? summaries.find(function(s) { return s.iib_id === val; }) : summaries.find(function(s) { return s.snapshot_name === val; });
+                var summaries = getFbcSummaries();
+                var match = isIib
+                    ? summaries.find(function(s) { return s.iib_id === val; })
+                    : findFbcSnapshot(val);
                 if (match) {
-                    var sel = document.getElementById('fbcSelector');
-                    for (var i = 0; i < sel.options.length; i++) {
-                        if (sel.options[i].value === match.fbc_short) { sel.selectedIndex = i; break; }
-                    }
-                    renderFbcCard(match.fbc_short);
+                    navigateToFbc(match.fbc_short);
                     document.getElementById('fbcValStatus').textContent = '';
                 } else {
                     document.getElementById('fbcValStatus').textContent = val + ' not found in current data. Try a different time range.';
@@ -4147,13 +4226,9 @@
                 }
             } else {
                 var short = val.slice(0, 8).toLowerCase();
-                var sel = document.getElementById('fbcSelector');
-                var found = false;
-                for (var i = 0; i < sel.options.length; i++) {
-                    if (sel.options[i].value === short) { sel.selectedIndex = i; found = true; break; }
-                }
-                if (found) {
-                    renderFbcCard(short);
+                var match = findFbcSnapshot(short);
+                if (match) {
+                    navigateToFbc(match.fbc_short);
                     document.getElementById('fbcValStatus').textContent = '';
                 } else {
                     document.getElementById('fbcValStatus').textContent = 'FBC ' + short + ' not found in current data';
@@ -4587,10 +4662,21 @@
             await loadOperatorStats();
         };
 
+        function handleHashRoute() {
+            var parsed = parseHash();
+            if (parsed.tab === 'fbc-validation' && parsed.snapshot) {
+                _pendingFbcSnapshot = parsed.snapshot;
+            }
+            showTab(parsed.tab);
+        }
+        window.addEventListener('hashchange', handleHashRoute);
+        window.addEventListener('popstate', handleHashRoute);
+
         // Initial load
         loadMetadata().then(() => {
             checkCollectionStatus();
             refreshDashboard();
+            if (location.hash) handleHashRoute();
         });
     </script>
 </body>
