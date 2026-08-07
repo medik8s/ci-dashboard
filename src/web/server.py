@@ -993,12 +993,12 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         stats = db.get_operator_stats(days=days, version=version)
         return jsonify({'operators': stats})
 
-    @app.route('/api/regressions')
-    def api_regressions():
-        """Detect regressions by comparing latest vs previous periodic run per job."""
+    @app.route('/api/changes')
+    def api_changes():
+        """Detect changes by comparing latest vs previous periodic run per job."""
         operator = request.args.get('operator')
         version = normalize_version(request.args.get('version'))
-        rows = db.get_regressions(operator=operator, version=version)
+        rows = db.get_changes(operator=operator, version=version)
 
         regressions = []
         fixes = []
@@ -2182,7 +2182,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         summary = calculator.get_summary_stats(days=days, version=version)
         op_stats = db.get_operator_stats(days=days, version=version)
         top_tests = calculator.get_test_rankings(days=days, version=version, limit=20)
-        regressions_data = db.get_regressions(operator=operator, version=version)
+        regressions_data = db.get_changes(operator=operator, version=version)
         job_runs = db.get_job_run_history(days=days, operator=operator, version=version)
 
         if operator:

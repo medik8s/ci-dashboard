@@ -885,11 +885,11 @@
             </div>
             <div class="header-tabs" role="tablist" aria-label="Dashboard views">
                 <button class="tab-button active" role="tab" aria-selected="true" onclick="showTab('overview')">Overview</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('regressions')">Changes</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('changes')">Changes</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-validation')">FBC Summary</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-summary')">FBC Summary</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
@@ -1064,7 +1064,7 @@
         </div>
 
         <!-- FBC Summary Tab -->
-        <div id="fbc-validation-tab" class="tab-content">
+        <div id="fbc-summary-tab" class="tab-content">
             <div class="test-list">
                 <h2>FBC Summary</h2>
                 <div class="controls" style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
@@ -1079,9 +1079,9 @@
                         <input id="fbcLookupInput" type="text" maxlength="40" placeholder="e.g. rhwa-fbc-422-20260730... or 831c2ada" style="width:200px; padding:3px 6px; border-radius:4px; border:1px solid var(--border); background:var(--bg-surface); color:var(--text-primary); font-size:0.75rem; font-family:monospace;" title="Enter a snapshot name, IIB build ID (numeric), or FBC commit SHA (hex). The dashboard will find the matching FBC entry.">
                         <button onclick="lookupFbc()" style="padding:3px 10px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; font-size:0.75rem;">Go</button>
                     </div>
-                    <span id="fbcValStatus" style="font-size:0.75rem; color:var(--text-muted);"></span>
+                    <span id="fbcSummaryStatus" style="font-size:0.75rem; color:var(--text-muted);"></span>
                 </div>
-                <div id="fbcValidationContent">
+                <div id="fbcSummaryContent">
                     <div style="text-align:center; padding:40px; color:var(--text-muted);">Select an FBC snapshot to view results</div>
                 </div>
             </div>
@@ -1180,23 +1180,23 @@
         </div>
 
         <!-- Changes Tab -->
-        <div id="regressions-tab" class="tab-content">
+        <div id="changes-tab" class="tab-content">
             <div class="controls" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label>Operator:</label>
-                    <div class="op-filter-bar" id="regressionsOpFilters">
-                        <button class="op-filter-chip active" onclick="regressionsOpFilter=null;loadRegressions();">All</button>
-                        <button class="op-filter-chip" style="border-color:#2563eb;" onclick="regressionsOpFilter='FAR';loadRegressions();">FAR</button>
-                        <button class="op-filter-chip" style="border-color:#f97316;" onclick="regressionsOpFilter='SBR';loadRegressions();">SBR</button>
-                        <button class="op-filter-chip" style="border-color:#22c55e;" onclick="regressionsOpFilter='SNR';loadRegressions();">SNR</button>
-                        <button class="op-filter-chip" style="border-color:#a855f7;" onclick="regressionsOpFilter='NHC';loadRegressions();">NHC</button>
-                        <button class="op-filter-chip" style="border-color:#eab308;" onclick="regressionsOpFilter='MDR';loadRegressions();">MDR</button>
-                        <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="regressionsOpFilter='NMO';loadRegressions();">NMO</button>
+                    <div class="op-filter-bar" id="changesOpFilters">
+                        <button class="op-filter-chip active" onclick="changesOpFilter=null;loadChanges();">All</button>
+                        <button class="op-filter-chip" style="border-color:#2563eb;" onclick="changesOpFilter='FAR';loadChanges();">FAR</button>
+                        <button class="op-filter-chip" style="border-color:#f97316;" onclick="changesOpFilter='SBR';loadChanges();">SBR</button>
+                        <button class="op-filter-chip" style="border-color:#22c55e;" onclick="changesOpFilter='SNR';loadChanges();">SNR</button>
+                        <button class="op-filter-chip" style="border-color:#a855f7;" onclick="changesOpFilter='NHC';loadChanges();">NHC</button>
+                        <button class="op-filter-chip" style="border-color:#eab308;" onclick="changesOpFilter='MDR';loadChanges();">MDR</button>
+                        <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="changesOpFilter='NMO';loadChanges();">NMO</button>
                     </div>
-                    <input type="text" class="table-search" id="changesSearch" placeholder="Search tests..." oninput="filterTableRows('regressionsContent', this.value)">
+                    <input type="text" class="table-search" id="changesSearch" placeholder="Search tests..." oninput="filterTableRows('changesContent', this.value)">
                 </div>
             </div>
-            <div id="regressionsContent" style="color:var(--text-muted);padding:30px;text-align:center;">Loading...</div>
+            <div id="changesContent" style="color:var(--text-muted);padding:30px;text-align:center;">Loading...</div>
         </div>
 
         <!-- Pipeline Tab -->
@@ -1878,13 +1878,13 @@
             if (id === 'overview') refreshDashboard();
             else if (id === 'test-results') loadTestResults();
             else if (id === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
-            else if (id === 'fbc-validation') loadFbcValidation();
+            else if (id === 'fbc-summary') loadFbcSummary();
             else if (id === 'presubmit') loadPresubmitResults();
-            else if (id === 'regressions') loadRegressions();
+            else if (id === 'changes') loadChanges();
         }
 
         var _pendingFbcSnapshot = null;
-        var VALID_TABS = ['overview','regressions','test-results','job-runs','presubmit','fbc-validation','weekly-report','pipeline'];
+        var VALID_TABS = ['overview','changes','test-results','job-runs','presubmit','fbc-summary','weekly-report','pipeline'];
 
         function parseHash() {
             var raw = (location.hash || '').replace(/^#/, '');
@@ -1901,7 +1901,7 @@
 
         function updateHash(tabName, snapshot, replace) {
             var hash = '#' + tabName;
-            if (tabName === 'fbc-validation' && snapshot) hash += '/' + encodeURIComponent(snapshot);
+            if (tabName === 'fbc-summary' && snapshot) hash += '/' + encodeURIComponent(snapshot);
             if (location.hash !== hash) {
                 if (replace) history.replaceState(null, '', hash);
                 else history.pushState(null, '', hash);
@@ -1932,10 +1932,10 @@
                     (tabName === 'overview' && btn.textContent.trim() === 'Overview') ||
                     (tabName === 'test-results' && btn.textContent.trim() === 'Test Results') ||
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
-                    (tabName === 'fbc-validation' && btn.textContent.trim() === 'FBC Summary') ||
+                    (tabName === 'fbc-summary' && btn.textContent.trim() === 'FBC Summary') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
                     (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report') ||
-                    (tabName === 'regressions' && btn.textContent.trim() === 'Changes') ||
+                    (tabName === 'changes' && btn.textContent.trim() === 'Changes') ||
                     (tabName === 'pipeline' && btn.textContent.trim() === 'Pipeline')) {
                     btn.classList.add('active');
                     btn.setAttribute('aria-selected', 'true');
@@ -1949,14 +1949,14 @@
             if (tabName === 'weekly-report') refreshWeeklyReport();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
-            if (tabName === 'fbc-validation') loadFbcValidation();
+            if (tabName === 'fbc-summary') loadFbcSummary();
             if (tabName === 'presubmit') loadPresubmitResults();
-            if (tabName === 'regressions') loadRegressions();
-            if (tabName !== 'fbc-validation') {
+            if (tabName === 'changes') loadChanges();
+            if (tabName !== 'fbc-summary') {
                 _pendingFbcSnapshot = null;
             }
             var snapshotForHash = null;
-            if (tabName === 'fbc-validation') {
+            if (tabName === 'fbc-summary') {
                 var sel = document.getElementById('fbcSelector');
                 snapshotForHash = _pendingFbcSnapshot || (sel && sel.value ? sel.value : null);
             }
@@ -4121,9 +4121,9 @@
 
         // ---- FBC Validation tab ----
         var _fbcCache = null;
-        async function loadFbcValidation() {
+        async function loadFbcSummary() {
             var sel = document.getElementById('fbcSelector');
-            var container = document.getElementById('fbcValidationContent');
+            var container = document.getElementById('fbcSummaryContent');
             var days = document.getElementById('timeRange').value;
             var version = document.getElementById('versionFilter').value;
             var params = {days: days};
@@ -4175,7 +4175,7 @@
                 }
             }
             renderFbcCard(fbcShort);
-            updateHash('fbc-validation', fbcShort, replace);
+            updateHash('fbc-summary', fbcShort, replace);
         }
         function applyPendingFbcSnapshot() {
             if (!_pendingFbcSnapshot) return;
@@ -4186,7 +4186,7 @@
                 if (summaries.length > 0) renderFbcCard(summaries[0].fbc_short);
                 return;
             }
-            var activeTab = document.getElementById('fbc-validation-tab');
+            var activeTab = document.getElementById('fbc-summary-tab');
             if (!activeTab || !activeTab.classList.contains('active')) return;
             var match = findFbcSnapshot(target);
             if (match) {
@@ -4195,7 +4195,7 @@
                 var summaries = getFbcSummaries();
                 if (summaries.length > 0) {
                     navigateToFbc(summaries[0].fbc_short, true);
-                    var statusEl = document.getElementById('fbcValStatus');
+                    var statusEl = document.getElementById('fbcSummaryStatus');
                     if (statusEl) statusEl.textContent = target + ' not found in current data. Showing latest snapshot.';
                 }
             }
@@ -4206,12 +4206,12 @@
         function lookupFbc() {
             var input = document.getElementById('fbcLookupInput');
             var val = (input.value || '').trim();
-            if (!val) { input.style.borderColor = 'var(--accent-red)'; document.getElementById('fbcValStatus').textContent = 'Enter a snapshot name, IIB ID, or FBC SHA'; return; }
+            if (!val) { input.style.borderColor = 'var(--accent-red)'; document.getElementById('fbcSummaryStatus').textContent = 'Enter a snapshot name, IIB ID, or FBC SHA'; return; }
             input.style.borderColor = 'var(--border)';
             var isIib = /^\d+$/.test(val);
             var isSha = /^[0-9a-fA-F]{7,40}$/.test(val);
             var isSnapshot = val.indexOf('-') >= 0 && !isSha;
-            if (!isIib && !isSha && !isSnapshot) { input.style.borderColor = 'var(--accent-red)'; document.getElementById('fbcValStatus').textContent = 'Enter a snapshot name, IIB ID, or FBC SHA'; return; }
+            if (!isIib && !isSha && !isSnapshot) { input.style.borderColor = 'var(--accent-red)'; document.getElementById('fbcSummaryStatus').textContent = 'Enter a snapshot name, IIB ID, or FBC SHA'; return; }
             if (isIib || isSnapshot) {
                 var summaries = getFbcSummaries();
                 var match = isIib
@@ -4219,25 +4219,25 @@
                     : findFbcSnapshot(val);
                 if (match) {
                     navigateToFbc(match.fbc_short);
-                    document.getElementById('fbcValStatus').textContent = '';
+                    document.getElementById('fbcSummaryStatus').textContent = '';
                 } else {
-                    document.getElementById('fbcValStatus').textContent = val + ' not found in current data. Try a different time range.';
-                    document.getElementById('fbcValidationContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><code>' + esc(val) + '</code> not found in the loaded data. It may be from an older build not in the current time range.</div>';
+                    document.getElementById('fbcSummaryStatus').textContent = val + ' not found in current data. Try a different time range.';
+                    document.getElementById('fbcSummaryContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><code>' + esc(val) + '</code> not found in the loaded data. It may be from an older build not in the current time range.</div>';
                 }
             } else {
                 var short = val.slice(0, 8).toLowerCase();
                 var match = findFbcSnapshot(short);
                 if (match) {
                     navigateToFbc(match.fbc_short);
-                    document.getElementById('fbcValStatus').textContent = '';
+                    document.getElementById('fbcSummaryStatus').textContent = '';
                 } else {
-                    document.getElementById('fbcValStatus').textContent = 'FBC ' + short + ' not found in current data';
-                    document.getElementById('fbcValidationContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">FBC <code>' + esc(short) + '</code> not found. Try increasing the time range.</div>';
+                    document.getElementById('fbcSummaryStatus').textContent = 'FBC ' + short + ' not found in current data';
+                    document.getElementById('fbcSummaryContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">FBC <code>' + esc(short) + '</code> not found. Try increasing the time range.</div>';
                 }
             }
         }
         function renderFbcCard(fbcShort) {
-            var container = document.getElementById('fbcValidationContent');
+            var container = document.getElementById('fbcSummaryContent');
             if (!_fbcCache) { container.innerHTML = '<div class="loading">Loading...</div>'; return; }
             var summaries = _fbcCache.fbc_summaries || [];
             var allOps = _fbcCache.all_operators || [];
@@ -4348,25 +4348,25 @@
             loadPresubmitResults();
         });
 
-        let regressionsOpFilter = null;
+        let changesOpFilter = null;
 
-        async function loadRegressions() {
+        async function loadChanges() {
             _chgIdx = 0;
-            var container = document.getElementById('regressionsContent');
+            var container = document.getElementById('changesContent');
             container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</div>';
 
-            document.querySelectorAll('#regressionsOpFilters .op-filter-chip').forEach(function(btn) {
+            document.querySelectorAll('#changesOpFilters .op-filter-chip').forEach(function(btn) {
                 var op = btn.textContent.trim();
-                if (op === 'All') btn.classList.toggle('active', !regressionsOpFilter);
-                else btn.classList.toggle('active', regressionsOpFilter === op);
+                if (op === 'All') btn.classList.toggle('active', !changesOpFilter);
+                else btn.classList.toggle('active', changesOpFilter === op);
             });
 
             try {
                 var params = new URLSearchParams();
-                if (regressionsOpFilter) params.set('operator', regressionsOpFilter);
+                if (changesOpFilter) params.set('operator', changesOpFilter);
                 var version = document.getElementById('versionFilter').value;
                 if (version) params.set('version', version);
-                var resp = await fetch('/api/regressions?' + params.toString());
+                var resp = await fetch('/api/changes?' + params.toString());
                 var data = await resp.json();
 
                 var html = '';
@@ -4374,43 +4374,43 @@
                 if (data.regressions && data.regressions.length > 0) {
                     html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-red);">';
                     html += '<h3 style="color:var(--accent-red);margin-bottom:12px;">Regressions (' + data.regressions.length + ')</h3>';
-                    html += renderRegressionTable(data.regressions, 'regression');
+                    html += renderChangesTable(data.regressions, 'regression');
                     html += '</div>';
                 }
 
                 if (data.new_failures && data.new_failures.length > 0) {
                     html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-orange);">';
                     html += '<h3 style="color:var(--accent-orange);margin-bottom:12px;">New Failures (' + data.new_failures.length + ')</h3>';
-                    html += renderRegressionTable(data.new_failures, 'new_failure');
+                    html += renderChangesTable(data.new_failures, 'new_failure');
                     html += '</div>';
                 }
 
                 if (data.fixes && data.fixes.length > 0) {
                     html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-green);">';
                     html += '<h3 style="color:var(--accent-green);margin-bottom:12px;">Fixes (' + data.fixes.length + ')</h3>';
-                    html += renderRegressionTable(data.fixes, 'fix');
+                    html += renderChangesTable(data.fixes, 'fix');
                     html += '</div>';
                 }
 
                 if (data.persistent && data.persistent.length > 0) {
                     html += '<div class="card" style="margin-bottom:16px;border-left:4px solid var(--accent-orange);">';
                     html += '<h3 style="color:var(--accent-orange);margin-bottom:12px;">Persistent Failures (' + data.persistent.length + ')</h3>';
-                    html += renderRegressionTable(data.persistent, 'persistent');
+                    html += renderChangesTable(data.persistent, 'persistent');
                     html += '</div>';
                 }
 
                 if (!html) {
-                    html = '<div class="card" style="text-align:center;padding:40px;border-left:4px solid var(--accent-green);"><h3 style="color:var(--accent-green);">All Stable</h3><p style="color:var(--text-muted);margin-top:8px;">No regressions detected between the latest and previous periodic runs.</p></div>';
+                    html = '<div class="card" style="text-align:center;padding:40px;border-left:4px solid var(--accent-green);"><h3 style="color:var(--accent-green);">All Stable</h3><p style="color:var(--text-muted);margin-top:8px;">No changes detected between the latest and previous periodic runs.</p></div>';
                 }
 
                 container.innerHTML = html;
             } catch (e) {
-                container.innerHTML = '<div style="color:var(--accent-red);padding:30px;text-align:center;">Failed to load regressions: ' + esc(e.message) + '</div>';
+                container.innerHTML = '<div style="color:var(--accent-red);padding:30px;text-align:center;">Failed to load changes: ' + esc(e.message) + '</div>';
             }
         }
 
         var _chgIdx = 0;
-        function renderRegressionTable(items, changeType) {
+        function renderChangesTable(items, changeType) {
             var rows = items.map(function(r) {
                 _chgIdx++;
                 var id = 'chg-detail-' + _chgIdx;
@@ -4664,7 +4664,7 @@
 
         function handleHashRoute() {
             var parsed = parseHash();
-            if (parsed.tab === 'fbc-validation' && parsed.snapshot) {
+            if (parsed.tab === 'fbc-summary' && parsed.snapshot) {
                 _pendingFbcSnapshot = parsed.snapshot;
             }
             showTab(parsed.tab);

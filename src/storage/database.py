@@ -1380,7 +1380,7 @@ class DashboardDatabase:
                            build_id, e)
             return False
 
-    def get_regressions(
+    def get_changes(
         self,
         operator: Optional[str] = None,
         version: Optional[str] = None,
