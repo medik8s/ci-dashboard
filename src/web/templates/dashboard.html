@@ -3549,7 +3549,8 @@
         // ---- Operator colors ----
         const OP_COLORS = {
             FAR: '#2563eb', SBR: '#f97316', SNR: '#22c55e',
-            NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4'
+            NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4',
+            'FAR+NHC': '#7c3aed'
         };
         function filterTableRows(containerId, query) {
             var container = document.getElementById(containerId);
@@ -3563,6 +3564,10 @@
 
         function opChip(op) {
             if (!op) return '';
+            var color = OP_COLORS[op];
+            if (color) {
+                return '<span class="op-chip" style="background:' + color + '22;color:' + color + ';border-color:' + color + '55;">' + esc(op) + '</span>';
+            }
             var safeClass = op.toLowerCase().replace(/[^a-z0-9-]/g, '');
             return '<span class="op-chip op-chip--' + safeClass + '">' + esc(op) + '</span>';
         }
