@@ -17,46 +17,55 @@ collector:
 
     # Periodic job schedules (from Prow configs in openshift/release)
     job_schedules:
-      far-weekly-aws:
-        label: FAR
-        variant: weekly
+      far-nhc-interop-weekly-aws:
+        label: FAR+NHC
+        variant: interop
         day: "Tue 04:00 UTC"
-      sbr-weekly-aws-odf:
-        label: SBR
-        variant: "weekly (ODF)"
-        day: "Tue 08:00 UTC"
-      snr-weekly-aws:
-        label: SNR
-        variant: weekly
-        day: "Wed 04:00 UTC"
       sbr-weekly-aws-efs:
         label: SBR
         variant: "weekly (EFS)"
-        day: "Wed 08:00 UTC"
-      mdr-weekly-aws:
-        label: MDR
-        variant: weekly
-        day: "Thu 04:00 UTC"
+        day: "Tue 08:00 UTC"
+      sbr-weekly-aws-odf:
+        label: SBR
+        variant: "weekly (ODF)"
+        day: "Wed 04:00 UTC"
       nmo-weekly-aws:
         label: NMO
         variant: weekly
-        day: "Thu 08:00 UTC"
+        day: "Wed 08:00 UTC"
+      far-weekly-aws:
+        label: FAR
+        variant: weekly
+        day: "Thu 04:00 UTC"
       nhc-weekly-aws:
         label: NHC
         variant: weekly
+        day: "Thu 08:00 UTC"
+      sbr-weekly-aws-disconnected-nfs:
+        label: SBR
+        variant: disconnected
+        day: "Thu 12:00 UTC"
+      mdr-weekly-aws:
+        label: MDR
+        variant: weekly
         day: "Fri 04:00 UTC"
-      far-upgrade-aws:
-        label: FAR
-        variant: upgrade
+      snr-weekly-aws:
+        label: SNR
+        variant: weekly
         day: "Fri 08:00 UTC"
       far-weekly-aws-disconnected:
         label: FAR
         variant: disconnected
-        day: "Thu 12:00 UTC"
+        day: "Fri 12:00 UTC"
+      far-upgrade-aws:
+        label: FAR
+        variant: upgrade
+        day: "Fri 08:00 UTC"
 
     # Periodic job patterns to track
     job_patterns:
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
+      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-nhc-interop-weekly-aws"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-weekly-aws"
       - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws"
@@ -70,12 +79,17 @@ collector:
     # Presubmit E2E jobs (triggered on system-tests PRs)
     presubmit_job_patterns:
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-aws"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-nhc-interop-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-odf"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-efs"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-hypershift-aws-odf"
+      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-hypershift-persistent-aws-odf"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-aws"
       - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-aws"
+      - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-far-aws-disconnected"
+      - "pull-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-presubmit-aws"
       # Dev repo E2E presubmit jobs (triggered on operator PRs)
       - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
       - "pull-ci-medik8s-storage-based-remediation-main-4.20-openshift-e2e"
