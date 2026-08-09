@@ -4323,18 +4323,24 @@
                 });
                 var data = await resp.json().catch(function() { return {}; });
                 if (resp.ok) {
-                    btn.textContent = 'Triggered';
+                    btn.textContent = '✓';
                     btn.style.color = '#22c55e';
+                    btn.title = 'Triggered' + (data.execution_id ? ' (id: ' + data.execution_id.slice(0,8) + ')' : '');
                 } else {
-                    btn.textContent = 'Failed';
+                    btn.textContent = '✗';
                     btn.style.color = '#ef4444';
-                    btn.title = data.error || 'Unknown error';
+                    btn.title = data.error || 'Trigger failed';
                 }
             } catch (e) {
-                btn.textContent = 'Error';
+                btn.textContent = '✗';
                 btn.style.color = '#ef4444';
+                btn.title = 'Network error';
             }
-            setTimeout(function() { btn.disabled = false; }, 5000);
+            setTimeout(function() {
+                btn.disabled = false;
+                btn.textContent = '↻';
+                btn.style.color = 'var(--text-muted)';
+            }, 5000);
         }
 
         // ---- Presubmit tab ----
