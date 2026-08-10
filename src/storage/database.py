@@ -29,26 +29,16 @@ class DashboardDatabase:
 
         self._check_integrity_and_recover(db_path)
 
-        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30.0)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=5.0)
         self.conn.row_factory = sqlite3.Row
 
-        # Use DELETE journal mode (not WAL) for NFS compatibility.
-        # WAL requires shared-memory mmap which NFS does not support reliably,
-        # causing "database disk image is malformed" corruption.
-        mode = self.conn.execute('PRAGMA journal_mode=DELETE').fetchone()
+        mode = self.conn.execute('PRAGMA journal_mode=WAL').fetchone()
         current_mode = mode[0].lower() if mode and mode[0] else 'unknown'
-        if current_mode != 'delete':
-            self.conn.close()
-            if current_mode == 'wal':
-                raise RuntimeError(
-                    "SQLite remained in WAL mode, which is unsafe on NFS storage. "
-                    "Another process may be holding the database open."
-                )
-            raise RuntimeError(
-                f"SQLite must use DELETE journal mode for NFS safety, "
-                f"but got: {current_mode}"
-            )
-        self.conn.execute('PRAGMA synchronous=FULL')
+        if current_mode != 'wal':
+            logger.warning("SQLite could not enable WAL mode (got: %s)", current_mode)
+        self.conn.execute('PRAGMA synchronous=NORMAL')
+        self.conn.execute('PRAGMA busy_timeout=5000')
+        self.conn.execute('PRAGMA temp_store=MEMORY')
 
         self._create_tables()
 
@@ -68,13 +58,7 @@ class DashboardDatabase:
         try:
             conn = sqlite3.connect(db_path, timeout=5.0)
             try:
-                jmode = conn.execute('PRAGMA journal_mode=DELETE').fetchone()
-                if not jmode or jmode[0].lower() != 'delete':
-                    logger.warning(
-                        "Integrity-check connection could not switch to DELETE mode "
-                        "(got: %s); proceeding anyway",
-                        jmode[0] if jmode else 'unknown',
-                    )
+                conn.execute('PRAGMA journal_mode=WAL')
                 result = conn.execute('PRAGMA integrity_check').fetchone()
             finally:
                 conn.close()

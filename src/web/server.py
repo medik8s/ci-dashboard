@@ -703,6 +703,35 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     except Exception as e:
         logger.debug("Could not read last sync time from DB: %s", e)
 
+    def _try_start_collection(days=30):
+        with collection_status['lock']:
+            if collection_status['running']:
+                return False
+            collection_status['running'] = True
+            collection_status['progress'] = 'Initializing...'
+            collection_status['error'] = None
+            collection_status['completed_at'] = None
+        thread = threading.Thread(
+            target=run_collection_background,
+            args=(db_path, config_file, days),
+            daemon=True,
+        )
+        thread.start()
+        return True
+
+    if not collection_status.get('completed_at'):
+        try:
+            count = db.execute_query("SELECT COUNT(*) as cnt FROM job_runs")
+            if not count or count[0]['cnt'] == 0:
+                logger.info("Empty database detected, scheduling initial data collection")
+                def _initial_collect():
+                    time.sleep(10)
+                    _try_start_collection()
+                t = threading.Thread(target=_initial_collect, daemon=True)
+                t.start()
+        except Exception as e:
+            logger.debug("Could not check DB for initial collection: %s", e)
+
     # Check if AI analysis is enabled (default: False for production safety)
     enable_ai = os.environ.get('ENABLE_AI_ANALYSIS', 'false').lower() == 'true'
 
@@ -742,21 +771,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             )
             needs_collection = recent_count[0]['cnt'] == 0 if recent_count else True
 
-            # Auto-trigger collection if needed and not already running
-            if needs_collection and not collection_status['running']:
-                with collection_status['lock']:
-                    if not collection_status['running']:
-                        collection_status['running'] = True
-                        collection_status['progress'] = 'Initializing...'
-                        collection_status['error'] = None
-
-                        # Start background thread
-                        thread = threading.Thread(
-                            target=run_collection_background,
-                            args=(db_path, config_file, 30),
-                            daemon=True
-                        )
-                        thread.start()
+            if needs_collection:
+                _try_start_collection(30)
 
         except Exception as e:
             print(f"Error checking database status: {e}")
@@ -846,27 +862,11 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     @app.route('/api/trigger-collection', methods=['POST'])
     def api_trigger_collection():
         """Manually trigger data collection"""
-        global collection_status
-
         json_data = request.get_json(silent=True) or {}
         days = json_data.get('days', 30)
 
-        with collection_status['lock']:
-            if collection_status['running']:
-                return jsonify({'error': 'Collection already running'}), 409
-
-            collection_status['running'] = True
-            collection_status['progress'] = 'Initializing...'
-            collection_status['error'] = None
-            collection_status['completed_at'] = None
-
-            # Start background thread
-            thread = threading.Thread(
-                target=run_collection_background,
-                args=(db_path, config_file, days),
-                daemon=True
-            )
-            thread.start()
+        if not _try_start_collection(days):
+            return jsonify({'error': 'Collection already running'}), 409
 
         return jsonify({'status': 'started'})
 

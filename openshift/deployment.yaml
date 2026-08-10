@@ -59,7 +59,8 @@ spec:
             port: 8080
           initialDelaySeconds: 60
           periodSeconds: 30
-          timeoutSeconds: 5
+          timeoutSeconds: 10
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /healthz
@@ -69,8 +70,9 @@ spec:
           timeoutSeconds: 5
       volumes:
       - name: data
-        persistentVolumeClaim:
-          claimName: dashboard-data
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Mi
       - name: vertex-ai-sa
         secret:
           secretName: vertex-ai-sa
