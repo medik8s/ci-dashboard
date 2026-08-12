@@ -146,6 +146,32 @@ Common query parameters: `days`, `version`, `operator`, `platform`.
 - HTML/CSS: Inline styles and `<style>` block in dashboard.html (dark theme, CSS variables)
 - No linter or formatter configured
 
+## GCS Backup Infrastructure
+
+The SQLite database is backed up to GCS after each data collection cycle and restored on pod startup.
+
+| Component         | Value                                                                      |
+| ----------------- | -------------------------------------------------------------------------- |
+| GCP Project       | `medik8s-qe-ci-dashboard`                                                  |
+| Bucket            | `gs://medik8s-qe-ci-dashboard-backup`                                      |
+| Blob path         | `backup/dashboard.db`                                                      |
+| SA                | `ci-dashboard-vertex@medik8s-qe-ci-dashboard.iam.gserviceaccount.com`      |
+| SA role on bucket | `roles/storage.objectAdmin`                                                |
+| Versioning        | Enabled (every upload keeps previous version)                              |
+| Lifecycle         | Non-current versions auto-deleted after 30 days                            |
+| Env var           | `GCS_BACKUP_BUCKET` (set in `deployment.yaml`)                             |
+| Auth              | `GOOGLE_APPLICATION_CREDENTIALS` pointing to the Vertex AI SA key (reused) |
+
+To list backup versions:
+```bash
+gcloud storage ls -la gs://medik8s-qe-ci-dashboard-backup/backup/
+```
+
+To restore a specific older version:
+```bash
+gcloud storage cp "gs://medik8s-qe-ci-dashboard-backup/backup/dashboard.db#<GENERATION>" /tmp/restore.db
+```
+
 ## PR Workflow
 
 1. Create branch from `master`
