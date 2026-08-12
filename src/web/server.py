@@ -6,6 +6,8 @@ from flask import Flask, render_template, jsonify, request, send_file
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
+import sqlite3
+import tempfile
 import time
 import yaml
 import threading
@@ -35,6 +37,7 @@ collection_status = {
     'progress': '',
     'error': None,
     'completed_at': None,
+    'backup_status': None,
     'lock': threading.Lock()
 }
 
@@ -52,6 +55,137 @@ def _fbc_short(fbc_image):
 
 POLARION_BASE = 'https://polarion.engineering.redhat.com/polarion/#/project/OSE/workitem?id='
 GITLAB_FBC_PROJECT = 'dragonfly/rhwa-fbc'
+GCS_BACKUP_BUCKET = os.environ.get('GCS_BACKUP_BUCKET', '')
+GCS_BACKUP_BLOB = 'backup/dashboard.db'
+GCS_TRANSFER_TIMEOUT_SECONDS = 120
+GCS_METADATA_TIMEOUT_SECONDS = 30
+SQLITE_CONNECT_TIMEOUT_SECONDS = 5
+_gcs_client = None
+_restore_blocked = False
+
+
+class _TempFile:
+    """Context manager for a temp file that is always cleaned up."""
+
+    def __init__(self, directory, suffix):
+        fd, self.path = tempfile.mkstemp(
+            suffix=suffix, dir=directory)
+        os.close(fd)
+
+    def __enter__(self):
+        return self.path
+
+    def __exit__(self, *exc):
+        if os.path.exists(self.path):
+            os.unlink(self.path)
+
+
+def _get_gcs_client():
+    global _gcs_client
+    if _gcs_client is None and GCS_BACKUP_BUCKET:
+        try:
+            from google.cloud import storage as gcs_storage
+            _gcs_client = gcs_storage.Client()
+            logger.info("GCS client initialized for bucket %s",
+                        GCS_BACKUP_BUCKET)
+        except ImportError:
+            logger.error("google-cloud-storage not installed; "
+                         "GCS backup disabled")
+        except Exception as e:
+            logger.warning("GCS client init failed: %s", e)
+    return _gcs_client
+
+
+def _gcs_blob():
+    client = _get_gcs_client()
+    if not client:
+        return None
+    return client.bucket(GCS_BACKUP_BUCKET).blob(GCS_BACKUP_BLOB)
+
+
+def backup_db_to_gcs(db_path):
+    """Back up the SQLite database to GCS.
+
+    Returns True on success, False on failure or skip.
+    Refuses to run when _restore_blocked is set (see
+    restore_db_from_gcs) to avoid overwriting a good backup
+    with data from a pod that started with an empty DB.
+    """
+    blob = _gcs_blob()
+    if not blob:
+        return False
+    if _restore_blocked:
+        logger.warning("Skipping backup: restore failed or "
+                       "found corrupt data")
+        return False
+    with _TempFile(os.path.dirname(db_path), '.backup') as tmp_path:
+        src = sqlite3.connect(
+            db_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
+        try:
+            dst = sqlite3.connect(tmp_path)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        except Exception as e:
+            logger.warning("SQLite backup failed: %s", e)
+            return False
+        finally:
+            src.close()
+        try:
+            blob.upload_from_filename(
+                tmp_path,
+                timeout=GCS_TRANSFER_TIMEOUT_SECONDS)
+        except Exception as e:
+            logger.warning("GCS upload failed: %s", e)
+            return False
+        size_mb = os.path.getsize(tmp_path) / (1024 * 1024)
+        logger.info("Backed up DB to GCS (%.1f MB)", size_mb)
+        return True
+
+
+def restore_db_from_gcs(db_path):
+    """Download and restore a SQLite backup from GCS.
+
+    Returns True on success, False on failure.
+    Sets the module-level _restore_blocked flag on corruption
+    or download failure so that backup_db_to_gcs refuses to
+    overwrite the last-known-good GCS copy.
+    """
+    global _restore_blocked
+    blob = _gcs_blob()
+    if not blob:
+        return False
+    with _TempFile(os.path.dirname(db_path), '.restore') as tmp_path:
+        try:
+            if not blob.exists(
+                    timeout=GCS_METADATA_TIMEOUT_SECONDS):
+                logger.info(
+                    "No GCS backup found, starting fresh")
+                return False
+            blob.download_to_filename(
+                tmp_path,
+                timeout=GCS_TRANSFER_TIMEOUT_SECONDS)
+        except Exception as e:
+            logger.warning("GCS download failed: %s", e)
+            _restore_blocked = True
+            return False
+        conn = sqlite3.connect(
+            tmp_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
+        try:
+            result = conn.execute(
+                'PRAGMA quick_check').fetchone()
+        finally:
+            conn.close()
+        if not result or result[0] != 'ok':
+            logger.warning(
+                "Backup failed integrity check: %s", result)
+            _restore_blocked = True
+            return False
+        os.replace(tmp_path, db_path)
+        size_mb = os.path.getsize(db_path) / (1024 * 1024)
+        logger.info("Restored DB from GCS (%.1f MB)", size_mb)
+        return True
 
 
 def _polarion_url(polarion_id):
@@ -628,11 +762,14 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
 
         db.record_collection_end(run_id, 'ok', jobs=inserted_jobs, tests=inserted_tests)
 
-        # Close connection after write
         db.close()
 
-        logger.info(f"Collection complete! Inserted {inserted_jobs} job runs and {inserted_tests} test results")
-        collection_status['progress'] = f'Complete! Saved {inserted_jobs} job runs and {inserted_tests} test results'
+        backup_ok = backup_db_to_gcs(db_path)
+        collection_status['backup_status'] = 'ok' if backup_ok else 'failed'
+        backup_note = '' if backup_ok else ' (GCS backup failed)'
+
+        logger.info(f"Collection complete! Inserted {inserted_jobs} job runs and {inserted_tests} test results{backup_note}")
+        collection_status['progress'] = f'Complete! Saved {inserted_jobs} job runs and {inserted_tests} test results{backup_note}'
         collection_status['error'] = None
         collection_status['completed_at'] = datetime.now(timezone.utc).isoformat()
 
@@ -688,7 +825,10 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     except Exception as e:
         print(f"Warning: Could not load config: {e}")
 
-    # Initialize database and calculator
+    # Restore database from GCS backup if local DB is empty/missing
+    if not Path(db_path).exists() or Path(db_path).stat().st_size == 0:
+        restore_db_from_gcs(db_path)
+
     db = DashboardDatabase(db_path)
     calculator = MetricsCalculator(db, blocklist=blocklist)
     report_generator = WeeklyReportGenerator(db, blocklist=blocklist)
@@ -856,8 +996,17 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             'running': collection_status['running'],
             'progress': collection_status['progress'],
             'error': collection_status['error'],
-            'completed_at': collection_status['completed_at']
+            'completed_at': collection_status['completed_at'],
+            'backup_status': collection_status['backup_status'],
         })
+
+    @app.route('/api/backup', methods=['POST'])
+    def api_backup():
+        """Trigger database backup to GCS. Called by preStop hook."""
+        ok = backup_db_to_gcs(db_path)
+        if ok:
+            return jsonify({'status': 'ok'})
+        return jsonify({'status': 'failed'}), 500
 
     @app.route('/api/trigger-collection', methods=['POST'])
     def api_trigger_collection():

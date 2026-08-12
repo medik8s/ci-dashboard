@@ -14,5 +14,8 @@ openpyxl>=3.1.0
 rich>=13.0.0
 click>=8.1.0
 
+# Storage
+google-cloud-storage>=2.18.0
+
 # AI / ML
 anthropic[vertex]>=0.34.0

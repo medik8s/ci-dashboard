@@ -16,6 +16,7 @@ spec:
         app: ci-dashboard
         paas.redhat.com/appcode: ISVD-001
     spec:
+      terminationGracePeriodSeconds: 150
       containers:
       - name: dashboard
         image: quay.io/medik8s-qe/ci-dashboard:latest
@@ -40,6 +41,20 @@ spec:
           value: medik8s-qe-ci-dashboard
         - name: CLOUD_ML_REGION
           value: global
+        - name: GCS_BACKUP_BUCKET
+          value: medik8s-qe-ci-dashboard-backup
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - python3
+              - -c
+              - >-
+                import urllib.request;
+                urllib.request.urlopen(
+                urllib.request.Request(
+                'http://localhost:8080/api/backup',
+                method='POST'), timeout=140)
         volumeMounts:
         - name: data
           mountPath: /data
@@ -71,8 +86,7 @@ spec:
       volumes:
       - name: data
         emptyDir:
-          medium: Memory
-          sizeLimit: 64Mi
+          sizeLimit: 256Mi
       - name: vertex-ai-sa
         secret:
           secretName: vertex-ai-sa
