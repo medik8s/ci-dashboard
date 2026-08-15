@@ -852,6 +852,26 @@
         .op-health-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
         .op-health-tbl tr:last-child td { border-bottom: none; }
         .op-health-tbl tr:hover { background: var(--bg-secondary); }
+
+        /* Variant status pills */
+        .variant-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+        .variant-pill {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 10px; font-size: 0.72rem;
+            text-decoration: none; color: inherit;
+            border: 1px solid var(--border); transition: border-color 0.2s;
+            white-space: nowrap;
+        }
+        .variant-pill:hover { border-color: var(--accent-blue); }
+        .variant-pill--passed { background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.3); }
+        .variant-pill--failed { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3); }
+        .variant-pill--none { background: var(--bg-secondary); color: var(--text-muted); }
+        .variant-pill .vp-dot { font-size: 0.5rem; }
+        .variant-pill--passed .vp-dot { color: var(--accent-green); }
+        .variant-pill--failed .vp-dot { color: var(--accent-red); }
+        .variant-pill--infra { background: rgba(230, 126, 34, 0.15); border-color: rgba(230, 126, 34, 0.3); }
+        .variant-pill--infra .vp-dot { color: #e67e22; }
+        .variant-pill--none .vp-dot { color: var(--text-muted); }
     </style>
 </head>
 <body>
@@ -2890,21 +2910,9 @@
             const container = document.getElementById('weeklyScheduleGrid');
             if (!container) return;
 
-            // Build latest run per job key from job_schedules
-            const latestByKey = {};
-            jobRuns.forEach(run => {
-                const step = run.step_name || run.job_name || '';
-                const m = step.match(/e2e-(.+)/);
-                const key = m ? m[1] : '';
-                if (!key) return;
-                if (!latestByKey[key] || (run.run_date || '') > (latestByKey[key].run_date || '')) {
-                    latestByKey[key] = run;
-                }
-            });
+            const latestByKey = buildLatestByKey(jobRuns);
 
-            // Fetch schedules from API
-            fetch('/api/job-schedules').then(r => r.json()).then(data => {
-                const schedules = data.job_schedules || {};
+            fetchJobSchedules().then(schedules => {
                 const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                 const dayMap = {};
 
@@ -3580,6 +3588,31 @@
             if (name.match(/^NMO\b|\bnmo-/i)) return 'NMO';
             return '';
         }
+        function buildLatestByKey(runs) {
+            var result = {};
+            runs.forEach(function(run) {
+                var step = run.step_name || run.job_name || '';
+                var m = step.match(/e2e-(.+)/);
+                var key = m ? m[1] : '';
+                if (!key) return;
+                if (!result[key] || (run.run_date || '') > (result[key].run_date || '')) {
+                    result[key] = run;
+                }
+            });
+            return result;
+        }
+        var _schedulePromise = null;
+        function fetchJobSchedules() {
+            if (!_schedulePromise) {
+                _schedulePromise = fetch('/api/job-schedules').then(function(resp) {
+                    if (!resp.ok) throw new Error('job-schedules: ' + resp.status);
+                    return resp.json();
+                }).then(function(data) {
+                    return data.job_schedules || {};
+                });
+            }
+            return _schedulePromise;
+        }
         function cleanTestName(name) {
             if (!name) return '';
             return name.replace(/\s*\[[^\]]+\]\s*$/, '');
@@ -3782,17 +3815,33 @@
                     }
                 } catch (jrErr) { console.error('job-runs stats error:', jrErr); }
 
-                // Build operator health table from job-runs (latest run per operator)
+                // Build operator health table with per-variant status pills
                 var healthTable = document.getElementById('operatorHealthTable');
                 if (healthTable) {
-                    var latestByOp = {};
-                    jrRuns.forEach(function(run) {
-                        var m = (run.step_name || run.job_name || '').match(/e2e-([a-z]+)/);
-                        var op = m ? m[1].toUpperCase() : '';
+                    var schedules = {};
+                    var schedError = false;
+                    try {
+                        schedules = await fetchJobSchedules();
+                    } catch (schedErr) {
+                        console.error('job-schedules error:', schedErr);
+                        schedError = true;
+                    }
+
+                    var latestByKey = buildLatestByKey(jrRuns);
+
+                    // Group schedule entries by operator label
+                    var variantsByOp = {};
+                    var schedKeys = Object.keys(schedules);
+                    schedKeys.forEach(function(key) {
+                        var sched = schedules[key];
+                        var op = (sched.label || '').toUpperCase();
                         if (!op) return;
-                        if (!latestByOp[op] || (run.run_date || '') > (latestByOp[op].run_date || '')) {
-                            latestByOp[op] = run;
-                        }
+                        if (!variantsByOp[op]) variantsByOp[op] = [];
+                        variantsByOp[op].push({
+                            key: key,
+                            variant: sched.variant || key,
+                            run: latestByKey[key] || null
+                        });
                     });
 
                     var opStatsMap = {};
@@ -3801,42 +3850,68 @@
                     var allOps = ['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO'];
                     var tbl = '<table class="op-health-tbl"><thead><tr>' +
                         '<th>Operator</th><th>Pass Rate</th><th>Passed</th><th>Failed</th>' +
-                        '<th>Last Job</th><th>Last Run</th><th>Prow</th></tr></thead><tbody>';
+                        '<th>Jobs</th><th>Last Run</th></tr></thead><tbody>';
 
                     allOps.forEach(function(op) {
-                        var run = latestByOp[op];
                         var stats = opStatsMap[op];
-                        var color = OP_COLORS[op] || '#6b7280';
+                        var variants = variantsByOp[op] || [];
                         var totalTests = stats ? stats.total_tests : 0;
                         var rate = totalTests > 0 ? Math.round(stats.passed / totalTests * 100) : -1;
                         var passed = stats ? stats.passed : 0;
                         var failed = stats ? stats.failed : 0;
                         var rateStr = rate >= 0 ? rate + '%' : '-';
                         var rateColor = rate < 0 ? 'var(--text-muted)' : rate >= 100 ? 'var(--accent-green)' : rate >= 80 ? '#eab308' : 'var(--accent-red)';
-                        var lastStatus = run ? run.status : '';
-                        var statusDot = lastStatus === 'passed' ? '<span style="color:var(--accent-green);">&#9679;</span>' :
-                                        lastStatus === 'failed' ? '<span style="color:var(--accent-red);">&#9679;</span>' :
-                                        '<span style="color:var(--text-muted);">&#9679;</span>';
-                        var date = run ? (run.run_date || '').split('T')[0] : '-';
-                        var prowUrl = run ? run.prow_url : '';
-                        var failReason = (run && run.failure_reason) ? run.failure_reason : '';
-                        var failCat = (run && run.failure_category) ? run.failure_category.replace(/_/g, ' ') : '';
-                        var failHint = (lastStatus === 'failed' && (failReason || failCat))
-                            ? ' title="' + esc(failCat || failReason) + '"' : '';
-                        var isInfraFail = lastStatus === 'failed' && (!run.failed_tests || run.failed_tests === 0);
-                        var infraTag = isInfraFail
-                            ? ' ' + failureBadge('infra', '', failCat || failReason || 'Job failed before tests ran')
-                            : '';
-                        if (isInfraFail) rateColor = 'var(--text-muted)';
+
+                        // Build variant pills
+                        var pillsHtml = '<div class="variant-pills">';
+                        var latestDate = '';
+                        var anyFailed = false;
+                        variants.forEach(function(v) {
+                            var run = v.run;
+                            var st = run ? run.status : '';
+                            var isInfra = st === 'failed' && (!run.failed_tests || run.failed_tests === 0);
+                            var pillClass = st === 'passed' ? 'variant-pill--passed'
+                                : st === 'failed' ? (isInfra ? 'variant-pill--infra' : 'variant-pill--failed')
+                                : 'variant-pill--none';
+                            var dot = '&#9679;';
+                            var runDate = run ? (run.run_date || '').split('T')[0] : '';
+                            var prowUrl = run ? (run.prow_url || '') : '';
+                            var failInfo = '';
+                            if (st === 'failed') {
+                                anyFailed = true;
+                                var cat = (run.failure_category || '').replace(/_/g, ' ');
+                                var reason = run.failure_reason || '';
+                                failInfo = cat || reason || 'failed';
+                            }
+                            var tooltip = esc(v.variant) + ': ' + esc(st || 'no runs') + (runDate ? ' (' + esc(runDate) + ')' : '') + (failInfo ? ' - ' + esc(failInfo) : '');
+                            if (run && (run.run_date || '') > latestDate) latestDate = run.run_date || '';
+
+                            if (prowUrl) {
+                                pillsHtml += '<a href="' + esc(prowUrl) + '" target="_blank" rel="noopener noreferrer" class="variant-pill ' + pillClass + '" title="' + tooltip + '">';
+                            } else {
+                                pillsHtml += '<span class="variant-pill ' + pillClass + '" title="' + tooltip + '">';
+                            }
+                            pillsHtml += '<span class="vp-dot">' + dot + '</span>' + esc(v.variant);
+                            pillsHtml += prowUrl ? '</a>' : '</span>';
+                        });
+                        if (variants.length === 0) {
+                            var emptyTitle = schedError ? 'Schedule API error' : 'No jobs configured';
+                            var emptyLabel = schedError ? '!' : '-';
+                            pillsHtml += '<span class="variant-pill variant-pill--none" title="' + emptyTitle + '">' + emptyLabel + '</span>';
+                        }
+                        pillsHtml += '</div>';
+
+                        if (anyFailed && rate >= 100) rateColor = '#eab308';
+
+                        var date = latestDate ? latestDate.split('T')[0] : '-';
 
                         tbl += '<tr>' +
                             '<td><a href="#" onclick="setOperatorFilter(\'' + op + '\'); switchToTab(\'test-results-tab\'); return false;" style="text-decoration:none;">' + opChip(op) + '</a></td>' +
                             '<td style="font-weight:700; color:' + rateColor + ';">' + rateStr + '</td>' +
                             '<td style="color:var(--accent-green);">' + passed + '</td>' +
                             '<td style="color:' + (failed > 0 ? 'var(--accent-red)' : 'var(--text-muted)') + ';">' + failed + '</td>' +
-                            '<td' + failHint + '>' + statusDot + ' <span class="' + (lastStatus === 'passed' ? 'result-pass' : lastStatus === 'failed' ? 'result-fail' : '') + '">' + (lastStatus ? lastStatus.toUpperCase() : '-') + '</span>' + infraTag + '</td>' +
+                            '<td>' + pillsHtml + '</td>' +
                             '<td>' + date + '</td>' +
-                            '<td>' + (prowUrl ? '<a href="' + prowUrl + '" target="_blank" rel="noopener" style="color:var(--accent-blue);">View</a>' : '-') + '</td>' +
                             '</tr>';
                     });
 
