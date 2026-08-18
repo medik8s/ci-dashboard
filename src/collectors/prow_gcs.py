@@ -12,6 +12,7 @@ No MCP, no ReportPortal - direct access to Prow data.
 
 import os
 import re
+import json
 import subprocess
 import xml.etree.ElementTree as ET
 import logging
@@ -21,7 +22,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
-from .base import BaseCollector, TestResult, JobRun, TestStatus
+from .base import (
+    BaseCollector, TestResult, JobRun, TestStatus, ARTIFACT_STEP_DIR_CANDIDATES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -338,6 +341,73 @@ class ProwGCSCollector(BaseCollector):
             logger.debug(f"[prow_gcs] Could not fetch tail of {url}: {e}")
         return None
 
+    # Candidate inner artifact step-dir names per logical log type, in priority
+    # order. Sourced from base.ARTIFACT_STEP_DIR_CANDIDATES (shared with the web
+    # layer) so the collector and dashboard cannot drift on step-dir names. The
+    # inner dir names vary by job variant (e.g. upgrade jobs use
+    # 'e2e-upgrade-test' and 'ipi-install-install-stableinitial'), so they are
+    # resolved from the actual GCS artifact listing rather than hardcoded.
+    _STEP_DIR_CANDIDATES = ARTIFACT_STEP_DIR_CANDIDATES
+
+    @staticmethod
+    def _extract_dir_hrefs(html: str) -> List[str]:
+        """Return directory hrefs (those ending in '/') from a gcsweb HTML listing.
+
+        Shared by _list_step_subdirs (which reduces them to basenames) and
+        _find_junit_files (which needs the full hrefs to build subdir URLs), so
+        the gcsweb dir-link regex lives in exactly one place.
+        """
+        return re.findall(r'href="([^"]+/)"', html)
+
+    def _list_step_subdirs(self, base_url: str) -> set:
+        """List the immediate sub-directory names under an artifacts step dir.
+
+        Fetches the gcsweb HTML listing (same mechanism as _find_junit_files)
+        and returns the set of inner step directory basenames, e.g.
+        {'e2e-upgrade-test', 'ipi-install-install-stableinitial', ...}.
+        """
+        dirs = set()
+        try:
+            resp = self.session.get(base_url.rstrip('/') + '/', timeout=20)
+            if resp.status_code != 200:
+                return dirs
+            for href in self._extract_dir_hrefs(resp.text):
+                name = href.rstrip('/').rsplit('/', 1)[-1].strip()
+                if name and name not in ('..', '.'):
+                    dirs.add(name)
+        except requests.RequestException as e:
+            # Transient/expected (aged-out run, network blip): not actionable.
+            logger.debug(f"[prow_gcs] Could not list step subdirs at {base_url}: {e}")
+        except Exception as e:
+            # Unexpected (parsing/logic error): surface it, but keep enrichment
+            # going with an empty set rather than aborting the whole job run.
+            logger.warning(f"[prow_gcs] Unexpected error listing step subdirs at {base_url}: {e}")
+        return dirs
+
+    def _resolve_step_dirs(self, existing: set) -> Dict[str, str]:
+        """Map logical log types to the actual inner step-dir names that exist.
+
+        Only includes a key when a matching dir is actually present, so callers
+        can omit links for steps that never ran (e.g. no subscribe step on
+        upgrade jobs) instead of emitting a guaranteed-404 URL.
+        """
+        resolved: Dict[str, str] = {}
+        for key, candidates in self._STEP_DIR_CANDIDATES.items():
+            match = next((c for c in candidates if c in existing), None)
+            if not match:
+                # Generic fallback for the two variant-prone install/e2e steps
+                # (handles future renames the candidate list doesn't know yet).
+                if key == 'e2e':
+                    match = next((d for d in sorted(existing)
+                                  if re.match(r'^e2e(-.*)?-test$', d)), None)
+                elif key == 'install':
+                    match = next((d for d in sorted(existing)
+                                  if d == 'ipi-install-install'
+                                  or d.startswith('ipi-install-install-')), None)
+            if match:
+                resolved[key] = match
+        return resolved
+
     def _artifact_base(self, job_run: JobRun) -> Optional[str]:
         """Build the GCS artifact base URL for a job run.
 
@@ -382,22 +452,32 @@ class ProwGCSCollector(BaseCollector):
         if not base:
             return job_run
 
+        # Resolve the actual inner artifact step-dir names once (variant-aware).
+        # This drives both the persisted log-link dirs AND the metadata parsing
+        # below, so upgrade jobs (e2e-upgrade-test / ipi-install-install-
+        # stableinitial) are handled correctly instead of 404ing.
+        resolved = self._resolve_step_dirs(self._list_step_subdirs(base))
+        job_run.log_dirs = json.dumps(resolved) if resolved else None
+
+        # Build ordered candidate lists that try the resolved dir first, then
+        # fall back to the shared vocabulary (ARTIFACT_STEP_DIR_CANDIDATES) so the
+        # defaults cannot drift from the resolver or drop a variant (e.g.
+        # ipi-install-install-stableinitial for upgrade jobs).
+        def _candidates(key):
+            found = resolved.get(key)
+            defaults = ARTIFACT_STEP_DIR_CANDIDATES.get(key, ())
+            return tuple(([found] if found else []) + [d for d in defaults if d != found])
+
         job_run.ocp_version = self._try_parse_from_steps(
-            base,
-            ('ipi-install-install', 'ipi-install-install-aws'),
-            self._parse_ocp_version,
+            base, _candidates('install'), self._parse_ocp_version,
         ) or job_run.ocp_version
 
         job_run.csv_version = self._try_parse_from_steps(
-            base,
-            ('medik8s-operator-subscribe',),
-            self._parse_csv_version,
+            base, _candidates('subscribe'), self._parse_csv_version,
         ) or self._parse_csv_from_junit(base, job_run.job_name) or job_run.csv_version
 
         job_run.fbc_image = self._try_parse_from_steps(
-            base,
-            ('medik8s-catalogsource', 'medik8s-disconnected-catalogsource'),
-            self._parse_fbc_image,
+            base, _candidates('catalog'), self._parse_fbc_image,
         ) or job_run.fbc_image
 
         return job_run
@@ -849,8 +929,7 @@ class ProwGCSCollector(BaseCollector):
             # Only recurse if we haven't hit max depth
             if current_depth < max_depth:
                 # Find subdirectories (links ending with /)
-                dir_pattern = r'href="([^"]+/)"'
-                dir_matches = re.findall(dir_pattern, html)
+                dir_matches = self._extract_dir_hrefs(html)
 
                 for match in dir_matches:
                     match = match.strip()

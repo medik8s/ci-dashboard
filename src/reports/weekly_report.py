@@ -24,6 +24,29 @@ class WeeklyReportGenerator:
         self.db = database
         self.calculator = MetricsCalculator(database, blocklist=blocklist)
 
+    @staticmethod
+    def _week_windows(current_week_days: int, previous_week_days: int):
+        """Return (current_start, current_end, previous_start, previous_end).
+
+        The previous window ends exactly where the current window starts, so the
+        two are contiguous and non-overlapping.
+        """
+        current_end = datetime.now()
+        current_start = current_end - timedelta(days=current_week_days)
+        previous_end = current_start
+        previous_start = previous_end - timedelta(days=previous_week_days)
+        return current_start, current_end, previous_start, previous_end
+
+    @staticmethod
+    def _period_label(start: datetime, end: datetime) -> str:
+        """Format a window as e.g. 'Aug 11–18' for the report header."""
+        return f"{start.strftime('%b %d')}–{end.strftime('%d')}"
+
+    @staticmethod
+    def _pct(passed: int, total: int) -> float:
+        """Pass-rate percentage, rounded to 1 dp; 0 when there are no runs."""
+        return round(passed / total * 100, 1) if total else 0
+
     def get_platform_week_over_week(
         self,
         current_week_days: int = 7,
@@ -41,13 +64,8 @@ class WeeklyReportGenerator:
         Returns:
             Dictionary with platform comparison data
         """
-        # Current week
-        current_end = datetime.now()
-        current_start = current_end - timedelta(days=current_week_days)
-
-        # Previous week
-        previous_end = current_start
-        previous_start = previous_end - timedelta(days=previous_week_days)
+        current_start, current_end, previous_start, previous_end = self._week_windows(
+            current_week_days, previous_week_days)
 
         # Get current week data
         current_daily = self.db.get_daily_pass_rates(current_start, current_end, version=version)
@@ -119,9 +137,114 @@ class WeeklyReportGenerator:
             }
 
         return {
-            'current_period': f"{current_start.strftime('%b %d')}–{current_end.strftime('%d')}",
-            'previous_period': f"{previous_start.strftime('%b %d')}–{previous_end.strftime('%d')}",
+            'current_period': self._period_label(current_start, current_end),
+            'previous_period': self._period_label(previous_start, previous_end),
             'platforms': comparisons
+        }
+
+    def get_operator_week_over_week(
+        self,
+        current_week_days: int = 7,
+        previous_week_days: int = 7,
+        version: Optional[str] = None,
+        operator: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Get week-over-week per-operator comparison.
+
+        Replaces the legacy platform breakdown: medik8s CI only runs on AWS, so
+        comparing platforms carries no signal. This groups by operator (FAR,
+        SBR, SNR, NHC, MDR, NMO) instead. Windows are half-open (see
+        get_operator_pass_rates), so a run on a week boundary is counted once.
+
+        Args:
+            current_week_days: Days in current window (default: 7)
+            previous_week_days: Days in previous window (default: 7)
+            version: Optional version filter
+            operator: Optional single-operator filter (e.g. 'SNR')
+
+        Returns:
+            Dictionary with per-operator comparison data and an overall summary
+        """
+        current_start, current_end, previous_start, previous_end = self._week_windows(
+            current_week_days, previous_week_days)
+
+        current = {
+            row['operator']: row
+            for row in self.db.get_operator_pass_rates(
+                current_start, current_end, version=version, operator=operator
+            )
+        }
+        previous = {
+            row['operator']: row
+            for row in self.db.get_operator_pass_rates(
+                previous_start, previous_end, version=version, operator=operator
+            )
+        }
+
+        # Union so an operator that ran only in one window still appears (a
+        # regression to zero runs must not silently vanish from the report).
+        operators = {}
+        for op in sorted(set(current) | set(previous)):
+            cur = current.get(op)
+            prev = previous.get(op)
+
+            cur_total = cur['total_executions'] if cur else 0
+            cur_passed = cur['passed_executions'] if cur else 0
+            prev_total = prev['total_executions'] if prev else 0
+            prev_passed = prev['passed_executions'] if prev else 0
+
+            cur_rate = self._pct(cur_passed, cur_total)
+            prev_rate = self._pct(prev_passed, prev_total)
+
+            # Counts are executions (a test can run many times in a window);
+            # *_total_tests are distinct test names. Named explicitly so these
+            # are not confused with the platform report's test-count keys.
+            operators[op] = {
+                'current_pass_rate': cur_rate,
+                'previous_pass_rate': prev_rate,
+                'delta': round(cur_rate - prev_rate, 1),
+                'current_runs': cur_total,
+                'previous_runs': prev_total,
+                'current_total_tests': cur['total_tests'] if cur else 0,
+                'current_passed_executions': cur_passed,
+                'current_failed_executions': cur_total - cur_passed,
+                'previous_total_tests': prev['total_tests'] if prev else 0,
+                'previous_passed_executions': prev_passed,
+                'previous_failed_executions': prev_total - prev_passed,
+            }
+
+        # Overall summary (execution-weighted, guarded against empty windows).
+        cur_total_all = sum(o['current_runs'] for o in operators.values())
+        cur_passed_all = sum(o['current_passed_executions'] for o in operators.values())
+        prev_total_all = sum(o['previous_runs'] for o in operators.values())
+        prev_passed_all = sum(o['previous_passed_executions'] for o in operators.values())
+
+        cur_avg = self._pct(cur_passed_all, cur_total_all)
+        prev_avg = self._pct(prev_passed_all, prev_total_all)
+        overall_delta = cur_avg - prev_avg
+
+        if overall_delta > 2:
+            trend = 'improving'
+        elif overall_delta < -2:
+            trend = 'declining'
+        else:
+            trend = 'stable'
+
+        summary = {
+            'total_operators': len(operators),
+            'total_executions': cur_total_all,
+            'passed_executions': cur_passed_all,
+            'failed_executions': cur_total_all - cur_passed_all,
+            'avg_pass_rate': cur_avg,
+            'trend': trend,
+        }
+
+        return {
+            'current_period': self._period_label(current_start, current_end),
+            'previous_period': self._period_label(previous_start, previous_end),
+            'operators': operators,
+            'summary': summary,
         }
 
     def generate_slack_report(

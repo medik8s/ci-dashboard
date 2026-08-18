@@ -83,6 +83,7 @@ class MetricsCalculator:
         days: int = 30,
         version: Optional[str] = None,
         platform: Optional[str] = None,
+        operator: Optional[str] = None,
         limit: int = 20
     ) -> List[Dict[str, Any]]:
         """
@@ -92,6 +93,7 @@ class MetricsCalculator:
             days: Number of days to look back
             version: Optional version filter
             platform: Optional platform filter
+            operator: Optional operator filter (e.g. 'SNR')
             limit: Maximum number of tests to return
 
         Returns:
@@ -101,10 +103,11 @@ class MetricsCalculator:
         start_date = end_date - timedelta(days=days)
 
         test_data = self.db.get_test_pass_rates(
-            start_date, end_date, version=version, platform=platform, blocklist=self.blocklist
+            start_date, end_date, version=version, platform=platform,
+            operator=operator, blocklist=self.blocklist
         )
 
-        min_runs = 1 if (platform or days <= 7) else 2
+        min_runs = 1 if (platform or operator or days <= 7) else 2
         meaningful_tests = [
             test for test in test_data
             if test['total_runs'] >= min_runs or test['pass_rate'] < 100

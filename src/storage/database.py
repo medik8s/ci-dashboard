@@ -5,7 +5,8 @@ SQLite database for storing historical test results and metrics
 import logging
 import re
 import sqlite3
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -249,7 +250,8 @@ class DashboardDatabase:
         # Add enriched metadata columns to job_runs
         jr_cols = {row[1] for row in cursor.execute("PRAGMA table_info(job_runs)")}
         for col in ['ocp_version', 'csv_version', 'fbc_image', 'step_name',
-                     'failure_reason', 'failed_step', 'failure_category']:
+                     'failure_reason', 'failed_step', 'failure_category',
+                     'log_dirs']:
             if col not in jr_cols:
                 cursor.execute(f"ALTER TABLE job_runs ADD COLUMN {col} TEXT")
 
@@ -334,8 +336,8 @@ class DashboardDatabase:
                         skipped_tests, pass_rate, job_url,
                         ocp_version, csv_version, fbc_image, step_name,
                         job_type, pr_number, pr_author, pr_repo, gcs_prefix,
-                        failure_reason, failed_step, failure_category
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        failure_reason, failed_step, failure_category, log_dirs
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(job_name, build_id) DO UPDATE SET
                         status = excluded.status,
                         timestamp = excluded.timestamp,
@@ -359,7 +361,8 @@ class DashboardDatabase:
                         gcs_prefix = COALESCE(excluded.gcs_prefix, job_runs.gcs_prefix),
                         failure_reason = COALESCE(excluded.failure_reason, job_runs.failure_reason),
                         failed_step = COALESCE(excluded.failed_step, job_runs.failed_step),
-                        failure_category = COALESCE(excluded.failure_category, job_runs.failure_category)
+                        failure_category = COALESCE(excluded.failure_category, job_runs.failure_category),
+                        log_dirs = COALESCE(excluded.log_dirs, job_runs.log_dirs)
                 """, (
                     run.job_name,
                     run.build_id,
@@ -386,6 +389,7 @@ class DashboardDatabase:
                     getattr(run, 'failure_reason', None),
                     getattr(run, 'failed_step', None),
                     getattr(run, 'failure_category', None),
+                    getattr(run, 'log_dirs', None),
                 ))
                 inserted += 1
             except sqlite3.IntegrityError:
@@ -543,6 +547,7 @@ class DashboardDatabase:
         test_name: Optional[str] = None,
         version: Optional[str] = None,
         platform: Optional[str] = None,
+        operator: Optional[str] = None,
         blocklist: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -658,6 +663,10 @@ class DashboardDatabase:
         if platform:
             query += " AND platform = ?"
             params.append(platform)
+
+        if operator:
+            query += " AND operator = ?"
+            params.append(operator)
 
         if blocklist:
             # Use LIKE to match test ID prefix (e.g., OCP-60944 matches OCP-60944:author:...)
@@ -991,7 +1000,8 @@ class DashboardDatabase:
                 jr.fbc_image,
                 jr.step_name,
                 jr.job_url,
-                jr.build_id
+                jr.build_id,
+                jr.log_dirs
             FROM test_results tr
             JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
             WHERE tr.timestamp >= datetime('now', ? || ' days')
@@ -1044,7 +1054,8 @@ class DashboardDatabase:
                 jr.pr_number AS jr_pr_number,
                 jr.pr_author,
                 jr.pr_repo,
-                jr.gcs_prefix
+                jr.gcs_prefix,
+                jr.log_dirs
             FROM test_results tr
             JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
             WHERE tr.timestamp >= datetime('now', ? || ' days')
@@ -1095,7 +1106,8 @@ class DashboardDatabase:
                 jr.pr_number,
                 jr.pr_author,
                 jr.pr_repo,
-                jr.gcs_prefix
+                jr.gcs_prefix,
+                jr.log_dirs
             FROM job_runs jr
             WHERE jr.timestamp >= datetime('now', ? || ' days')
             AND COALESCE(jr.job_type, 'periodic') = 'presubmit'
@@ -1148,6 +1160,207 @@ class DashboardDatabase:
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_operator_pass_rates(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        version: Optional[str] = None,
+        operator: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get per-operator execution counts within an explicit date range.
+
+        Periodic jobs only, excluding skipped results and rows without a known
+        operator. Uses a half-open [start, end) window so a run landing exactly
+        on a week boundary is never counted in both the current and previous
+        periods. Returns one row per operator with total/passed executions and
+        the distinct test count.
+        """
+        cursor = self.conn.cursor()
+
+        query = """
+            SELECT
+                operator,
+                COUNT(*) AS total_executions,
+                SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) AS passed_executions,
+                COUNT(DISTINCT test_name) AS total_tests
+            FROM test_results
+            WHERE timestamp >= ? AND timestamp < ?
+            AND status != 'skipped'
+            AND COALESCE(job_type, 'periodic') = 'periodic'
+            AND operator IS NOT NULL AND operator NOT IN ('', 'Unknown')
+        """
+        params: list = [start_date.isoformat(), end_date.isoformat()]
+
+        if version:
+            query += " AND version = ?"
+            params.append(version)
+        if operator:
+            query += " AND operator = ?"
+            params.append(operator)
+
+        query += " GROUP BY operator ORDER BY operator"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    _KNOWN_OPERATORS = ("FAR", "SBR", "SNR", "NHC", "MDR", "NMO")
+
+    def get_operator_health(
+        self,
+        history_weeks: int = 8,
+        version: Optional[str] = None,
+        operator: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Per-operator health: latest run + weekly sparkline for last N weeks.
+
+        Starts from job_runs (not test_results) so FAILED runs with 0 tests
+        are included. Operator is resolved via an all-time job_name→operator
+        map built from test_results, falling back to a substring match on the
+        job name.
+        """
+        history_weeks = history_weeks if history_weeks in (4, 8, 12) else 8
+        now = datetime.now(timezone.utc)
+        today = now.date()
+        current_monday = today - timedelta(days=today.weekday())
+        oldest_monday = current_monday - timedelta(weeks=history_weeks - 1)
+        window_start = datetime(oldest_monday.year, oldest_monday.month, oldest_monday.day)
+        targets = (operator,) if operator else self._KNOWN_OPERATORS
+
+        # Build job_name -> operator map from all-time test_results (periodic only).
+        # This handles FAILED runs (0 test_results rows) by resolving operator
+        # from any successful historical run of the same job.
+        mapping_rows = self.conn.execute("""
+            SELECT job_name, operator, COUNT(*) AS n
+            FROM test_results
+            WHERE operator IS NOT NULL AND TRIM(operator) != ''
+              AND COALESCE(job_type, 'periodic') = 'periodic'
+            GROUP BY job_name, operator ORDER BY n DESC
+        """).fetchall()
+        job_to_op: Dict[str, str] = {}
+        for row in mapping_rows:
+            job_to_op.setdefault(row["job_name"], row["operator"].upper())
+
+        def resolve_op(job_name: str) -> Optional[str]:
+            if job_name in job_to_op:
+                return job_to_op[job_name]
+            upper = job_name.upper()
+            for op in self._KNOWN_OPERATORS:
+                if op in upper:
+                    return op
+            return None
+
+        # Query all periodic job_runs in the window
+        params: list = [window_start.strftime("%Y-%m-%d %H:%M:%S")]
+        version_clause = ""
+        if version:
+            version_clause = " AND (version = ? OR ocp_version LIKE ? || '%')"
+            params.extend([version, version])
+
+        run_rows = self.conn.execute(f"""
+            SELECT job_name, CAST(build_id AS TEXT) AS build_id,
+                   timestamp, total_tests, passed_tests, failed_tests, job_url
+            FROM job_runs
+            WHERE timestamp >= ?
+              AND COALESCE(job_type, 'periodic') = 'periodic'
+              AND (pr_number IS NULL OR pr_number = 0)
+              {version_clause}
+            ORDER BY timestamp DESC
+        """, params).fetchall()
+
+        def week_start_iso(ts_str: str) -> str:
+            try:
+                dt = datetime.fromisoformat(ts_str.replace("T", " ")[:19])
+                return (dt.date() - timedelta(days=dt.weekday())).isoformat()
+            except (ValueError, TypeError):
+                return ""
+
+        # Bucket by operator + ISO week (one slot per week, first=latest run wins)
+        weeks_by_op: Dict[str, Dict[str, Any]] = defaultdict(dict)
+        for row in run_rows:
+            op = resolve_op(row["job_name"])
+            if not op or op not in targets:
+                continue
+            wk = week_start_iso(row["timestamp"])
+            if not wk or wk in weeks_by_op[op]:
+                continue
+            total = int(row["total_tests"] or 0)
+            failed = int(row["failed_tests"] or 0)
+            weeks_by_op[op][wk] = {
+                "date": row["timestamp"][:10],
+                "passed": int(row["passed_tests"] or 0),
+                "failed": failed,
+                "total": total,
+                "status": "failed" if total == 0 else ("degraded" if failed > 0 else "healthy"),
+                "job_name": row["job_name"],
+                "build_id": row["build_id"],
+                "job_url": row["job_url"] or "",
+            }
+
+        # Fetch failed test names only for each operator's latest run
+        failed_by_run: Dict[tuple, List[str]] = defaultdict(list)
+        for op in targets:
+            wks = weeks_by_op.get(op, {})
+            if wks:
+                latest = max(wks.values(), key=lambda r: r["date"])
+                rows = self.conn.execute("""
+                    SELECT test_name FROM test_results
+                    WHERE job_name = ? AND CAST(build_id AS TEXT) = ?
+                      AND LOWER(status) IN ('failed', 'failure', 'error')
+                    ORDER BY test_name
+                """, (latest["job_name"], latest["build_id"])).fetchall()
+                failed_by_run[(latest["job_name"], latest["build_id"])] = [
+                    r["test_name"] for r in rows
+                ]
+
+        # Historical operator presence (for STALE vs NO DATA)
+        seen_ops = {
+            r["operator"]
+            for r in self.conn.execute(
+                "SELECT DISTINCT UPPER(operator) AS operator FROM test_results "
+                "WHERE operator IS NOT NULL AND COALESCE(job_type, 'periodic') = 'periodic'"
+            ).fetchall()
+        }
+        seen_ops.update(v.upper() for v in job_to_op.values())
+
+        # Calendar-week slots: oldest Monday → current Monday (history_weeks slots)
+        week_slots = [
+            (current_monday - timedelta(weeks=i)).isoformat()
+            for i in range(history_weeks - 1, -1, -1)
+        ]
+
+        result: Dict[str, Any] = {}
+        for op in targets:
+            wks = weeks_by_op.get(op, {})
+            history = [
+                wks.get(slot) or {
+                    "date": slot, "passed": 0, "failed": 0, "total": 0, "status": "no_run"
+                }
+                for slot in week_slots
+            ]
+            if wks:
+                latest = max(wks.values(), key=lambda r: r["date"])
+                failed_tests = failed_by_run.get(
+                    (latest["job_name"], latest["build_id"]), []
+                )
+                result[op] = {
+                    "status": latest["status"],
+                    "latest_run": {
+                        "date": latest["date"],
+                        "passed": latest["passed"],
+                        "failed": latest["failed"],
+                        "total": latest["total"],
+                        "job_url": latest["job_url"],
+                        "failed_tests": failed_tests,
+                    },
+                    "run_history": history,
+                }
+            else:
+                result[op] = {
+                    "status": "stale" if op in seen_ops else "no_data",
+                    "latest_run": None,
+                    "run_history": history,
+                }
+        return result
+
     def get_job_run_history(
         self,
         days: int = 30,
@@ -1178,7 +1391,8 @@ class DashboardDatabase:
                 jr.step_name,
                 jr.failure_reason,
                 jr.failed_step,
-                jr.failure_category
+                jr.failure_category,
+                jr.log_dirs
             FROM job_runs jr
             WHERE jr.timestamp >= datetime('now', ? || ' days')
             AND COALESCE(jr.job_type, 'periodic') = 'periodic'
@@ -1384,7 +1598,7 @@ class DashboardDatabase:
                 SELECT tr.test_name, tr.operator, tr.status, tr.error_message,
                        tr.job_name, tr.build_id, tr.polarion_id,
                        jr.timestamp AS run_date, jr.job_url, jr.ocp_version,
-                       jr.fbc_image, jr.csv_version, jr.step_name
+                       jr.fbc_image, jr.csv_version, jr.step_name, jr.log_dirs
                 FROM test_results tr
                 JOIN ranked_runs rr ON tr.job_name = rr.job_name AND tr.build_id = rr.build_id AND rr.rn = 1
                 JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
@@ -1421,6 +1635,7 @@ class DashboardDatabase:
                 curr.fbc_image,
                 curr.csv_version,
                 curr.step_name,
+                curr.log_dirs,
                 curr.polarion_id,
                 prev.run_date AS prev_run_date,
                 prev.job_url AS prev_job_url,

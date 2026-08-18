@@ -1,0 +1,24 @@
+# Version control (a `git clone` build context still contains .git/; keep it out of the image)
+.git/
+.gitignore
+
+# Local Claude Code worktrees (not application code)
+.claude/
+
+# Python caches / build artifacts / virtualenvs
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Secrets / local environment files
+.env
+*.env.local
+
+# Local databases / data (the container creates /data at runtime)
+*.db
+data/
+
+# OS junk
+.DS_Store

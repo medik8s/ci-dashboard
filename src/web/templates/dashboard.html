@@ -486,6 +486,11 @@
             color: var(--accent-red);
         }
 
+        .status-neutral {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-muted);
+        }
+
         .report-header {
             background: var(--bg-card);
             padding: 25px;
@@ -514,6 +519,22 @@
         .platform-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+
+        .health-card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .health-card .health-failed-list {
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .modal {
@@ -914,7 +935,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-summary')">FBC Summary</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('operator-health')">Operator Health</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
         </header>
@@ -942,7 +963,7 @@
             </div>
         </div>
 
-        <!-- Shared filters (visible on all tabs except Weekly Report) -->
+        <!-- Shared filters (visible on all tabs except Operator Health and Pipeline) -->
         <div id="sharedFilters" class="controls" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <label for="timeRange">Time Range:</label>
@@ -959,6 +980,10 @@
                 <select id="versionFilter" onchange="refreshActiveTab()">
                 </select>
             </div>
+            <button id="sharedExportXlsxBtn" class="refresh-button" onclick="exportTestResultsXlsx()" style="display:none;align-items:center;gap:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Export XLSX
+            </button>
         </div>
 
         <!-- Overview Tab -->
@@ -1011,10 +1036,6 @@
                     </div>
                     <input type="text" class="table-search" id="testResultsSearch" placeholder="Search tests..." oninput="filterTableRows('testResultsList', this.value)">
                 </div>
-                <button class="refresh-button" onclick="exportTestResultsXlsx()" style="display:flex; align-items:center; gap:6px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    Export XLSX
-                </button>
             </div>
             <div class="test-list" id="testResultsList">
                 <h2>Test Results <span id="trCount" style="font-size:0.8rem; color:var(--text-muted);"></span></h2>
@@ -1135,71 +1156,66 @@
             </div>
         </div>
 
-        <!-- Weekly Report Tab -->
-        <div id="weekly-report-tab" class="tab-content">
-            <div class="controls">
-                <label for="reportCurrentDays">Current Period:</label>
-                <select id="reportCurrentDays" onchange="refreshWeeklyReport()">
-                    <option value="3">Last 3 days</option>
-                    <option value="7" selected>Last 7 days</option>
-                    <option value="14">Last 14 days</option>
-                    <option value="30">Last 30 days</option>
-                </select>
-
-                <label for="reportPreviousDays">Compare To:</label>
-                <select id="reportPreviousDays" onchange="refreshWeeklyReport()">
-                    <option value="3">Previous 3 days</option>
-                    <option value="7" selected>Previous 7 days</option>
-                    <option value="14">Previous 14 days</option>
-                    <option value="30">Previous 30 days</option>
-                </select>
-
-                <label for="reportVersion">Version:</label>
-                <select id="reportVersion" onchange="refreshWeeklyReport()">
-                    <option value="">All Versions</option>
-                </select>
-
-                <label for="reportTopTests">Top Tests:</label>
-                <select id="reportTopTests" onchange="refreshWeeklyReport()">
-                    <option value="5">Top 5</option>
-                    <option value="10" selected>Top 10</option>
-                    <option value="20">Top 20</option>
-                    <option value="50">Top 50</option>
-                    <option value="1000">All Tests</option>
-                </select>
+        <!-- Operator Health Tab -->
+        <div id="operator-health-tab" class="tab-content">
+            <div class="controls" style="display:flex; align-items:center; gap:8px; justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label for="historyWeeks">Period:</label>
+                    <select id="historyWeeks" onchange="refreshOperatorHealth()">
+                        <option value="4">Last 4 weeks</option>
+                        <option value="8" selected>Last 8 weeks</option>
+                        <option value="12">Last 12 weeks</option>
+                    </select>
+                    <label for="reportVersion">Version:</label>
+                    <select id="reportVersion" onchange="refreshOperatorHealth()">
+                        <option value="">All Versions</option>
+                    </select>
+                </div>
+                <button class="refresh-button" onclick="exportOperatorHealthXlsx()" style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Export XLSX
+                </button>
             </div>
-
-            <div class="report-header">
-                <div class="report-title" id="reportTitle">Weekly Platform Report</div>
-                <div class="report-subtitle" id="reportSubtitle">Loading...</div>
-            </div>
-
-            <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: var(--shadow); border: 1px solid var(--border);">
-                <h2 style="font-size: 18px; margin-bottom: 20px;">Platform Pass Rates (Week-over-Week)</h2>
-                <div id="platformComparison">
-                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">Loading...</div>
+            <div class="controls" style="display:flex; align-items:center; gap:8px;">
+                <label>Operator:</label>
+                <div class="op-filter-bar" id="healthOpFilters">
+                    <button class="op-filter-chip active" onclick="setHealthOpFilter(null, this)">All</button>
+                    <button class="op-filter-chip" style="border-color:#2563eb;" onclick="setHealthOpFilter('FAR', this)">FAR</button>
+                    <button class="op-filter-chip" style="border-color:#f97316;" onclick="setHealthOpFilter('SBR', this)">SBR</button>
+                    <button class="op-filter-chip" style="border-color:#22c55e;" onclick="setHealthOpFilter('SNR', this)">SNR</button>
+                    <button class="op-filter-chip" style="border-color:#a855f7;" onclick="setHealthOpFilter('NHC', this)">NHC</button>
+                    <button class="op-filter-chip" style="border-color:#eab308;" onclick="setHealthOpFilter('MDR', this)">MDR</button>
+                    <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="setHealthOpFilter('NMO', this)">NMO</button>
                 </div>
             </div>
+            <div style="font-size:12px;color:var(--text-muted);margin:4px 0 12px;">
+                Showing data from the last <span id="healthWeeksLabel">8</span> weeks. Each dot in the trend column represents one weekly job run.
+            </div>
 
-            <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; box-shadow: var(--shadow); border: 1px solid var(--border);">
-                <h2 style="font-size: 18px; margin-bottom: 20px;" id="topTestsHeader">Top 10 Failing Tests</h2>
-                <div style="max-height: 600px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
-                            <tr>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Rank</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Test Name</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Version</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Pass Rate</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Runs</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="topFailingTests">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div style="overflow-x:auto;">
+                <table id="operatorHealthTable" style="width:100%;table-layout:fixed;border-collapse:collapse;background:var(--bg-card);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">
+                    <colgroup>
+                        <col style="width:11%;">
+                        <col style="width:12%;">
+                        <col style="width:14%;">
+                        <col style="width:10%;">
+                        <col style="width:34%;">
+                        <col style="width:19%;">
+                    </colgroup>
+                    <thead>
+                        <tr style="background:var(--bg-table-header);">
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Operator</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Status</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Last Run</th>
+                            <th style="padding:12px 16px;text-align:center;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Result</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Failed Tests</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody id="operatorHealthTableBody">
+                        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -1237,8 +1253,12 @@
                 .pipe-step-badge { display:inline-block;font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:1px 6px;border-radius:3px;margin-bottom:6px; }
                 .pipe-step-badge.manual { background:rgba(255,152,48,0.18);color:var(--accent-orange);border:1px solid var(--accent-orange); }
                 .pipe-step-badge.auto { background:rgba(87,148,242,0.12);color:var(--accent-blue);border:1px solid rgba(87,148,242,0.4); }
-                .pipe-diagram-wrap { overflow-x:auto;overflow-y:hidden;padding-bottom:8px; }
-                .pipe-diagram { display:flex;align-items:center;gap:140px;min-width:5500px;padding:40px 30px;position:relative; }
+                .pipe-diagram-wrap { overflow-x:auto;overflow-y:auto;padding-bottom:8px; }
+                .pipe-zoom-toolbar { display:flex;gap:6px;align-items:center;margin-bottom:10px; }
+                .pipe-zoom-toolbar button { background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;min-width:34px;height:30px;padding:0 10px;font-size:0.85rem;font-weight:600;cursor:pointer;line-height:1;transition:background 0.15s,color 0.15s; }
+                .pipe-zoom-toolbar button:hover { background:var(--bg-surface);color:var(--text-heading); }
+                .pipe-zoom-toolbar #pipeZoomLabel { min-width:54px;text-align:center; }
+                .pipe-diagram { display:flex;align-items:center;gap:140px;min-width:5500px;width:max-content;padding:40px 30px;position:relative; }
                 .pipe-phase { display:flex;flex-direction:column;gap:16px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-phase-fork { display:flex;flex-direction:column;gap:160px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-fork-badge { display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 8px;border-radius:4px;margin-bottom:4px; }
@@ -1277,8 +1297,15 @@
             <div style="padding:20px;">
                 <h2 style="margin-bottom:8px;font-size:1.3rem;">FBC Build, Release & Test Pipeline</h2>
                 <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;">How a code change becomes a tested operator catalog. Hover over connecting lines and boxes for details.</p>
-                <p style="color:var(--text-muted);font-size:0.75rem;margin-bottom:20px;">Scroll horizontally to see the full pipeline &#x2192;</p>
-                <div class="pipe-diagram-wrap">
+                <p style="color:var(--text-muted);font-size:0.75rem;margin-bottom:12px;">Scroll horizontally, or use the zoom controls to see the whole pipeline at once.</p>
+                <div class="pipe-zoom-toolbar" role="toolbar" aria-label="Pipeline zoom">
+                    <button type="button" id="pipeZoomOut" title="Zoom out" aria-label="Zoom out">&#8722;</button>
+                    <button type="button" id="pipeZoomLabel" title="Reset to 100%" aria-label="Reset zoom to 100 percent">100%</button>
+                    <button type="button" id="pipeZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+                    <button type="button" id="pipeZoomFit" title="Fit the whole pipeline to the window">Fit</button>
+                </div>
+                <div class="pipe-diagram-wrap" id="pipeDiagramWrap">
+                <div class="pipe-zoom-sizer" id="pipeZoomSizer">
                 <div class="pipe-diagram" id="pipeDiagram">
                 <svg class="pipe-arrows-svg" id="pipeArrowsSvg"></svg>
 
@@ -1489,6 +1516,7 @@
 
                 </div>
                 </div>
+                </div>
                 <script>
                 (function() {
                     function equalizeForkCardHeights() {
@@ -1500,12 +1528,19 @@
                         });
                     }
                     function drawPipeArrows() {
-                        equalizeForkCardHeights();
                         var svg = document.getElementById('pipeArrowsSvg');
                         var diagram = document.getElementById('pipeDiagram');
                         if (!svg || !diagram) return;
+                        // Measure at scale 1: clear any zoom transform so getBoundingClientRect
+                        // and scrollWidth share one (unscaled) coordinate space, then re-apply the
+                        // zoom at the end via applyPipeZoom(). The SVG is a child of #pipeDiagram,
+                        // so the arrows drawn here scale with the nodes and stay aligned.
+                        diagram.style.transform = 'none';
+                        equalizeForkCardHeights();
                         var dr = diagram.getBoundingClientRect();
-                        if (dr.width === 0 || dr.height === 0) return;
+                        // Tab hidden / not laid out yet: re-apply the current zoom (pipeZoom is
+                        // the source of truth) so the transform is never left cleared, and bail.
+                        if (dr.width === 0 || dr.height === 0) { applyPipeZoom(); return; }
                         svg.setAttribute('width', diagram.scrollWidth);
                         svg.setAttribute('height', diagram.scrollHeight);
                         while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -1595,9 +1630,67 @@
                         drawEdge('pcIib','pcStage','red','auto-push','Every IIB is automatically pushed to registry.stage.redhat.io for internal validation. This happens for every FBC build.');
                         drawEdge('pcStage','pcGaPrep','main','GA decision','When the team decides to do a GA release (e.g., rhwa-4.22-1), they coordinate upstream release branches and create a release-specific FBC catalog MR. Most continuous builds skip this step.');
                         drawEdge('pcGaPrep','pcProd','main','advisory/errata','The release-specific FBC build flows through the pipeline to Stage, then is promoted to registry.redhat.io via a manually-approved advisory/errata.');
+
+                        // Re-apply the current zoom (also sizes the scroll area); default 100%.
+                        applyPipeZoom();
                     }
                     window.drawPipeArrows = drawPipeArrows;
                     window.addEventListener('resize', drawPipeArrows);
+
+                    // --- Pipeline zoom controls (Miro-style +/- / Fit) ---
+                    var ZOOM_MIN = 0.2, ZOOM_MAX = 2, ZOOM_STEP = 0.1, FIT_MARGIN_PX = 16;
+                    var pipeZoom = 1;
+                    function pipeNaturalSize() {
+                        var d = document.getElementById('pipeDiagram');
+                        // scrollWidth/Height are unscaled layout metrics (a CSS transform does not
+                        // change them), so they give the natural diagram size at any zoom level.
+                        return d ? { w: d.scrollWidth, h: d.scrollHeight } : { w: 0, h: 0 };
+                    }
+                    function applyPipeZoom() {
+                        var diagram = document.getElementById('pipeDiagram');
+                        var sizer = document.getElementById('pipeZoomSizer');
+                        if (!diagram || !sizer) return;
+                        var nat = pipeNaturalSize();
+                        diagram.style.transformOrigin = '0 0';
+                        diagram.style.transform = 'scale(' + pipeZoom + ')';
+                        // A CSS transform does not change layout size, so size the (untransformed)
+                        // sizer to the scaled dimensions - that is what the scroll container tracks.
+                        sizer.style.width = (nat.w * pipeZoom) + 'px';
+                        sizer.style.height = (nat.h * pipeZoom) + 'px';
+                        var label = document.getElementById('pipeZoomLabel');
+                        if (label) label.textContent = Math.round(pipeZoom * 100) + '%';
+                    }
+                    function setPipeZoom(z) {
+                        // round to avoid float drift from repeated +/- ZOOM_STEP (e.g. 0.7000001)
+                        pipeZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+                        applyPipeZoom();
+                    }
+                    function fitPipeZoom() {
+                        var wrap = document.getElementById('pipeDiagramWrap');
+                        var nat = pipeNaturalSize();
+                        if (!wrap || !nat.w) return;
+                        // round the fit zoom DOWN so the scaled diagram never exceeds the viewport
+                        // width; rounding up can leave a stray horizontal scrollbar at Fit.
+                        setPipeZoom(Math.floor(Math.min(1, (wrap.clientWidth - FIT_MARGIN_PX) / nat.w) * 100) / 100);
+                    }
+                    window.applyPipeZoom = applyPipeZoom;
+                    (function wirePipeZoom() {
+                        var zi = document.getElementById('pipeZoomIn');
+                        var zo = document.getElementById('pipeZoomOut');
+                        var zl = document.getElementById('pipeZoomLabel');
+                        var zf = document.getElementById('pipeZoomFit');
+                        var wrap = document.getElementById('pipeDiagramWrap');
+                        if (zi) zi.addEventListener('click', function() { setPipeZoom(pipeZoom + ZOOM_STEP); });
+                        if (zo) zo.addEventListener('click', function() { setPipeZoom(pipeZoom - ZOOM_STEP); });
+                        if (zl) zl.addEventListener('click', function() { setPipeZoom(1); });
+                        if (zf) zf.addEventListener('click', fitPipeZoom);
+                        if (wrap) wrap.addEventListener('wheel', function(e) {
+                            if (!(e.ctrlKey || e.metaKey)) return;
+                            if (e.deltaY === 0) return; // ignore pure-horizontal (trackpad) wheel; don't zoom out
+                            e.preventDefault();
+                            setPipeZoom(pipeZoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+                        }, { passive: false });
+                    })();
                 })();
                 </script>
 
@@ -1679,8 +1772,8 @@
                             <td style="padding:8px;">Summary cards showing overall pass rates, recent failures, and operator health across all periodic jobs.</td>
                         </tr>
                         <tr>
-                            <td style="padding:8px;font-weight:600;white-space:nowrap;">Weekly Report</td>
-                            <td style="padding:8px;">Week-over-week comparison of pass rates and top failing tests, useful for tracking CI stability trends.</td>
+                            <td style="padding:8px;font-weight:600;white-space:nowrap;">Operator Health</td>
+                            <td style="padding:8px;">Per-operator health cards showing the latest run result, any failing test names, and a sparkline of recent weekly runs.</td>
                         </tr>
                     </table>
                 </div>
@@ -1716,37 +1809,7 @@
         </div>
     </div>
 
-    <!-- Platform Details Modal -->
-    <div id="platformModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="platformModalTitle">Platform Details</h2>
-                <span class="close" onclick="closePlatformModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="platform-stats-grid" id="platformModalStats"></div>
-                <h3 style="margin-bottom: 15px;">Test Results</h3>
-                <div style="max-height: 400px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
-                            <tr>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Rank</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Test Name</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Version</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Pass Rate</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Runs</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="platformModalTests">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
+    <!-- Operator Details Modal -->
     <!-- Log Modal (Simple, No Popup) -->
     <div id="logModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 1000px;">
@@ -1908,24 +1971,40 @@
         }
 
         var _pendingFbcSnapshot = null;
-        var VALID_TABS = ['overview','changes','test-results','job-runs','presubmit','fbc-summary','weekly-report','pipeline'];
+        var VALID_TABS = ['overview','changes','test-results','job-runs','presubmit','fbc-summary','operator-health','pipeline'];
 
         function parseHash() {
             var raw = (location.hash || '').replace(/^#/, '');
-            if (!raw) return { tab: 'overview', snapshot: null };
-            var slash = raw.indexOf('/');
-            var tab = slash >= 0 ? raw.substring(0, slash) : raw;
+            if (!raw) return { tab: 'overview', snapshot: null, params: {} };
+            // Peel off any query string (e.g. operator-health?weeks=8&operator=SNR)
+            // BEFORE tab/snapshot parsing, so params never leak into the tab name.
+            var qIdx = raw.indexOf('?');
+            var pathPart = qIdx >= 0 ? raw.substring(0, qIdx) : raw;
+            var queryPart = qIdx >= 0 ? raw.substring(qIdx + 1) : '';
+            var params = {};
+            if (queryPart) {
+                new URLSearchParams(queryPart).forEach(function(v, k) { params[k] = v; });
+            }
+            var slash = pathPart.indexOf('/');
+            var tab = slash >= 0 ? pathPart.substring(0, slash) : pathPart;
             var snapshot = null;
             if (slash >= 0) {
-                try { snapshot = decodeURIComponent(raw.substring(slash + 1)); } catch (e) { snapshot = raw.substring(slash + 1); }
+                try { snapshot = decodeURIComponent(pathPart.substring(slash + 1)); } catch (e) { snapshot = pathPart.substring(slash + 1); }
             }
             if (VALID_TABS.indexOf(tab) < 0) tab = 'overview';
-            return { tab: tab, snapshot: snapshot };
+            return { tab: tab, snapshot: snapshot, params: params };
         }
 
         function updateHash(tabName, snapshot, replace) {
             var hash = '#' + tabName;
             if (tabName === 'fbc-summary' && snapshot) hash += '/' + encodeURIComponent(snapshot);
+            if (tabName === 'operator-health') {
+                var wEl = document.getElementById('historyWeeks');
+                var qs = [];
+                if (wEl && wEl.value) qs.push('weeks=' + encodeURIComponent(wEl.value));
+                if (healthOpFilter) qs.push('operator=' + encodeURIComponent(healthOpFilter));
+                if (qs.length) hash += '?' + qs.join('&');
+            }
             if (location.hash !== hash) {
                 if (replace) history.replaceState(null, '', hash);
                 else history.pushState(null, '', hash);
@@ -1958,7 +2037,7 @@
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
                     (tabName === 'fbc-summary' && btn.textContent.trim() === 'FBC Summary') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
-                    (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report') ||
+                    (tabName === 'operator-health' && btn.textContent.trim() === 'Operator Health') ||
                     (tabName === 'changes' && btn.textContent.trim() === 'Changes') ||
                     (tabName === 'pipeline' && btn.textContent.trim() === 'Pipeline')) {
                     btn.classList.add('active');
@@ -1966,11 +2045,13 @@
                 }
             });
             var sharedFilters = document.getElementById('sharedFilters');
-            if (sharedFilters) sharedFilters.style.display = (tabName === 'weekly-report' || tabName === 'pipeline') ? 'none' : 'flex';
+            if (sharedFilters) sharedFilters.style.display = (tabName === 'operator-health' || tabName === 'pipeline') ? 'none' : 'flex';
+            var sharedExportBtn = document.getElementById('sharedExportXlsxBtn');
+            if (sharedExportBtn) sharedExportBtn.style.display = (tabName === 'test-results') ? 'flex' : 'none';
             if (tabName === 'pipeline' && typeof drawPipeArrows === 'function') {
                 setTimeout(drawPipeArrows, 50);
             }
-            if (tabName === 'weekly-report') refreshWeeklyReport();
+            if (tabName === 'operator-health') refreshOperatorHealth();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
             if (tabName === 'fbc-summary') loadFbcSummary();
@@ -3045,257 +3126,118 @@
             return `${month}/${day}/${year}`;
         }
 
-        async function refreshWeeklyReport() {
-            const currentDays = parseInt(document.getElementById('reportCurrentDays').value);
-            const previousDays = parseInt(document.getElementById('reportPreviousDays').value);
-            const version = document.getElementById('reportVersion').value;
-            const top = parseInt(document.getElementById('reportTopTests').value);
-
-            // Update header
-            const versionText = version ? ` (${version})` : '';
-            const topText = top >= 1000 ? 'All Tests' : `Top ${top} Failing Tests`;
-            document.getElementById('topTestsHeader').textContent = `${topText}${versionText}`;
-
-            // Fetch weekly report data
-            const data = await fetchData('weekly-report', {
-                current_days: currentDays,
-                previous_days: previousDays,
-                version: version,
-                top: top
-            });
-
-            // Update report title
-            document.getElementById('reportTitle').textContent =
-                `CI Dashboard Health — Week ${data.comparison.current_period}`;
-            document.getElementById('reportSubtitle').textContent =
-                `Overall: ${data.summary.total_tests} tests (${data.summary.passed_tests} passed, ${data.summary.failed_tests} failed) — ${data.summary.avg_pass_rate}% | Trend: ${data.summary.trend}`;
-
-            // Render platform comparison
-            renderPlatformComparison(data.comparison.platforms);
-
-            // Render top failing tests
-            renderTopFailingTests(data.top_tests);
+        // Set a <select> value only if the value matches an existing <option>.
+        function setSelectValue(id, val) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            val = String(val);
+            for (var i = 0; i < el.options.length; i++) {
+                if (el.options[i].value === val) { el.value = val; return; }
+            }
         }
 
-        function renderPlatformComparison(platforms) {
-            const container = document.getElementById('platformComparison');
+        let healthOpFilter = null;
 
-            if (!platforms || Object.keys(platforms).length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No data available</div>';
+        function setHealthOpFilter(op, btn) {
+            healthOpFilter = op;
+            document.querySelectorAll('#healthOpFilters .op-filter-chip').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            refreshOperatorHealth();
+        }
+
+        async function refreshOperatorHealth() {
+            const weeks = document.getElementById('historyWeeks').value;
+            const version = document.getElementById('reportVersion').value;
+            const operator = healthOpFilter || '';
+            const wLabel = document.getElementById('healthWeeksLabel');
+            if (wLabel) wLabel.textContent = weeks;
+            const data = await fetchData('operator-health', {
+                history_weeks: weeks, version: version, operator: operator
+            });
+            if (data) {
+                renderOperatorHealthTable(data);
+                updateHash('operator-health', null, true);
+            }
+        }
+
+        function exportOperatorHealthXlsx() {
+            const weeks = document.getElementById('historyWeeks').value;
+            const version = document.getElementById('reportVersion').value;
+            const operator = healthOpFilter || '';
+            const params = new URLSearchParams({ history_weeks: weeks });
+            if (version) params.set('version', version);
+            if (operator) params.set('operator', operator);
+            window.location.href = `/api/export/operator-health?${params.toString()}`;
+        }
+
+        const SEVERITY_ORDER = { failed: 0, degraded: 1, stale: 2, no_data: 3, healthy: 4 };
+
+        function renderOperatorHealthTable(data) {
+            const tbody = document.getElementById('operatorHealthTableBody');
+            const ops = data.operators || {};
+            const entries = Object.entries(ops).sort(
+                (a, b) => (SEVERITY_ORDER[a[1].status] ?? 9) - (SEVERITY_ORDER[b[1].status] ?? 9)
+                    || a[0].localeCompare(b[0])
+            );
+            if (!entries.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No data</td></tr>';
                 return;
             }
+            const BADGE = {
+                healthy: 'status-ok', degraded: 'status-warn',
+                failed: 'status-fail', stale: 'status-neutral', no_data: 'status-neutral'
+            };
+            const LABEL = {
+                healthy: 'HEALTHY', degraded: 'DEGRADED',
+                failed: 'FAILED', stale: 'STALE', no_data: 'NO DATA'
+            };
+            tbody.innerHTML = entries.map(([opName, d], rowIdx) => {
+                const opColor = OP_COLORS[opName] || '#6b7280';
+                const latest = d.latest_run;
+                const altBg = rowIdx % 2 === 1 ? 'background:var(--bg-surface);' : '';
 
-            const html = Object.entries(platforms)
-                .filter(([platform, data]) => data.current_runs > 0)
-                .sort()
-                .map(([platform, data]) => {
-                const delta = data.delta;
-                let statusClass = 'status-ok';
-                let deltaClass = 'neutral';
-                let arrow = '→';
+                // Trend sparkline
+                const trend = d.run_history.map(r => {
+                    if (r.status === 'healthy')
+                        return `<span style="color:var(--accent-green);font-size:15px;" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
+                    if (r.status === 'degraded' || r.status === 'failed')
+                        return `<span style="color:var(--accent-red);font-size:15px;" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
+                    return `<span style="color:var(--text-muted);font-size:15px;" title="${esc(r.date)}: no run">&mdash;</span>`;
+                }).join(' ');
 
-                if (delta >= 5) {
-                    statusClass = 'status-ok';
-                    deltaClass = 'positive';
-                    arrow = '↑';
-                } else if (delta >= 0) {
-                    statusClass = 'status-ok';
-                    deltaClass = 'positive';
-                    arrow = '↑';
-                } else if (delta >= -5) {
-                    statusClass = 'status-warn';
-                    deltaClass = 'negative';
-                    arrow = '↓';
-                } else {
-                    statusClass = 'status-fail';
-                    deltaClass = 'negative';
-                    arrow = '↓';
+                // Failed tests: first 2 + count
+                const ft = latest ? (latest.failed_tests || []) : [];
+                let ftCell = '<span style="color:var(--text-muted);">—</span>';
+                if (ft.length) {
+                    const shown = ft.slice(0, 2).map(t => `<div style="font-size:12px;color:var(--accent-red);line-height:1.5;">${esc(t)}</div>`).join('');
+                    const more = ft.length > 2 ? `<div style="font-size:11px;color:var(--text-muted);">+${ft.length - 2} more</div>` : '';
+                    ftCell = shown + more;
                 }
 
-                const statusText = statusClass === 'status-ok' ? 'OK' :
-                                   statusClass === 'status-warn' ? 'WARN' : 'FAIL';
+                // Last run cell
+                let lastRunCell = `<span style="color:var(--text-muted);">No runs in last ${data.history_weeks} weeks</span>`;
+                let resultCell = '<span style="color:var(--text-muted);">—</span>';
+                if (latest) {
+                    lastRunCell = latest.job_url
+                        ? `<a href="${esc(latest.job_url)}" target="_blank" style="color:var(--accent-blue);text-decoration:none;">${esc(latest.date)}</a>`
+                        : `<span>${esc(latest.date)}</span>`;
+                    const pct = latest.total > 0 ? Math.round(latest.passed / latest.total * 100) : 0;
+                    const pctColor = pct === 100 ? 'var(--accent-green)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)';
+                    resultCell = `<span style="font-weight:600;color:${pctColor};">${latest.passed}/${latest.total}</span>`;
+                }
 
-                return `
-                    <div class="platform-card" onclick="showPlatformDetails('${platform}', ${data.current_runs}, ${data.current_pass_rate}, ${data.previous_pass_rate}, ${delta})">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <span class="status-badge ${statusClass}">${statusText}</span>
-                            <span class="platform-name">${fmtPlatform(platform)}</span>
-                        </div>
-                        <div class="platform-stats">
-                            <div class="stat-item">
-                                <div class="stat-label">Previous</div>
-                                <div class="stat-value">${data.previous_runs > 0 ? data.previous_pass_rate + '%' : '<span style="color:var(--text-muted);">N/A</span>'}</div>
-                            </div>
-                            <div style="font-size: 24px; color: var(--text-muted);">→</div>
-                            <div class="stat-item">
-                                <div class="stat-label">Current</div>
-                                <div class="stat-value">${data.current_pass_rate}%</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Change</div>
-                                <div class="delta ${data.previous_runs > 0 ? deltaClass : 'neutral'}">${data.previous_runs > 0 ? arrow + Math.abs(delta) + '%' : '<span style="color:var(--text-muted);">-</span>'}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Runs</div>
-                                <div style="font-size: 16px; font-weight: 600; margin-top: 5px;">${data.current_runs}</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            container.innerHTML = html;
-        }
-
-        async function showPlatformDetails(platform, runs, currentRate, previousRate, delta) {
-            const currentDays = parseInt(document.getElementById('reportCurrentDays').value);
-            const version = document.getElementById('reportVersion').value;
-
-            // Update modal title
-            const versionText = version ? ` (${version})` : '';
-            document.getElementById('platformModalTitle').textContent =
-                `${fmtPlatform(platform)} Platform Details${versionText}`;
-
-            // Show modal
-            document.getElementById('platformModal').style.display = 'block';
-
-            // Fetch platform-specific tests first to calculate execution stats
-            const data = await fetchData('platform-tests', {
-                platform: platform,
-                days: currentDays,
-                version: version
-            });
-
-            // Render tests (already filtered by platform and version on server side)
-            const tbody = document.getElementById('platformModalTests');
-
-            if (!data.tests || data.tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No test data available for this platform</td></tr>';
-                document.getElementById('platformModalStats').innerHTML = '';
-                return;
-            }
-
-            // Calculate execution statistics
-            const uniqueTests = data.tests.length;
-            const totalExecutions = data.tests.reduce((sum, test) => sum + test.total_runs, 0);
-            const passedExecutions = data.tests.reduce((sum, test) => sum + test.passed_runs, 0);
-            const failedExecutions = totalExecutions - passedExecutions;
-            const executionPassRate = totalExecutions > 0 ? (passedExecutions / totalExecutions * 100).toFixed(1) : 0;
-
-            // Render execution statistics at the top
-            const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-            const deltaColor = delta > 0 ? 'var(--accent-green)' : delta < 0 ? 'var(--accent-red)' : 'var(--text-muted)';
-
-            document.getElementById('platformModalStats').innerHTML = `
-                <div style="background: var(--bg-surface); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--accent-blue);">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Unique Tests</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${uniqueTests}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Total Executions</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalExecutions}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Passed</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-green);">${passedExecutions}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Failed</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-red);">${failedExecutions}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Execution Pass Rate</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-blue);">${executionPassRate}%</div>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
-                    <div class="platform-stat-card">
-                        <div class="platform-stat-label">Current Pass Rate</div>
-                        <div class="platform-stat-value">${currentRate}%</div>
-                    </div>
-                    <div class="platform-stat-card">
-                        <div class="platform-stat-label">Previous Pass Rate</div>
-                        <div class="platform-stat-value">${previousRate}%</div>
-                    </div>
-                    <div class="platform-stat-card">
-                        <div class="platform-stat-label">Change</div>
-                        <div class="platform-stat-value" style="color: ${deltaColor}">${arrow}${Math.abs(delta)}%</div>
-                    </div>
-                </div>
-            `;
-
-            tbody.innerHTML = data.tests.map((test, index) => `
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px;"><strong>${index + 1}</strong></td>
-                    <td style="padding: 12px;">
-                        <strong>${test.test_name}</strong>
-                        ${test.test_description ? `<br><span style="font-size:12px; color:var(--text-muted);">${test.test_description}</span>` : ''}
-                    </td>
-                    <td style="padding: 12px;">${test.version}</td>
-                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
-                    <td style="padding: 12px;">${test.total_runs}</td>
-                    <td style="padding: 12px;">
-                        <div class="pass-rate-bar">
-                            <div class="fill" style="width: ${test.pass_rate}%"></div>
-                            <div class="label">${test.pass_rate.toFixed(1)}%</div>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        function closePlatformModal() {
-            document.getElementById('platformModal').style.display = 'none';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('platformModal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        function renderTopFailingTests(tests) {
-            const tbody = document.getElementById('topFailingTests');
-
-            if (!tests || tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No failing tests found</td></tr>';
-                return;
-            }
-
-            const failing = tests.filter(t => t.pass_rate < 100);
-            if (failing.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--accent-green);">All tests passing at 100%</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = failing.map((test, index) => {
-                const op = test.operator || deriveOperator(test.test_name) || deriveOperator(test.test_description || '');
-                const displayName = cleanTestName(test.test_name);
-                const cleanedDesc = cleanTestName(test.test_description || '');
-                const showDesc = cleanedDesc && cleanedDesc !== displayName;
-                return `
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px;"><strong>${index + 1}</strong></td>
-                    <td style="padding: 12px;">
-                        ${opChip(op)} <strong>${polarionLink(test.polarion_id, displayName)}</strong>
-                        ${showDesc ? `<br><span style="font-size:12px; color:var(--text-muted);">${esc(cleanedDesc)}</span>` : ''}
-                    </td>
-                    <td style="padding: 12px;">${test.version}</td>
-                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
-                    <td style="padding: 12px;">${test.total_runs}</td>
-                    <td style="padding: 12px;">
-                        <div class="pass-rate-bar">
-                            <div class="fill" style="width: ${test.pass_rate}%"></div>
-                            <div class="label">${test.pass_rate.toFixed(1)}%</div>
-                        </div>
-                    </td>
-                </tr>
-                `;
+                return `<tr style="${altBg}border-bottom:1px solid var(--border);">
+                  <td style="padding:12px 16px;">
+                    ${opChip(opName)}
+                  </td>
+                  <td style="padding:12px 16px;">
+                    <span class="status-badge ${BADGE[d.status] || 'status-neutral'}">${LABEL[d.status] || esc(d.status)}</span>
+                  </td>
+                  <td style="padding:12px 16px;font-size:13px;">${lastRunCell}</td>
+                  <td style="padding:12px 16px;text-align:center;">${resultCell}</td>
+                  <td style="padding:12px 16px;max-width:320px;">${ftCell}</td>
+                  <td style="padding:12px 16px;white-space:nowrap;letter-spacing:3px;">${trend}</td>
+                </tr>`;
             }).join('');
         }
 
@@ -4285,12 +4227,7 @@
                 || summaries.find(function(s) { return (s.snapshot_name || '').toLowerCase().startsWith(lower) || (s.fbc_short || '').toLowerCase().startsWith(lower); });
         }
         function navigateToFbc(fbcShort, replace) {
-            var sel = document.getElementById('fbcSelector');
-            if (sel) {
-                for (var i = 0; i < sel.options.length; i++) {
-                    if (sel.options[i].value === fbcShort) { sel.selectedIndex = i; break; }
-                }
-            }
+            setSelectValue('fbcSelector', fbcShort);
             renderFbcCard(fbcShort);
             updateHash('fbc-summary', fbcShort, replace);
         }
@@ -4591,7 +4528,8 @@
                 if (r.prev_job_url) linksHtml += '<a href="' + esc(r.prev_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Previous Prow Job</a>';
                 if (r.curr_job_url) linksHtml += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Current Prow Job</a>';
                 if (r.e2e_log_url) linksHtml += '<a href="' + esc(r.e2e_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Test Log</a>';
-                if (r.install_log_url) linksHtml += '<a href="' + esc(r.install_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Install Log</a>';
+                if (r.install_log_url) linksHtml += '<a href="' + esc(r.install_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Cluster Install Log</a>';
+                if (r.subscribe_log_url) linksHtml += '<a href="' + esc(r.subscribe_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Operator Install Log</a>';
                 if (r.artifacts_url) linksHtml += '<a href="' + esc(r.artifacts_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Artifacts</a>';
                 linksHtml += '</div>';
 
@@ -4789,6 +4727,21 @@
             var parsed = parseHash();
             if (parsed.tab === 'fbc-summary' && parsed.snapshot) {
                 _pendingFbcSnapshot = parsed.snapshot;
+            }
+            // Operator Health tab: apply hash params (weeks + operator) on navigation.
+            if (parsed.tab === 'operator-health' && parsed.params) {
+                const wEl = document.getElementById('historyWeeks');
+                if (wEl && parsed.params.weeks) {
+                    const v = String(parsed.params.weeks);
+                    for (let i = 0; i < wEl.options.length; i++) {
+                        if (wEl.options[i].value === v) { wEl.value = v; break; }
+                    }
+                }
+                if (parsed.params.operator) {
+                    const op = parsed.params.operator.toUpperCase();
+                    const chip = document.querySelector(`#healthOpFilters .op-filter-chip[onclick*="'${op}'"]`);
+                    if (chip) setHealthOpFilter(op, chip);
+                }
             }
             showTab(parsed.tab);
         }

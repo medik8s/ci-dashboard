@@ -25,7 +25,7 @@ from openpyxl.utils import get_column_letter
 
 from storage.database import DashboardDatabase
 from metrics.calculator import MetricsCalculator
-from reports.weekly_report import WeeklyReportGenerator
+from collectors.base import ARTIFACT_STEP_DIR_CANDIDATES
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -526,7 +526,7 @@ def _format_export_row(row, empty_placeholder='-'):
     job_name = row.get('periodic_job') or ''
     build_id = row.get('build_id') or ''
     step_name = row.get('step_name') or ''
-    urls = _build_log_urls(job_name, build_id, step_name)
+    urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
     short_job = job_name.replace('periodic-ci-medik8s-system-tests-main-', '')
     dur_secs = row.get('job_duration')
     if dur_secs and dur_secs > 0:
@@ -550,8 +550,37 @@ GCS_HOST = 'https://storage.googleapis.com'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
 
 
-def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None):
-    """Build GCS and gcsweb log URLs from job metadata."""
+def _resolve_log_dirs(log_dirs):
+    """Return the inner artifact step-dir names to use for each log link.
+
+    The dirs are resolved from the actual GCS listing at collection time and
+    stored per run in job_runs.log_dirs. A key is present only when that step
+    actually ran, so a missing key (or a missing/invalid log_dirs blob) yields
+    None and the caller omits that link rather than guessing a path that may
+    404. Rows collected before log_dirs existed simply show no links until the
+    next collection back-fills them (the collection window equals the max UI
+    range, so every displayed row is re-resolved on each collection).
+    """
+    resolved = {}
+    if log_dirs:
+        try:
+            parsed = json.loads(log_dirs)
+        except (ValueError, TypeError):
+            parsed = None
+        if isinstance(parsed, dict):
+            resolved = parsed
+    return {k: resolved.get(k) for k in ARTIFACT_STEP_DIR_CANDIDATES}
+
+
+def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None, log_dirs=None):
+    """Build GCS and gcsweb log URLs from job metadata.
+
+    Inner step-dir names are variant-specific (e.g. upgrade jobs use
+    'e2e-upgrade-test' / 'ipi-install-install-stableinitial'), so they come from
+    log_dirs (resolved from GCS at collection time) rather than being hardcoded.
+    A link whose step dir is unknown is returned empty so the UI omits it
+    instead of linking to a guaranteed-404 GCS error page.
+    """
     has_job = bool(job_name and build_id)
     if gcs_prefix:
         gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
@@ -559,21 +588,28 @@ def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None):
     else:
         gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
-    artifacts_base = f"{gcs_base}/artifacts/{step_name}" if (has_job and step_name) else ''
+    have_base = bool(has_job and step_name)
+    artifacts_base = f"{gcs_base}/artifacts/{step_name}" if have_base else ''
+    dirs = _resolve_log_dirs(log_dirs) if have_base else {}
+
+    def _log(dir_key):
+        d = dirs.get(dir_key)
+        return f"{artifacts_base}/{d}/build-log.txt" if d else ''
+
+    must_gather = dirs.get('must_gather')
 
     ai_analysis_url = ''
-    if has_job and step_name:
+    if have_base:
         params = {'job_name': job_name, 'build_id': build_id, 'step_name': step_name}
         if gcs_prefix:
             params['gcs_prefix'] = gcs_prefix
         ai_analysis_url = f"/ai-analysis?{urllib.parse.urlencode(params)}"
-
     return {
-        'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if (has_job and step_name) else '',
-        'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
-        'subscribe_log_url': f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if (has_job and step_name) else '',
-        'catalog_log_url': f"{artifacts_base}/medik8s-catalogsource/build-log.txt" if (has_job and step_name) else '',
-        'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if (has_job and step_name) else '',
+        'e2e_log_url': _log('e2e'),
+        'install_log_url': _log('install'),
+        'subscribe_log_url': _log('subscribe'),
+        'catalog_log_url': _log('catalog'),
+        'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/{must_gather}/" if (have_base and must_gather) else '',
         'build_log_url': f"{gcs_base}/build-log.txt" if has_job else '',
         'ai_analysis_url': ai_analysis_url,
     }
@@ -916,7 +952,6 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     db = DashboardDatabase(db_path)
     calculator = MetricsCalculator(db, blocklist=blocklist)
-    report_generator = WeeklyReportGenerator(db, blocklist=blocklist)
 
     global collection_status
     try:
@@ -977,6 +1012,15 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         if not version or version == '':
             return get_latest_version()
         return version
+
+    def normalize_operator(operator):
+        """Normalize the operator filter: trimmed uppercase, or None when empty.
+
+        Mirrors the operator casing stored by the collector (uppercase). An
+        unrecognized value simply yields an empty result set, never an error.
+        """
+        operator = (operator or '').strip().upper()
+        return operator or None
 
     @app.route('/healthz')
     def healthz():
@@ -1186,7 +1230,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('periodic_job') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
 
             fbc_image = row.get('fbc_image') or ''
             fbc_urls = _build_fbc_urls(fbc_image)
@@ -1247,7 +1291,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
 
             curr_fbc = row.get('fbc_image') or ''
             prev_fbc = row.get('prev_fbc_image') or ''
@@ -1317,7 +1361,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
             fbc_image = row.get('fbc_image') or ''
 
             runs.append({
@@ -1382,7 +1426,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 op = m.group(1).upper()
             if not op:
                 continue
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
             run_date = row.get('run_date') or ''
             if run_date and (not entry['latest_date'] or run_date > entry['latest_date']):
                 entry['latest_date'] = run_date
@@ -1543,7 +1587,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
+            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'), log_dirs=row.get('log_dirs'))
             pr_number = row.get('pr_number') or row.get('jr_pr_number')
 
             fbc_image = row.get('fbc_image') or ''
@@ -1592,7 +1636,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
+            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'), log_dirs=row.get('log_dirs'))
 
             runs.append({
                 'job_name': job_name,
@@ -1666,53 +1710,167 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         )
         return jsonify(comparison)
 
-    @app.route('/api/weekly-report')
-    def api_weekly_report():
-        """Get weekly platform breakdown report"""
-        current_days = request.args.get('current_days', 7, type=int)
-        previous_days = request.args.get('previous_days', 7, type=int)
+    @app.route('/api/operator-health')
+    def api_operator_health():
+        """Get per-operator health: latest run + weekly run history."""
+        history_weeks = request.args.get('history_weeks', 8, type=int)
+        if history_weeks not in (4, 8, 12):
+            history_weeks = 8
         version = normalize_version(request.args.get('version'))
-        top = request.args.get('top', 10, type=int)
+        operator = normalize_operator(request.args.get('operator'))
 
-        # Get platform comparison
-        comparison = report_generator.get_platform_week_over_week(
-            current_week_days=current_days,
-            previous_week_days=previous_days,
-            version=version
+        operators = db.get_operator_health(
+            history_weeks=history_weeks, version=version, operator=operator
+        )
+        return jsonify({"operators": operators, "history_weeks": history_weeks})
+
+    @app.route('/api/export/operator-health')
+    def api_export_operator_health():
+        """Export Operator Health view to XLSX (Summary + Run History + Failed Tests sheets)."""
+        history_weeks = request.args.get('history_weeks', 8, type=int)
+        if history_weeks not in (4, 8, 12):
+            history_weeks = 8
+        version = normalize_version(request.args.get('version'))
+        operator = normalize_operator(request.args.get('operator'))
+
+        operators = db.get_operator_health(
+            history_weeks=history_weeks, version=version, operator=operator
+        ) or {}
+
+        # Sort worst-first (same order as the UI)
+        severity = {'failed': 0, 'degraded': 1, 'stale': 2, 'no_data': 3, 'healthy': 4}
+        sorted_ops = sorted(operators.items(), key=lambda kv: (severity.get(kv[1]['status'], 5), kv[0]))
+
+        wb = Workbook()
+        header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=10)
+        pass_fill = PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')
+        fail_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+        warn_fill = PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid')
+        link_font = Font(color='0563C1', underline='single', size=10)
+
+        def _pct(passed, total):
+            return round(passed / total * 100, 1) if total else None
+
+        def _style_header(ws, headers, col_widths):
+            ws.append(headers)
+            for col_num, (header, width) in enumerate(zip(headers, col_widths), 1):
+                cell = ws.cell(row=1, column=col_num)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                ws.column_dimensions[get_column_letter(col_num)].width = width
+            ws.freeze_panes = 'A2'
+
+        # --- Sheet 1: Summary ---
+        ws_summary = wb.active
+        ws_summary.title = 'Summary'
+        _style_header(ws_summary,
+            ['Operator', 'Status', 'Last Run Date', 'Passed', 'Failed', 'Total', 'Pass Rate %', 'Failed Count', 'Job URL'],
+            [12, 12, 16, 10, 10, 10, 14, 14, 60])
+
+        for op_name, op_data in sorted_ops:
+            latest = op_data.get('latest_run') or {}
+            passed = latest.get('passed', 0) or 0
+            failed = latest.get('failed', 0) or 0
+            total = latest.get('total', 0) or 0
+            ft_count = len(latest.get('failed_tests') or [])
+            pct = _pct(passed, total)
+            row_num = ws_summary.max_row + 1
+            ws_summary.append([
+                op_name,
+                op_data.get('status', '').upper(),
+                latest.get('date') or '',
+                passed,
+                failed,
+                total,
+                pct,
+                ft_count,
+                latest.get('job_url') or '',
+            ])
+            status = op_data.get('status', '')
+            fill = pass_fill if status == 'healthy' else (fail_fill if status in ('failed', 'degraded') else warn_fill)
+            ws_summary.cell(row=row_num, column=2).fill = fill
+            if pct is not None:
+                ws_summary.cell(row=row_num, column=7).number_format = '0.0'
+            job_url = latest.get('job_url')
+            if job_url:
+                url_cell = ws_summary.cell(row=row_num, column=9)
+                url_cell.hyperlink = job_url
+                url_cell.font = link_font
+
+        # --- Sheet 2: Run History ---
+        ws_history = wb.create_sheet('Run History')
+        _style_header(ws_history,
+            ['Operator', 'Week Date', 'Status', 'Passed', 'Failed', 'Total', 'Pass Rate %'],
+            [12, 14, 12, 10, 10, 10, 14])
+
+        for op_name, op_data in sorted_ops:
+            for run in (op_data.get('run_history') or []):
+                passed = run.get('passed', 0) or 0
+                total = run.get('total', 0) or 0
+                failed = run.get('failed', 0) or 0
+                pct = _pct(passed, total)
+                row_num = ws_history.max_row + 1
+                ws_history.append([
+                    op_name, run.get('date') or '', run.get('status', '').upper(),
+                    passed, failed, total, pct,
+                ])
+                if pct is not None:
+                    ws_history.cell(row=row_num, column=7).number_format = '0.0'
+
+        # --- Sheet 3: Failed Tests ---
+        ws_failed = wb.create_sheet('Failed Tests')
+        _style_header(ws_failed,
+            ['Operator', 'Run Date', 'Test Name', 'Job URL'],
+            [12, 14, 80, 60])
+
+        for op_name, op_data in sorted_ops:
+            latest = op_data.get('latest_run') or {}
+            date = latest.get('date') or ''
+            job_url = latest.get('job_url') or ''
+            for test_name in (latest.get('failed_tests') or []):
+                row_num = ws_failed.max_row + 1
+                ws_failed.append([op_name, date, test_name, job_url])
+                if job_url:
+                    url_cell = ws_failed.cell(row=row_num, column=4)
+                    url_cell.hyperlink = job_url
+                    url_cell.font = link_font
+
+        import io
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        from datetime import datetime as _dt
+        today = _dt.now().strftime('%Y-%m-%d')
+        version_part = (version or 'all').replace(' ', '_')
+        filename = f'operator-health-{version_part}-{history_weeks}w-{today}.xlsx'
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
 
-        # Get top failing tests
-        top_tests = calculator.get_test_rankings(days=current_days, version=version, limit=top)
-
-        # Get overall summary
-        summary = calculator.get_summary_stats(days=current_days, version=version)
-
-        return jsonify({
-            'comparison': comparison,
-            'top_tests': top_tests,
-            'summary': summary
-        })
-
-    @app.route('/api/platform-tests')
-    def api_platform_tests():
-        """Get test results for a specific platform"""
-        platform = request.args.get('platform')
+    @app.route('/api/operator-tests')
+    def api_operator_tests():
+        """Get test rankings for a specific operator (details drill-down)."""
+        operator = normalize_operator(request.args.get('operator'))
         days = request.args.get('days', 7, type=int)
         version = normalize_version(request.args.get('version'))
 
-        if not platform:
-            return jsonify({'error': 'Platform parameter is required'}), 400
+        if not operator:
+            return jsonify({'error': 'Operator parameter is required'}), 400
 
-        # Get test rankings for this platform
-        tests = calculator.get_test_rankings(days=days, version=version, platform=platform, limit=100)
-
-        # Get platform-specific summary
-        summary = calculator.get_summary_stats(days=days, platform=platform, version=version)
+        tests = calculator.get_test_rankings(
+            days=days, version=version, operator=operator, limit=100
+        )
 
         return jsonify({
-            'platform': platform,
+            'operator': operator,
             'tests': tests,
-            'summary': summary,
             'days': days
         })
 
