@@ -931,6 +931,15 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             return get_latest_version()
         return version
 
+    def normalize_operator(operator):
+        """Normalize the operator filter: trimmed uppercase, or None when empty.
+
+        Mirrors the operator casing stored by the collector (uppercase). An
+        unrecognized value simply yields an empty result set, never an error.
+        """
+        operator = (operator or '').strip().upper()
+        return operator or None
+
     @app.route('/healthz')
     def healthz():
         return 'ok', 200
@@ -1621,24 +1630,30 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     @app.route('/api/weekly-report')
     def api_weekly_report():
-        """Get weekly platform breakdown report"""
-        current_days = request.args.get('current_days', 7, type=int)
+        """Get weekly per-operator breakdown report (week-over-week)."""
+        # Accept `current_days` (sent by the UI) or `days` (deep-link alias).
+        # Explicit None check so an intentional 0 is not swallowed by `or`.
+        current_days = request.args.get('current_days', type=int)
+        if current_days is None:
+            current_days = request.args.get('days', 7, type=int)
         previous_days = request.args.get('previous_days', 7, type=int)
         version = normalize_version(request.args.get('version'))
         top = request.args.get('top', 10, type=int)
+        operator = normalize_operator(request.args.get('operator'))
 
-        # Get platform comparison
-        comparison = report_generator.get_platform_week_over_week(
+        # Per-operator week-over-week comparison (+ overall summary)
+        comparison = report_generator.get_operator_week_over_week(
             current_week_days=current_days,
             previous_week_days=previous_days,
-            version=version
+            version=version,
+            operator=operator
         )
+        summary = comparison.pop('summary')
 
-        # Get top failing tests
-        top_tests = calculator.get_test_rankings(days=current_days, version=version, limit=top)
-
-        # Get overall summary
-        summary = calculator.get_summary_stats(days=current_days, version=version)
+        # Top failing tests, scoped to the selected operator when set
+        top_tests = calculator.get_test_rankings(
+            days=current_days, version=version, operator=operator, limit=top
+        )
 
         return jsonify({
             'comparison': comparison,
@@ -1646,26 +1661,23 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             'summary': summary
         })
 
-    @app.route('/api/platform-tests')
-    def api_platform_tests():
-        """Get test results for a specific platform"""
-        platform = request.args.get('platform')
+    @app.route('/api/operator-tests')
+    def api_operator_tests():
+        """Get test rankings for a specific operator (details drill-down)."""
+        operator = normalize_operator(request.args.get('operator'))
         days = request.args.get('days', 7, type=int)
         version = normalize_version(request.args.get('version'))
 
-        if not platform:
-            return jsonify({'error': 'Platform parameter is required'}), 400
+        if not operator:
+            return jsonify({'error': 'Operator parameter is required'}), 400
 
-        # Get test rankings for this platform
-        tests = calculator.get_test_rankings(days=days, version=version, platform=platform, limit=100)
-
-        # Get platform-specific summary
-        summary = calculator.get_summary_stats(days=days, platform=platform, version=version)
+        tests = calculator.get_test_rankings(
+            days=days, version=version, operator=operator, limit=100
+        )
 
         return jsonify({
-            'platform': platform,
+            'operator': operator,
             'tests': tests,
-            'summary': summary,
             'days': days
         })
 

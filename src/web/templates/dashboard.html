@@ -486,6 +486,11 @@
             color: var(--accent-red);
         }
 
+        .status-neutral {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-muted);
+        }
+
         .report-header {
             background: var(--bg-card);
             padding: 25px;
@@ -1167,16 +1172,27 @@
                     <option value="50">Top 50</option>
                     <option value="1000">All Tests</option>
                 </select>
+
+                <label for="reportOperator">Operator:</label>
+                <select id="reportOperator" onchange="refreshWeeklyReport()">
+                    <option value="">All Operators</option>
+                    <option value="FAR">FAR</option>
+                    <option value="SBR">SBR</option>
+                    <option value="SNR">SNR</option>
+                    <option value="NHC">NHC</option>
+                    <option value="MDR">MDR</option>
+                    <option value="NMO">NMO</option>
+                </select>
             </div>
 
             <div class="report-header">
-                <div class="report-title" id="reportTitle">Weekly Platform Report</div>
+                <div class="report-title" id="reportTitle">Weekly Operator Report</div>
                 <div class="report-subtitle" id="reportSubtitle">Loading...</div>
             </div>
 
             <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: var(--shadow); border: 1px solid var(--border);">
-                <h2 style="font-size: 18px; margin-bottom: 20px;">Platform Pass Rates (Week-over-Week)</h2>
-                <div id="platformComparison">
+                <h2 style="font-size: 18px; margin-bottom: 20px;">Operator Pass Rates (Week-over-Week)</h2>
+                <div id="operatorComparison">
                     <div style="text-align: center; padding: 40px; color: var(--text-muted);">Loading...</div>
                 </div>
             </div>
@@ -1793,15 +1809,15 @@
         </div>
     </div>
 
-    <!-- Platform Details Modal -->
-    <div id="platformModal" class="modal">
+    <!-- Operator Details Modal -->
+    <div id="operatorModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2 id="platformModalTitle">Platform Details</h2>
-                <span class="close" onclick="closePlatformModal()">&times;</span>
+                <h2 id="operatorModalTitle">Operator Details</h2>
+                <span class="close" onclick="closeOperatorModal()">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="platform-stats-grid" id="platformModalStats"></div>
+                <div class="platform-stats-grid" id="operatorModalStats"></div>
                 <h3 style="margin-bottom: 15px;">Test Results</h3>
                 <div style="max-height: 400px; overflow-y: auto;">
                     <table style="width: 100%; border-collapse: collapse;">
@@ -1815,7 +1831,7 @@
                                 <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
                             </tr>
                         </thead>
-                        <tbody id="platformModalTests">
+                        <tbody id="operatorModalTests">
                             <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
                         </tbody>
                     </table>
@@ -1989,20 +2005,37 @@
 
         function parseHash() {
             var raw = (location.hash || '').replace(/^#/, '');
-            if (!raw) return { tab: 'overview', snapshot: null };
-            var slash = raw.indexOf('/');
-            var tab = slash >= 0 ? raw.substring(0, slash) : raw;
+            if (!raw) return { tab: 'overview', snapshot: null, params: {} };
+            // Peel off any query string (e.g. weekly-report?days=14&operator=SNR)
+            // BEFORE tab/snapshot parsing, so params never leak into the tab name.
+            var qIdx = raw.indexOf('?');
+            var pathPart = qIdx >= 0 ? raw.substring(0, qIdx) : raw;
+            var queryPart = qIdx >= 0 ? raw.substring(qIdx + 1) : '';
+            var params = {};
+            if (queryPart) {
+                new URLSearchParams(queryPart).forEach(function(v, k) { params[k] = v; });
+            }
+            var slash = pathPart.indexOf('/');
+            var tab = slash >= 0 ? pathPart.substring(0, slash) : pathPart;
             var snapshot = null;
             if (slash >= 0) {
-                try { snapshot = decodeURIComponent(raw.substring(slash + 1)); } catch (e) { snapshot = raw.substring(slash + 1); }
+                try { snapshot = decodeURIComponent(pathPart.substring(slash + 1)); } catch (e) { snapshot = pathPart.substring(slash + 1); }
             }
             if (VALID_TABS.indexOf(tab) < 0) tab = 'overview';
-            return { tab: tab, snapshot: snapshot };
+            return { tab: tab, snapshot: snapshot, params: params };
         }
 
         function updateHash(tabName, snapshot, replace) {
             var hash = '#' + tabName;
             if (tabName === 'fbc-summary' && snapshot) hash += '/' + encodeURIComponent(snapshot);
+            if (tabName === 'weekly-report') {
+                var dEl = document.getElementById('reportCurrentDays');
+                var oEl = document.getElementById('reportOperator');
+                var qs = [];
+                if (dEl && dEl.value) qs.push('days=' + encodeURIComponent(dEl.value));
+                if (oEl && oEl.value) qs.push('operator=' + encodeURIComponent(oEl.value));
+                if (qs.length) hash += '?' + qs.join('&');
+            }
             if (location.hash !== hash) {
                 if (replace) history.replaceState(null, '', hash);
                 else history.pushState(null, '', hash);
@@ -3122,81 +3155,120 @@
             return `${month}/${day}/${year}`;
         }
 
+        // Deep-link params captured from the hash (e.g. #weekly-report?days=14&operator=SNR),
+        // applied to the controls on the next refresh, then cleared.
+        var _pendingWeeklyParams = null;
+
+        // Set a <select> value only if the value matches an existing <option>.
+        function setSelectValue(id, val) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            val = String(val);
+            for (var i = 0; i < el.options.length; i++) {
+                if (el.options[i].value === val) { el.value = val; return; }
+            }
+        }
+
         async function refreshWeeklyReport() {
+            // Apply the pending hash state (set on every weekly-report hash
+            // navigation). days + operator are the shareable filters written
+            // back to the hash; operator resets to All when the hash omits it.
+            // Other params are applied if present but not persisted to the URL.
+            if (_pendingWeeklyParams) {
+                const p = _pendingWeeklyParams;
+                _pendingWeeklyParams = null;
+                const days = p.days || p.current_days;
+                if (days) setSelectValue('reportCurrentDays', days);
+                if (p.previous_days) setSelectValue('reportPreviousDays', p.previous_days);
+                if (p.version !== undefined) setSelectValue('reportVersion', p.version);
+                if (p.top) setSelectValue('reportTopTests', p.top);
+                setSelectValue('reportOperator', (p.operator || '').toUpperCase());
+            }
+
             const currentDays = parseInt(document.getElementById('reportCurrentDays').value);
             const previousDays = parseInt(document.getElementById('reportPreviousDays').value);
             const version = document.getElementById('reportVersion').value;
             const top = parseInt(document.getElementById('reportTopTests').value);
+            const operator = document.getElementById('reportOperator').value;
 
             // Update header
             const versionText = version ? ` (${version})` : '';
+            const operatorText = operator ? ` — ${operator}` : '';
             const topText = top >= 1000 ? 'All Tests' : `Top ${top} Failing Tests`;
-            document.getElementById('topTestsHeader').textContent = `${topText}${versionText}`;
+            document.getElementById('topTestsHeader').textContent = `${topText}${operatorText}${versionText}`;
 
             // Fetch weekly report data
             const data = await fetchData('weekly-report', {
                 current_days: currentDays,
                 previous_days: previousDays,
                 version: version,
-                top: top
+                top: top,
+                operator: operator
             });
 
             // Update report title
             document.getElementById('reportTitle').textContent =
                 `CI Dashboard Health — Week ${data.comparison.current_period}`;
             document.getElementById('reportSubtitle').textContent =
-                `Overall: ${data.summary.total_tests} tests (${data.summary.passed_tests} passed, ${data.summary.failed_tests} failed) — ${data.summary.avg_pass_rate}% | Trend: ${data.summary.trend}`;
+                `Overall: ${data.summary.avg_pass_rate}% pass rate — ${data.summary.passed_executions} passed / ${data.summary.failed_executions} failed executions across ${data.summary.total_operators} operators | Trend: ${data.summary.trend}`;
 
-            // Render platform comparison
-            renderPlatformComparison(data.comparison.platforms);
+            // Render operator comparison
+            renderOperatorComparison(data.comparison.operators);
 
             // Render top failing tests
             renderTopFailingTests(data.top_tests);
+
+            // Keep the URL shareable: #weekly-report?days=..&operator=..
+            updateHash('weekly-report', null, true);
         }
 
-        function renderPlatformComparison(platforms) {
-            const container = document.getElementById('platformComparison');
+        function renderOperatorComparison(operators) {
+            const container = document.getElementById('operatorComparison');
 
-            if (!platforms || Object.keys(platforms).length === 0) {
+            if (!operators || Object.keys(operators).length === 0) {
                 container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No data available</div>';
                 return;
             }
 
-            const html = Object.entries(platforms)
-                .filter(([platform, data]) => data.current_runs > 0)
+            const html = Object.entries(operators)
+                .filter(([operator, data]) => data.current_runs > 0 || data.previous_runs > 0)
                 .sort()
-                .map(([platform, data]) => {
+                .map(([operator, data]) => {
                 const delta = data.delta;
-                let statusClass = 'status-ok';
+                // Week-over-week delta is only meaningful when both windows have
+                // runs. Without a baseline (new operator) or without current runs
+                // (stopped running), show a neutral badge instead of a misleading OK.
+                const hasBaseline = data.current_runs > 0 && data.previous_runs > 0;
+                let statusClass = 'status-neutral';
                 let deltaClass = 'neutral';
                 let arrow = '→';
 
-                if (delta >= 5) {
-                    statusClass = 'status-ok';
-                    deltaClass = 'positive';
-                    arrow = '↑';
-                } else if (delta >= 0) {
-                    statusClass = 'status-ok';
-                    deltaClass = 'positive';
-                    arrow = '↑';
-                } else if (delta >= -5) {
-                    statusClass = 'status-warn';
-                    deltaClass = 'negative';
-                    arrow = '↓';
-                } else {
-                    statusClass = 'status-fail';
-                    deltaClass = 'negative';
-                    arrow = '↓';
+                if (hasBaseline) {
+                    if (delta >= 0) {
+                        statusClass = 'status-ok';
+                        deltaClass = 'positive';
+                        arrow = '↑';
+                    } else if (delta >= -5) {
+                        statusClass = 'status-warn';
+                        deltaClass = 'negative';
+                        arrow = '↓';
+                    } else {
+                        statusClass = 'status-fail';
+                        deltaClass = 'negative';
+                        arrow = '↓';
+                    }
                 }
 
                 const statusText = statusClass === 'status-ok' ? 'OK' :
-                                   statusClass === 'status-warn' ? 'WARN' : 'FAIL';
+                                   statusClass === 'status-warn' ? 'WARN' :
+                                   statusClass === 'status-fail' ? 'FAIL' : 'N/A';
+                const opColor = OP_COLORS[operator] || '#6b7280';
 
                 return `
-                    <div class="platform-card" onclick="showPlatformDetails('${platform}', ${data.current_runs}, ${data.current_pass_rate}, ${data.previous_pass_rate}, ${delta})">
+                    <div class="platform-card" style="border-left: 4px solid ${opColor};" onclick="showOperatorDetails('${operator}', ${data.current_runs}, ${data.current_pass_rate}, ${data.previous_pass_rate}, ${delta})">
                         <div style="display: flex; align-items: center; gap: 15px;">
                             <span class="status-badge ${statusClass}">${statusText}</span>
-                            <span class="platform-name">${fmtPlatform(platform)}</span>
+                            <span class="platform-name" style="color: ${opColor};">${operator}</span>
                         </div>
                         <div class="platform-stats">
                             <div class="stat-item">
@@ -3206,14 +3278,14 @@
                             <div style="font-size: 24px; color: var(--text-muted);">→</div>
                             <div class="stat-item">
                                 <div class="stat-label">Current</div>
-                                <div class="stat-value">${data.current_pass_rate}%</div>
+                                <div class="stat-value">${data.current_runs > 0 ? data.current_pass_rate + '%' : '<span style="color:var(--text-muted);">N/A</span>'}</div>
                             </div>
                             <div class="stat-item">
                                 <div class="stat-label">Change</div>
-                                <div class="delta ${data.previous_runs > 0 ? deltaClass : 'neutral'}">${data.previous_runs > 0 ? arrow + Math.abs(delta) + '%' : '<span style="color:var(--text-muted);">-</span>'}</div>
+                                <div class="delta ${(data.previous_runs > 0 && data.current_runs > 0) ? deltaClass : 'neutral'}">${(data.previous_runs > 0 && data.current_runs > 0) ? arrow + Math.abs(delta) + '%' : '<span style="color:var(--text-muted);">-</span>'}</div>
                             </div>
                             <div class="stat-item">
-                                <div class="stat-label">Runs</div>
+                                <div class="stat-label">Executions</div>
                                 <div style="font-size: 16px; font-weight: 600; margin-top: 5px;">${data.current_runs}</div>
                             </div>
                         </div>
@@ -3221,34 +3293,34 @@
                 `;
             }).join('');
 
-            container.innerHTML = html;
+            container.innerHTML = html || '<div style="text-align:center; padding:20px; color:var(--text-muted);">No data available</div>';
         }
 
-        async function showPlatformDetails(platform, runs, currentRate, previousRate, delta) {
+        async function showOperatorDetails(operator, runs, currentRate, previousRate, delta) {
             const currentDays = parseInt(document.getElementById('reportCurrentDays').value);
             const version = document.getElementById('reportVersion').value;
 
             // Update modal title
             const versionText = version ? ` (${version})` : '';
-            document.getElementById('platformModalTitle').textContent =
-                `${fmtPlatform(platform)} Platform Details${versionText}`;
+            document.getElementById('operatorModalTitle').textContent =
+                `${operator} Operator Details${versionText}`;
 
             // Show modal
-            document.getElementById('platformModal').style.display = 'block';
+            document.getElementById('operatorModal').style.display = 'block';
 
-            // Fetch platform-specific tests first to calculate execution stats
-            const data = await fetchData('platform-tests', {
-                platform: platform,
+            // Fetch operator-specific test rankings to calculate execution stats
+            const data = await fetchData('operator-tests', {
+                operator: operator,
                 days: currentDays,
                 version: version
             });
 
-            // Render tests (already filtered by platform and version on server side)
-            const tbody = document.getElementById('platformModalTests');
+            // Render tests (already filtered by operator and version on server side)
+            const tbody = document.getElementById('operatorModalTests');
 
             if (!data.tests || data.tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No test data available for this platform</td></tr>';
-                document.getElementById('platformModalStats').innerHTML = '';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No test data available for this operator</td></tr>';
+                document.getElementById('operatorModalStats').innerHTML = '';
                 return;
             }
 
@@ -3263,7 +3335,7 @@
             const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
             const deltaColor = delta > 0 ? 'var(--accent-green)' : delta < 0 ? 'var(--accent-red)' : 'var(--text-muted)';
 
-            document.getElementById('platformModalStats').innerHTML = `
+            document.getElementById('operatorModalStats').innerHTML = `
                 <div style="background: var(--bg-surface); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--accent-blue);">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                         <div>
@@ -3324,13 +3396,13 @@
             `).join('');
         }
 
-        function closePlatformModal() {
-            document.getElementById('platformModal').style.display = 'none';
+        function closeOperatorModal() {
+            document.getElementById('operatorModal').style.display = 'none';
         }
 
         // Close modal when clicking outside
         window.onclick = function(event) {
-            const modal = document.getElementById('platformModal');
+            const modal = document.getElementById('operatorModal');
             if (event.target == modal) {
                 modal.style.display = 'none';
             }
@@ -4332,12 +4404,7 @@
                 || summaries.find(function(s) { return (s.snapshot_name || '').toLowerCase().startsWith(lower) || (s.fbc_short || '').toLowerCase().startsWith(lower); });
         }
         function navigateToFbc(fbcShort, replace) {
-            var sel = document.getElementById('fbcSelector');
-            if (sel) {
-                for (var i = 0; i < sel.options.length; i++) {
-                    if (sel.options[i].value === fbcShort) { sel.selectedIndex = i; break; }
-                }
-            }
+            setSelectValue('fbcSelector', fbcShort);
             renderFbcCard(fbcShort);
             updateHash('fbc-summary', fbcShort, replace);
         }
@@ -4837,6 +4904,12 @@
             var parsed = parseHash();
             if (parsed.tab === 'fbc-summary' && parsed.snapshot) {
                 _pendingFbcSnapshot = parsed.snapshot;
+            }
+            // Weekly Report treats the hash as the source of truth for its
+            // filters: apply it on every hash navigation (a bare #weekly-report
+            // resets operator to All), so a pasted/bookmarked link is reproducible.
+            if (parsed.tab === 'weekly-report') {
+                _pendingWeeklyParams = parsed.params || {};
             }
             showTab(parsed.tab);
         }

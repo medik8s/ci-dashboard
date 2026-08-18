@@ -546,6 +546,7 @@ class DashboardDatabase:
         test_name: Optional[str] = None,
         version: Optional[str] = None,
         platform: Optional[str] = None,
+        operator: Optional[str] = None,
         blocklist: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -661,6 +662,10 @@ class DashboardDatabase:
         if platform:
             query += " AND platform = ?"
             params.append(platform)
+
+        if operator:
+            query += " AND operator = ?"
+            params.append(operator)
 
         if blocklist:
             # Use LIKE to match test ID prefix (e.g., OCP-60944 matches OCP-60944:author:...)
@@ -1149,6 +1154,48 @@ class DashboardDatabase:
         if version:
             query += " AND version = ?"
             params.append(version)
+
+        query += " GROUP BY operator ORDER BY operator"
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_operator_pass_rates(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        version: Optional[str] = None,
+        operator: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Get per-operator execution counts within an explicit date range.
+
+        Periodic jobs only, excluding skipped results and rows without a known
+        operator. Uses a half-open [start, end) window so a run landing exactly
+        on a week boundary is never counted in both the current and previous
+        periods. Returns one row per operator with total/passed executions and
+        the distinct test count.
+        """
+        cursor = self.conn.cursor()
+
+        query = """
+            SELECT
+                operator,
+                COUNT(*) AS total_executions,
+                SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) AS passed_executions,
+                COUNT(DISTINCT test_name) AS total_tests
+            FROM test_results
+            WHERE timestamp >= ? AND timestamp < ?
+            AND status != 'skipped'
+            AND COALESCE(job_type, 'periodic') = 'periodic'
+            AND operator IS NOT NULL AND operator NOT IN ('', 'Unknown')
+        """
+        params: list = [start_date.isoformat(), end_date.isoformat()]
+
+        if version:
+            query += " AND version = ?"
+            params.append(version)
+        if operator:
+            query += " AND operator = ?"
+            params.append(operator)
 
         query += " GROUP BY operator ORDER BY operator"
         cursor.execute(query, params)
