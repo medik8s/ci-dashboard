@@ -6,7 +6,7 @@ import logging
 import re
 import sqlite3
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -1218,7 +1218,7 @@ class DashboardDatabase:
         job name.
         """
         history_weeks = history_weeks if history_weeks in (4, 8, 12) else 8
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         today = now.date()
         current_monday = today - timedelta(days=today.weekday())
         oldest_monday = current_monday - timedelta(weeks=history_weeks - 1)
@@ -1256,7 +1256,7 @@ class DashboardDatabase:
             params.extend([version, version])
 
         run_rows = self.conn.execute(f"""
-            SELECT job_name, CAST(build_id AS TEXT) AS build_id, status,
+            SELECT job_name, CAST(build_id AS TEXT) AS build_id,
                    timestamp, total_tests, passed_tests, failed_tests, job_url
             FROM job_runs
             WHERE timestamp >= ?
@@ -1313,7 +1313,7 @@ class DashboardDatabase:
 
         # Historical operator presence (for STALE vs NO DATA)
         seen_ops = {
-            r["operator"].upper()
+            r["operator"]
             for r in self.conn.execute(
                 "SELECT DISTINCT UPPER(operator) AS operator FROM test_results "
                 "WHERE operator IS NOT NULL AND COALESCE(job_type, 'periodic') = 'periodic'"

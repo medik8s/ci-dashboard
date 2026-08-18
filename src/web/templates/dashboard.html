@@ -919,7 +919,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-summary')">FBC Summary</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Operator Health</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('operator-health')">Operator Health</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
         </header>
@@ -947,7 +947,7 @@
             </div>
         </div>
 
-        <!-- Shared filters (visible on all tabs except Weekly Report) -->
+        <!-- Shared filters (visible on all tabs except Operator Health and Pipeline) -->
         <div id="sharedFilters" class="controls" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <label for="timeRange">Time Range:</label>
@@ -1141,7 +1141,7 @@
         </div>
 
         <!-- Operator Health Tab -->
-        <div id="weekly-report-tab" class="tab-content">
+        <div id="operator-health-tab" class="tab-content">
             <div class="controls">
                 <label for="historyWeeks">History:</label>
                 <select id="historyWeeks" onchange="refreshOperatorHealth()">
@@ -1924,12 +1924,12 @@
         }
 
         var _pendingFbcSnapshot = null;
-        var VALID_TABS = ['overview','changes','test-results','job-runs','presubmit','fbc-summary','weekly-report','pipeline'];
+        var VALID_TABS = ['overview','changes','test-results','job-runs','presubmit','fbc-summary','operator-health','pipeline'];
 
         function parseHash() {
             var raw = (location.hash || '').replace(/^#/, '');
             if (!raw) return { tab: 'overview', snapshot: null, params: {} };
-            // Peel off any query string (e.g. weekly-report?days=14&operator=SNR)
+            // Peel off any query string (e.g. operator-health?weeks=8&operator=SNR)
             // BEFORE tab/snapshot parsing, so params never leak into the tab name.
             var qIdx = raw.indexOf('?');
             var pathPart = qIdx >= 0 ? raw.substring(0, qIdx) : raw;
@@ -1951,7 +1951,7 @@
         function updateHash(tabName, snapshot, replace) {
             var hash = '#' + tabName;
             if (tabName === 'fbc-summary' && snapshot) hash += '/' + encodeURIComponent(snapshot);
-            if (tabName === 'weekly-report') {
+            if (tabName === 'operator-health') {
                 var wEl = document.getElementById('historyWeeks');
                 var oEl = document.getElementById('reportOperator');
                 var qs = [];
@@ -1991,7 +1991,7 @@
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
                     (tabName === 'fbc-summary' && btn.textContent.trim() === 'FBC Summary') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
-                    (tabName === 'weekly-report' && btn.textContent.trim() === 'Operator Health') ||
+                    (tabName === 'operator-health' && btn.textContent.trim() === 'Operator Health') ||
                     (tabName === 'changes' && btn.textContent.trim() === 'Changes') ||
                     (tabName === 'pipeline' && btn.textContent.trim() === 'Pipeline')) {
                     btn.classList.add('active');
@@ -1999,11 +1999,11 @@
                 }
             });
             var sharedFilters = document.getElementById('sharedFilters');
-            if (sharedFilters) sharedFilters.style.display = (tabName === 'weekly-report' || tabName === 'pipeline') ? 'none' : 'flex';
+            if (sharedFilters) sharedFilters.style.display = (tabName === 'operator-health' || tabName === 'pipeline') ? 'none' : 'flex';
             if (tabName === 'pipeline' && typeof drawPipeArrows === 'function') {
                 setTimeout(drawPipeArrows, 50);
             }
-            if (tabName === 'weekly-report') refreshOperatorHealth();
+            if (tabName === 'operator-health') refreshOperatorHealth();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
             if (tabName === 'fbc-summary') loadFbcSummary();
@@ -3092,12 +3092,12 @@
             const weeks = document.getElementById('historyWeeks').value;
             const version = document.getElementById('reportVersion').value;
             const operator = document.getElementById('reportOperator').value;
-            const data = await fetchData('weekly-report', {
+            const data = await fetchData('operator-health', {
                 history_weeks: weeks, version: version, operator: operator
             });
             if (data) {
                 renderOperatorHealthCards(data);
-                updateHash('weekly-report', null, true);
+                updateHash('operator-health', null, true);
             }
         }
 
@@ -4618,7 +4618,7 @@
                 _pendingFbcSnapshot = parsed.snapshot;
             }
             // Operator Health tab: apply hash params (weeks + operator) on navigation.
-            if (parsed.tab === 'weekly-report' && parsed.params) {
+            if (parsed.tab === 'operator-health' && parsed.params) {
                 const wEl = document.getElementById('historyWeeks');
                 const oEl = document.getElementById('reportOperator');
                 if (wEl && parsed.params.weeks) {

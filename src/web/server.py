@@ -25,7 +25,6 @@ from openpyxl.utils import get_column_letter
 
 from storage.database import DashboardDatabase
 from metrics.calculator import MetricsCalculator
-from reports.weekly_report import WeeklyReportGenerator
 from collectors.base import ARTIFACT_STEP_DIR_CANDIDATES
 
 # Configure logging
@@ -869,7 +868,6 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     db = DashboardDatabase(db_path)
     calculator = MetricsCalculator(db, blocklist=blocklist)
-    report_generator = WeeklyReportGenerator(db, blocklist=blocklist)
 
     global collection_status
     try:
@@ -1628,8 +1626,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         )
         return jsonify(comparison)
 
-    @app.route('/api/weekly-report')
-    def api_weekly_report():
+    @app.route('/api/operator-health')
+    def api_operator_health():
         """Get per-operator health: latest run + weekly run history."""
         history_weeks = request.args.get('history_weeks', 8, type=int)
         if history_weeks not in (4, 8, 12):
@@ -1640,11 +1638,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         operators = db.get_operator_health(
             history_weeks=history_weeks, version=version, operator=operator
         )
-        severity = {"failed": 0, "degraded": 1, "stale": 2, "no_data": 3, "healthy": 4}
-        sorted_ops = dict(sorted(
-            operators.items(), key=lambda kv: (severity.get(kv[1]["status"], 5), kv[0])
-        ))
-        return jsonify({"operators": sorted_ops, "history_weeks": history_weeks})
+        return jsonify({"operators": operators, "history_weeks": history_weeks})
 
     @app.route('/api/operator-tests')
     def api_operator_tests():
