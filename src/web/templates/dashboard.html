@@ -1171,9 +1171,9 @@
                         <option value="">All Versions</option>
                     </select>
                 </div>
-                <button onclick="exportOperatorHealthXlsx()"
-                        style="padding:6px 14px;border:1px solid var(--accent-green);border-radius:4px;background:transparent;color:var(--accent-green);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;">
-                    ↓ Export XLSX
+                <button class="refresh-button" onclick="exportOperatorHealthXlsx()" style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M21 15V19C21 20.1 20.1 21 19 21H5C3.9 21 3 20.1 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    Export XLSX
                 </button>
             </div>
             <div class="controls" style="display:flex; align-items:center; gap:8px;">
@@ -1193,7 +1193,15 @@
             </div>
 
             <div style="overflow-x:auto;">
-                <table id="operatorHealthTable" style="width:100%;border-collapse:collapse;background:var(--bg-card);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">
+                <table id="operatorHealthTable" style="width:100%;table-layout:fixed;border-collapse:collapse;background:var(--bg-card);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">
+                    <colgroup>
+                        <col style="width:11%;">
+                        <col style="width:12%;">
+                        <col style="width:14%;">
+                        <col style="width:10%;">
+                        <col style="width:34%;">
+                        <col style="width:19%;">
+                    </colgroup>
                     <thead>
                         <tr style="background:var(--bg-table-header);">
                             <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Operator</th>
@@ -3217,8 +3225,8 @@
                 }
 
                 return `<tr style="${altBg}border-bottom:1px solid var(--border);">
-                  <td style="padding:12px 16px;border-left:3px solid ${opColor};">
-                    <strong style="color:${opColor};font-size:14px;">${esc(opName)}</strong>
+                  <td style="padding:12px 16px;">
+                    ${opChip(opName)}
                   </td>
                   <td style="padding:12px 16px;">
                     <span class="status-badge ${BADGE[d.status] || 'status-neutral'}">${LABEL[d.status] || esc(d.status)}</span>

@@ -1649,10 +1649,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         version = normalize_version(request.args.get('version'))
         operator = normalize_operator(request.args.get('operator'))
 
-        data = db.get_operator_health(
+        operators = db.get_operator_health(
             history_weeks=history_weeks, version=version, operator=operator
-        )
-        operators = data.get('operators', {})
+        ) or {}
 
         # Sort worst-first (same order as the UI)
         severity = {'failed': 0, 'degraded': 1, 'stale': 2, 'no_data': 3, 'healthy': 4}
