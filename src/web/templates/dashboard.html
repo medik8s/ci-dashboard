@@ -919,7 +919,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-summary')">FBC Summary</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Weekly Report</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('weekly-report')">Operator Health</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('pipeline')">Pipeline</button>
             </div>
         </header>
@@ -1140,41 +1140,23 @@
             </div>
         </div>
 
-        <!-- Weekly Report Tab -->
+        <!-- Operator Health Tab -->
         <div id="weekly-report-tab" class="tab-content">
             <div class="controls">
-                <label for="reportCurrentDays">Current Period:</label>
-                <select id="reportCurrentDays" onchange="refreshWeeklyReport()">
-                    <option value="3">Last 3 days</option>
-                    <option value="7" selected>Last 7 days</option>
-                    <option value="14">Last 14 days</option>
-                    <option value="30">Last 30 days</option>
-                </select>
-
-                <label for="reportPreviousDays">Compare To:</label>
-                <select id="reportPreviousDays" onchange="refreshWeeklyReport()">
-                    <option value="3">Previous 3 days</option>
-                    <option value="7" selected>Previous 7 days</option>
-                    <option value="14">Previous 14 days</option>
-                    <option value="30">Previous 30 days</option>
+                <label for="historyWeeks">History:</label>
+                <select id="historyWeeks" onchange="refreshOperatorHealth()">
+                    <option value="4">Last 4 weeks</option>
+                    <option value="8" selected>Last 8 weeks</option>
+                    <option value="12">Last 12 weeks</option>
                 </select>
 
                 <label for="reportVersion">Version:</label>
-                <select id="reportVersion" onchange="refreshWeeklyReport()">
+                <select id="reportVersion" onchange="refreshOperatorHealth()">
                     <option value="">All Versions</option>
                 </select>
 
-                <label for="reportTopTests">Top Tests:</label>
-                <select id="reportTopTests" onchange="refreshWeeklyReport()">
-                    <option value="5">Top 5</option>
-                    <option value="10" selected>Top 10</option>
-                    <option value="20">Top 20</option>
-                    <option value="50">Top 50</option>
-                    <option value="1000">All Tests</option>
-                </select>
-
                 <label for="reportOperator">Operator:</label>
-                <select id="reportOperator" onchange="refreshWeeklyReport()">
+                <select id="reportOperator" onchange="refreshOperatorHealth()">
                     <option value="">All Operators</option>
                     <option value="FAR">FAR</option>
                     <option value="SBR">SBR</option>
@@ -1185,37 +1167,8 @@
                 </select>
             </div>
 
-            <div class="report-header">
-                <div class="report-title" id="reportTitle">Weekly Operator Report</div>
-                <div class="report-subtitle" id="reportSubtitle">Loading...</div>
-            </div>
-
-            <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: var(--shadow); border: 1px solid var(--border);">
-                <h2 style="font-size: 18px; margin-bottom: 20px;">Operator Pass Rates (Week-over-Week)</h2>
-                <div id="operatorComparison">
-                    <div style="text-align: center; padding: 40px; color: var(--text-muted);">Loading...</div>
-                </div>
-            </div>
-
-            <div style="background: var(--bg-card); padding: 25px; border-radius: 8px; box-shadow: var(--shadow); border: 1px solid var(--border);">
-                <h2 style="font-size: 18px; margin-bottom: 20px;" id="topTestsHeader">Top 10 Failing Tests</h2>
-                <div style="max-height: 600px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
-                            <tr>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Rank</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Test Name</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Version</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Pass Rate</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Runs</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="topFailingTests">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div id="operatorHealthCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;margin-top:4px;">
+                <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1;">Loading...</div>
             </div>
         </div>
 
@@ -1772,8 +1725,8 @@
                             <td style="padding:8px;">Summary cards showing overall pass rates, recent failures, and operator health across all periodic jobs.</td>
                         </tr>
                         <tr>
-                            <td style="padding:8px;font-weight:600;white-space:nowrap;">Weekly Report</td>
-                            <td style="padding:8px;">Week-over-week comparison of pass rates and top failing tests, useful for tracking CI stability trends.</td>
+                            <td style="padding:8px;font-weight:600;white-space:nowrap;">Operator Health</td>
+                            <td style="padding:8px;">Per-operator health cards showing the latest run result, any failing test names, and a sparkline of recent weekly runs.</td>
                         </tr>
                     </table>
                 </div>
@@ -1810,36 +1763,6 @@
     </div>
 
     <!-- Operator Details Modal -->
-    <div id="operatorModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="operatorModalTitle">Operator Details</h2>
-                <span class="close" onclick="closeOperatorModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="platform-stats-grid" id="operatorModalStats"></div>
-                <h3 style="margin-bottom: 15px;">Test Results</h3>
-                <div style="max-height: 400px; overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 1;">
-                            <tr>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Rank</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Test Name</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Version</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Pass Rate</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Runs</th>
-                                <th style="text-align: left; padding: 12px; background: var(--bg-table-header); font-weight: 600; font-size: 13px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid var(--border);">Performance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="operatorModalTests">
-                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--text-muted);">Loading...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Log Modal (Simple, No Popup) -->
     <div id="logModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 1000px;">
@@ -2029,10 +1952,10 @@
             var hash = '#' + tabName;
             if (tabName === 'fbc-summary' && snapshot) hash += '/' + encodeURIComponent(snapshot);
             if (tabName === 'weekly-report') {
-                var dEl = document.getElementById('reportCurrentDays');
+                var wEl = document.getElementById('historyWeeks');
                 var oEl = document.getElementById('reportOperator');
                 var qs = [];
-                if (dEl && dEl.value) qs.push('days=' + encodeURIComponent(dEl.value));
+                if (wEl && wEl.value) qs.push('weeks=' + encodeURIComponent(wEl.value));
                 if (oEl && oEl.value) qs.push('operator=' + encodeURIComponent(oEl.value));
                 if (qs.length) hash += '?' + qs.join('&');
             }
@@ -2068,7 +1991,7 @@
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
                     (tabName === 'fbc-summary' && btn.textContent.trim() === 'FBC Summary') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
-                    (tabName === 'weekly-report' && btn.textContent.trim() === 'Weekly Report') ||
+                    (tabName === 'weekly-report' && btn.textContent.trim() === 'Operator Health') ||
                     (tabName === 'changes' && btn.textContent.trim() === 'Changes') ||
                     (tabName === 'pipeline' && btn.textContent.trim() === 'Pipeline')) {
                     btn.classList.add('active');
@@ -2080,7 +2003,7 @@
             if (tabName === 'pipeline' && typeof drawPipeArrows === 'function') {
                 setTimeout(drawPipeArrows, 50);
             }
-            if (tabName === 'weekly-report') refreshWeeklyReport();
+            if (tabName === 'weekly-report') refreshOperatorHealth();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') { loadJobRuns(); _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); }
             if (tabName === 'fbc-summary') loadFbcSummary();
@@ -3155,10 +3078,6 @@
             return `${month}/${day}/${year}`;
         }
 
-        // Deep-link params captured from the hash (e.g. #weekly-report?days=14&operator=SNR),
-        // applied to the controls on the next refresh, then cleared.
-        var _pendingWeeklyParams = null;
-
         // Set a <select> value only if the value matches an existing <option>.
         function setSelectValue(id, val) {
             var el = document.getElementById(id);
@@ -3169,282 +3088,75 @@
             }
         }
 
-        async function refreshWeeklyReport() {
-            // Apply the pending hash state (set on every weekly-report hash
-            // navigation). days + operator are the shareable filters written
-            // back to the hash; operator resets to All when the hash omits it.
-            // Other params are applied if present but not persisted to the URL.
-            if (_pendingWeeklyParams) {
-                const p = _pendingWeeklyParams;
-                _pendingWeeklyParams = null;
-                const days = p.days || p.current_days;
-                if (days) setSelectValue('reportCurrentDays', days);
-                if (p.previous_days) setSelectValue('reportPreviousDays', p.previous_days);
-                if (p.version !== undefined) setSelectValue('reportVersion', p.version);
-                if (p.top) setSelectValue('reportTopTests', p.top);
-                setSelectValue('reportOperator', (p.operator || '').toUpperCase());
-            }
-
-            const currentDays = parseInt(document.getElementById('reportCurrentDays').value);
-            const previousDays = parseInt(document.getElementById('reportPreviousDays').value);
+        async function refreshOperatorHealth() {
+            const weeks = document.getElementById('historyWeeks').value;
             const version = document.getElementById('reportVersion').value;
-            const top = parseInt(document.getElementById('reportTopTests').value);
             const operator = document.getElementById('reportOperator').value;
-
-            // Update header
-            const versionText = version ? ` (${version})` : '';
-            const operatorText = operator ? ` — ${operator}` : '';
-            const topText = top >= 1000 ? 'All Tests' : `Top ${top} Failing Tests`;
-            document.getElementById('topTestsHeader').textContent = `${topText}${operatorText}${versionText}`;
-
-            // Fetch weekly report data
             const data = await fetchData('weekly-report', {
-                current_days: currentDays,
-                previous_days: previousDays,
-                version: version,
-                top: top,
-                operator: operator
+                history_weeks: weeks, version: version, operator: operator
             });
-
-            // Update report title
-            document.getElementById('reportTitle').textContent =
-                `CI Dashboard Health — Week ${data.comparison.current_period}`;
-            document.getElementById('reportSubtitle').textContent =
-                `Overall: ${data.summary.avg_pass_rate}% pass rate — ${data.summary.passed_executions} passed / ${data.summary.failed_executions} failed executions across ${data.summary.total_operators} operators | Trend: ${data.summary.trend}`;
-
-            // Render operator comparison
-            renderOperatorComparison(data.comparison.operators);
-
-            // Render top failing tests
-            renderTopFailingTests(data.top_tests);
-
-            // Keep the URL shareable: #weekly-report?days=..&operator=..
-            updateHash('weekly-report', null, true);
+            if (data) {
+                renderOperatorHealthCards(data);
+                updateHash('weekly-report', null, true);
+            }
         }
 
-        function renderOperatorComparison(operators) {
-            const container = document.getElementById('operatorComparison');
+        const SEVERITY_ORDER = { failed: 0, degraded: 1, stale: 2, no_data: 3, healthy: 4 };
 
-            if (!operators || Object.keys(operators).length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No data available</div>';
+        function renderOperatorHealthCards(data) {
+            const container = document.getElementById('operatorHealthCards');
+            const ops = data.operators || {};
+            const entries = Object.entries(ops).sort(
+                (a, b) => (SEVERITY_ORDER[a[1].status] ?? 9) - (SEVERITY_ORDER[b[1].status] ?? 9)
+                    || a[0].localeCompare(b[0])
+            );
+            if (!entries.length) {
+                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1;">No data</div>';
                 return;
             }
-
-            const html = Object.entries(operators)
-                .filter(([operator, data]) => data.current_runs > 0 || data.previous_runs > 0)
-                .sort()
-                .map(([operator, data]) => {
-                const delta = data.delta;
-                // Week-over-week delta is only meaningful when both windows have
-                // runs. Without a baseline (new operator) or without current runs
-                // (stopped running), show a neutral badge instead of a misleading OK.
-                const hasBaseline = data.current_runs > 0 && data.previous_runs > 0;
-                let statusClass = 'status-neutral';
-                let deltaClass = 'neutral';
-                let arrow = '→';
-
-                if (hasBaseline) {
-                    if (delta >= 0) {
-                        statusClass = 'status-ok';
-                        deltaClass = 'positive';
-                        arrow = '↑';
-                    } else if (delta >= -5) {
-                        statusClass = 'status-warn';
-                        deltaClass = 'negative';
-                        arrow = '↓';
-                    } else {
-                        statusClass = 'status-fail';
-                        deltaClass = 'negative';
-                        arrow = '↓';
-                    }
+            const BADGE = {
+                healthy: 'status-ok', degraded: 'status-warn',
+                failed: 'status-fail', stale: 'status-neutral', no_data: 'status-neutral'
+            };
+            const LABEL = {
+                healthy: 'HEALTHY', degraded: 'DEGRADED',
+                failed: 'FAILED', stale: 'STALE', no_data: 'NO DATA'
+            };
+            container.innerHTML = entries.map(([opName, d]) => {
+                const opColor = OP_COLORS[opName] || '#6b7280';
+                const latest = d.latest_run;
+                const spark = d.run_history.map(r => {
+                    if (r.status === 'healthy')
+                        return `<span style="color:var(--accent-green)" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
+                    if (r.status === 'degraded' || r.status === 'failed')
+                        return `<span style="color:var(--accent-red)" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
+                    return `<span style="color:var(--text-muted)" title="${esc(r.date)}: no run">&mdash;</span>`;
+                }).join(' ');
+                const ft = latest ? (latest.failed_tests || []) : [];
+                const ftHtml = ft.length
+                    ? '<ul style="margin:8px 0 0;padding-left:16px;font-size:12px;color:var(--accent-red);line-height:1.6;">'
+                        + ft.slice(0, 3).map(t => `<li>${esc(t)}</li>`).join('')
+                        + (ft.length > 3 ? `<li style="color:var(--text-muted);">+${ft.length - 3} more</li>` : '')
+                        + '</ul>'
+                    : '';
+                let latestLine;
+                if (latest) {
+                    const dateEl = latest.job_url
+                        ? `<a href="${esc(latest.job_url)}" target="_blank" style="color:var(--text-secondary);">${esc(latest.date)}</a>`
+                        : `<span>${esc(latest.date)}</span>`;
+                    latestLine = `${dateEl}&nbsp;&mdash;&nbsp;${latest.passed}/${latest.total} passed`;
+                } else {
+                    latestLine = `No runs in last ${data.history_weeks} weeks`;
                 }
-
-                const statusText = statusClass === 'status-ok' ? 'OK' :
-                                   statusClass === 'status-warn' ? 'WARN' :
-                                   statusClass === 'status-fail' ? 'FAIL' : 'N/A';
-                const opColor = OP_COLORS[operator] || '#6b7280';
-
-                return `
-                    <div class="platform-card" style="border-left: 4px solid ${opColor};" onclick="showOperatorDetails('${operator}', ${data.current_runs}, ${data.current_pass_rate}, ${data.previous_pass_rate}, ${delta})">
-                        <div style="display: flex; align-items: center; gap: 15px;">
-                            <span class="status-badge ${statusClass}">${statusText}</span>
-                            <span class="platform-name" style="color: ${opColor};">${operator}</span>
-                        </div>
-                        <div class="platform-stats">
-                            <div class="stat-item">
-                                <div class="stat-label">Previous</div>
-                                <div class="stat-value">${data.previous_runs > 0 ? data.previous_pass_rate + '%' : '<span style="color:var(--text-muted);">N/A</span>'}</div>
-                            </div>
-                            <div style="font-size: 24px; color: var(--text-muted);">→</div>
-                            <div class="stat-item">
-                                <div class="stat-label">Current</div>
-                                <div class="stat-value">${data.current_runs > 0 ? data.current_pass_rate + '%' : '<span style="color:var(--text-muted);">N/A</span>'}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Change</div>
-                                <div class="delta ${(data.previous_runs > 0 && data.current_runs > 0) ? deltaClass : 'neutral'}">${(data.previous_runs > 0 && data.current_runs > 0) ? arrow + Math.abs(delta) + '%' : '<span style="color:var(--text-muted);">-</span>'}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Executions</div>
-                                <div style="font-size: 16px; font-weight: 600; margin-top: 5px;">${data.current_runs}</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            container.innerHTML = html || '<div style="text-align:center; padding:20px; color:var(--text-muted);">No data available</div>';
-        }
-
-        async function showOperatorDetails(operator, runs, currentRate, previousRate, delta) {
-            const currentDays = parseInt(document.getElementById('reportCurrentDays').value);
-            const version = document.getElementById('reportVersion').value;
-
-            // Update modal title
-            const versionText = version ? ` (${version})` : '';
-            document.getElementById('operatorModalTitle').textContent =
-                `${operator} Operator Details${versionText}`;
-
-            // Show modal
-            document.getElementById('operatorModal').style.display = 'block';
-
-            // Fetch operator-specific test rankings to calculate execution stats
-            const data = await fetchData('operator-tests', {
-                operator: operator,
-                days: currentDays,
-                version: version
-            });
-
-            // Render tests (already filtered by operator and version on server side)
-            const tbody = document.getElementById('operatorModalTests');
-
-            if (!data.tests || data.tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No test data available for this operator</td></tr>';
-                document.getElementById('operatorModalStats').innerHTML = '';
-                return;
-            }
-
-            // Calculate execution statistics
-            const uniqueTests = data.tests.length;
-            const totalExecutions = data.tests.reduce((sum, test) => sum + test.total_runs, 0);
-            const passedExecutions = data.tests.reduce((sum, test) => sum + test.passed_runs, 0);
-            const failedExecutions = totalExecutions - passedExecutions;
-            const executionPassRate = totalExecutions > 0 ? (passedExecutions / totalExecutions * 100).toFixed(1) : 0;
-
-            // Render execution statistics at the top
-            const arrow = delta > 0 ? '↑' : delta < 0 ? '↓' : '→';
-            const deltaColor = delta > 0 ? 'var(--accent-green)' : delta < 0 ? 'var(--accent-red)' : 'var(--text-muted)';
-
-            document.getElementById('operatorModalStats').innerHTML = `
-                <div style="background: var(--bg-surface); padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid var(--accent-blue);">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Unique Tests</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${uniqueTests}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Total Executions</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--text-primary);">${totalExecutions}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Passed</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-green);">${passedExecutions}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Failed</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-red);">${failedExecutions}</div>
-                        </div>
-                        <div>
-                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">Execution Pass Rate</div>
-                            <div style="font-size: 20px; font-weight: 600; color: var(--accent-blue);">${executionPassRate}%</div>
-                        </div>
-                    </div>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
-                    <div class="platform-stat-card">
-                        <div class="platform-stat-label">Current Pass Rate</div>
-                        <div class="platform-stat-value">${currentRate}%</div>
-                    </div>
-                    <div class="platform-stat-card">
-                        <div class="platform-stat-label">Previous Pass Rate</div>
-                        <div class="platform-stat-value">${previousRate}%</div>
-                    </div>
-                    <div class="platform-stat-card">
-                        <div class="platform-stat-label">Change</div>
-                        <div class="platform-stat-value" style="color: ${deltaColor}">${arrow}${Math.abs(delta)}%</div>
-                    </div>
-                </div>
-            `;
-
-            tbody.innerHTML = data.tests.map((test, index) => `
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px;"><strong>${index + 1}</strong></td>
-                    <td style="padding: 12px;">
-                        <strong>${test.test_name}</strong>
-                        ${test.test_description ? `<br><span style="font-size:12px; color:var(--text-muted);">${test.test_description}</span>` : ''}
-                    </td>
-                    <td style="padding: 12px;">${test.version}</td>
-                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
-                    <td style="padding: 12px;">${test.total_runs}</td>
-                    <td style="padding: 12px;">
-                        <div class="pass-rate-bar">
-                            <div class="fill" style="width: ${test.pass_rate}%"></div>
-                            <div class="label">${test.pass_rate.toFixed(1)}%</div>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        function closeOperatorModal() {
-            document.getElementById('operatorModal').style.display = 'none';
-        }
-
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const modal = document.getElementById('operatorModal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        function renderTopFailingTests(tests) {
-            const tbody = document.getElementById('topFailingTests');
-
-            if (!tests || tests.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">No failing tests found</td></tr>';
-                return;
-            }
-
-            const failing = tests.filter(t => t.pass_rate < 100);
-            if (failing.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--accent-green);">All tests passing at 100%</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = failing.map((test, index) => {
-                const op = test.operator || deriveOperator(test.test_name) || deriveOperator(test.test_description || '');
-                const displayName = cleanTestName(test.test_name);
-                const cleanedDesc = cleanTestName(test.test_description || '');
-                const showDesc = cleanedDesc && cleanedDesc !== displayName;
-                return `
-                <tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 12px;"><strong>${index + 1}</strong></td>
-                    <td style="padding: 12px;">
-                        ${opChip(op)} <strong>${polarionLink(test.polarion_id, displayName)}</strong>
-                        ${showDesc ? `<br><span style="font-size:12px; color:var(--text-muted);">${esc(cleanedDesc)}</span>` : ''}
-                    </td>
-                    <td style="padding: 12px;">${test.version}</td>
-                    <td style="padding: 12px;"><strong style="color: ${test.pass_rate < 50 ? 'var(--accent-red)' : test.pass_rate < 70 ? 'var(--accent-orange)' : 'var(--text-primary)'}">${test.pass_rate.toFixed(1)}%</strong></td>
-                    <td style="padding: 12px;">${test.total_runs}</td>
-                    <td style="padding: 12px;">
-                        <div class="pass-rate-bar">
-                            <div class="fill" style="width: ${test.pass_rate}%"></div>
-                            <div class="label">${test.pass_rate.toFixed(1)}%</div>
-                        </div>
-                    </td>
-                </tr>
-                `;
+                return `<div class="platform-card" style="border-left:4px solid ${opColor};cursor:default;">
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                    <span class="platform-name" style="color:${opColor};">${esc(opName)}</span>
+                    <span class="status-badge ${BADGE[d.status] || 'status-neutral'}">${LABEL[d.status] || esc(d.status)}</span>
+                  </div>
+                  <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">${latestLine}</div>
+                  ${ftHtml}
+                  <div style="margin-top:10px;font-size:16px;letter-spacing:6px;">${spark}</div>
+                </div>`;
             }).join('');
         }
 
@@ -4905,11 +4617,17 @@
             if (parsed.tab === 'fbc-summary' && parsed.snapshot) {
                 _pendingFbcSnapshot = parsed.snapshot;
             }
-            // Weekly Report treats the hash as the source of truth for its
-            // filters: apply it on every hash navigation (a bare #weekly-report
-            // resets operator to All), so a pasted/bookmarked link is reproducible.
-            if (parsed.tab === 'weekly-report') {
-                _pendingWeeklyParams = parsed.params || {};
+            // Operator Health tab: apply hash params (weeks + operator) on navigation.
+            if (parsed.tab === 'weekly-report' && parsed.params) {
+                const wEl = document.getElementById('historyWeeks');
+                const oEl = document.getElementById('reportOperator');
+                if (wEl && parsed.params.weeks) {
+                    const v = String(parsed.params.weeks);
+                    for (let i = 0; i < wEl.options.length; i++) {
+                        if (wEl.options[i].value === v) { wEl.value = v; break; }
+                    }
+                }
+                if (oEl) oEl.value = (parsed.params.operator || '').toUpperCase();
             }
             showTab(parsed.tab);
         }

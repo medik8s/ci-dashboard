@@ -1630,36 +1630,21 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
 
     @app.route('/api/weekly-report')
     def api_weekly_report():
-        """Get weekly per-operator breakdown report (week-over-week)."""
-        # Accept `current_days` (sent by the UI) or `days` (deep-link alias).
-        # Explicit None check so an intentional 0 is not swallowed by `or`.
-        current_days = request.args.get('current_days', type=int)
-        if current_days is None:
-            current_days = request.args.get('days', 7, type=int)
-        previous_days = request.args.get('previous_days', 7, type=int)
+        """Get per-operator health: latest run + weekly run history."""
+        history_weeks = request.args.get('history_weeks', 8, type=int)
+        if history_weeks not in (4, 8, 12):
+            history_weeks = 8
         version = normalize_version(request.args.get('version'))
-        top = request.args.get('top', 10, type=int)
         operator = normalize_operator(request.args.get('operator'))
 
-        # Per-operator week-over-week comparison (+ overall summary)
-        comparison = report_generator.get_operator_week_over_week(
-            current_week_days=current_days,
-            previous_week_days=previous_days,
-            version=version,
-            operator=operator
+        operators = db.get_operator_health(
+            history_weeks=history_weeks, version=version, operator=operator
         )
-        summary = comparison.pop('summary')
-
-        # Top failing tests, scoped to the selected operator when set
-        top_tests = calculator.get_test_rankings(
-            days=current_days, version=version, operator=operator, limit=top
-        )
-
-        return jsonify({
-            'comparison': comparison,
-            'top_tests': top_tests,
-            'summary': summary
-        })
+        severity = {"failed": 0, "degraded": 1, "stale": 2, "no_data": 3, "healthy": 4}
+        sorted_ops = dict(sorted(
+            operators.items(), key=lambda kv: (severity.get(kv[1]["status"], 5), kv[0])
+        ))
+        return jsonify({"operators": sorted_ops, "history_weeks": history_weeks})
 
     @app.route('/api/operator-tests')
     def api_operator_tests():
