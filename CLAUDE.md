@@ -121,22 +121,23 @@ To add a new test variant (e.g., disconnected, upgrade, different storage backen
 
 ## API Endpoints
 
-| Endpoint                  | Method | Description                                      |
-| ------------------------- | ------ | ------------------------------------------------ |
-| `/`                       | GET    | Main dashboard HTML page                         |
-| `/api/summary`            | GET    | Summary statistics (pass rate, counts)           |
-| `/api/test-results`       | GET    | Enriched test results with all metadata          |
-| `/api/job-runs`           | GET    | Job run history with failure categories          |
-| `/api/fbc-summary`        | GET    | FBC validation: per-snapshot pass/fail           |
-| `/api/operator-stats`     | GET    | Per-operator pass/fail counts                    |
-| `/api/operator-health`    | GET    | Per-operator health: latest run + weekly history |
-| `/api/trend`              | GET    | Pass rate trend over time                        |
-| `/api/presubmit-results`  | GET    | Presubmit E2E test results                       |
-| `/api/trigger-job`        | POST   | Trigger a Prow job via Gangway                   |
-| `/api/trigger-all-jobs`   | POST   | Trigger all periodic jobs via Gangway            |
-| `/api/export`             | GET    | Export test results to XLSX                      |
-| `/api/jira/create`        | POST   | Create/find Jira issue for a failure             |
-| `/api/analyze-failure`    | POST   | AI failure analysis                              |
+| Endpoint                      | Method | Description                                      |
+| ----------------------------- | ------ | ------------------------------------------------ |
+| `/`                           | GET    | Main dashboard HTML page                         |
+| `/api/summary`                | GET    | Summary statistics (pass rate, counts)           |
+| `/api/test-results`           | GET    | Enriched test results with all metadata          |
+| `/api/job-runs`               | GET    | Job run history with failure categories          |
+| `/api/fbc-summary`            | GET    | FBC validation: per-snapshot pass/fail           |
+| `/api/operator-stats`         | GET    | Per-operator pass/fail counts                    |
+| `/api/operator-health`        | GET    | Per-operator health: latest run + weekly history |
+| `/api/trend`                  | GET    | Pass rate trend over time                        |
+| `/api/presubmit-results`      | GET    | Presubmit E2E test results                       |
+| `/api/trigger-job`            | POST   | Trigger a Prow job via Gangway                   |
+| `/api/trigger-all-jobs`       | POST   | Trigger all periodic jobs via Gangway            |
+| `/api/export`                 | GET    | Export test results to XLSX                      |
+| `/api/export/operator-health` | GET    | Export Operator Health view to XLSX (3 sheets)   |
+| `/api/jira/create`            | POST   | Create/find Jira issue for a failure             |
+| `/api/analyze-failure`        | POST   | AI failure analysis                              |
 
 Common query parameters: `days`, `version`, `operator`, `platform`.
 

@@ -1158,17 +1158,23 @@
 
         <!-- Operator Health Tab -->
         <div id="operator-health-tab" class="tab-content">
-            <div class="controls" style="display:flex; align-items:center; gap:8px;">
-                <label for="historyWeeks">Period:</label>
-                <select id="historyWeeks" onchange="refreshOperatorHealth()">
-                    <option value="4">Last 4 weeks</option>
-                    <option value="8" selected>Last 8 weeks</option>
-                    <option value="12">Last 12 weeks</option>
-                </select>
-                <label for="reportVersion">Version:</label>
-                <select id="reportVersion" onchange="refreshOperatorHealth()">
-                    <option value="">All Versions</option>
-                </select>
+            <div class="controls" style="display:flex; align-items:center; gap:8px; justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <label for="historyWeeks">Period:</label>
+                    <select id="historyWeeks" onchange="refreshOperatorHealth()">
+                        <option value="4">Last 4 weeks</option>
+                        <option value="8" selected>Last 8 weeks</option>
+                        <option value="12">Last 12 weeks</option>
+                    </select>
+                    <label for="reportVersion">Version:</label>
+                    <select id="reportVersion" onchange="refreshOperatorHealth()">
+                        <option value="">All Versions</option>
+                    </select>
+                </div>
+                <button onclick="exportOperatorHealthXlsx()"
+                        style="padding:6px 14px;border:1px solid var(--accent-green);border-radius:4px;background:transparent;color:var(--accent-green);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;">
+                    ↓ Export XLSX
+                </button>
             </div>
             <div class="controls" style="display:flex; align-items:center; gap:8px;">
                 <label>Operator:</label>
@@ -1183,11 +1189,25 @@
                 </div>
             </div>
             <div style="font-size:12px;color:var(--text-muted);margin:4px 0 12px;">
-                Showing data from the last <span id="healthWeeksLabel">8</span> weeks. Each dot in the sparkline represents one weekly job run.
+                Showing data from the last <span id="healthWeeksLabel">8</span> weeks. Each dot in the trend column represents one weekly job run.
             </div>
 
-            <div id="operatorHealthCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;">
-                <div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1;">Loading...</div>
+            <div style="overflow-x:auto;">
+                <table id="operatorHealthTable" style="width:100%;border-collapse:collapse;background:var(--bg-card);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">
+                    <thead>
+                        <tr style="background:var(--bg-table-header);">
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Operator</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Status</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Last Run</th>
+                            <th style="padding:12px 16px;text-align:center;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Result</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Failed Tests</th>
+                            <th style="padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;color:var(--text-muted);border-bottom:2px solid var(--border);">Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody id="operatorHealthTableBody">
+                        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">Loading...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -3125,22 +3145,32 @@
                 history_weeks: weeks, version: version, operator: operator
             });
             if (data) {
-                renderOperatorHealthCards(data);
+                renderOperatorHealthTable(data);
                 updateHash('operator-health', null, true);
             }
         }
 
+        function exportOperatorHealthXlsx() {
+            const weeks = document.getElementById('historyWeeks').value;
+            const version = document.getElementById('reportVersion').value;
+            const operator = healthOpFilter || '';
+            const params = new URLSearchParams({ history_weeks: weeks });
+            if (version) params.set('version', version);
+            if (operator) params.set('operator', operator);
+            window.location.href = `/api/export/operator-health?${params.toString()}`;
+        }
+
         const SEVERITY_ORDER = { failed: 0, degraded: 1, stale: 2, no_data: 3, healthy: 4 };
 
-        function renderOperatorHealthCards(data) {
-            const container = document.getElementById('operatorHealthCards');
+        function renderOperatorHealthTable(data) {
+            const tbody = document.getElementById('operatorHealthTableBody');
             const ops = data.operators || {};
             const entries = Object.entries(ops).sort(
                 (a, b) => (SEVERITY_ORDER[a[1].status] ?? 9) - (SEVERITY_ORDER[b[1].status] ?? 9)
                     || a[0].localeCompare(b[0])
             );
             if (!entries.length) {
-                container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);grid-column:1/-1;">No data</div>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No data</td></tr>';
                 return;
             }
             const BADGE = {
@@ -3151,41 +3181,53 @@
                 healthy: 'HEALTHY', degraded: 'DEGRADED',
                 failed: 'FAILED', stale: 'STALE', no_data: 'NO DATA'
             };
-            container.innerHTML = entries.map(([opName, d]) => {
+            tbody.innerHTML = entries.map(([opName, d], rowIdx) => {
                 const opColor = OP_COLORS[opName] || '#6b7280';
                 const latest = d.latest_run;
-                const spark = d.run_history.map(r => {
+                const altBg = rowIdx % 2 === 1 ? 'background:var(--bg-surface);' : '';
+
+                // Trend sparkline
+                const trend = d.run_history.map(r => {
                     if (r.status === 'healthy')
-                        return `<span style="color:var(--accent-green)" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
+                        return `<span style="color:var(--accent-green);font-size:15px;" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
                     if (r.status === 'degraded' || r.status === 'failed')
-                        return `<span style="color:var(--accent-red)" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
-                    return `<span style="color:var(--text-muted)" title="${esc(r.date)}: no run">&mdash;</span>`;
+                        return `<span style="color:var(--accent-red);font-size:15px;" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
+                    return `<span style="color:var(--text-muted);font-size:15px;" title="${esc(r.date)}: no run">&mdash;</span>`;
                 }).join(' ');
+
+                // Failed tests: first 2 + count
                 const ft = latest ? (latest.failed_tests || []) : [];
-                const ftHtml = ft.length
-                    ? '<div class="health-failed-list"><ul style="margin:8px 0 0;padding-left:16px;font-size:12px;color:var(--accent-red);line-height:1.6;">'
-                        + ft.slice(0, 3).map(t => `<li>${esc(t)}</li>`).join('')
-                        + (ft.length > 3 ? `<li style="color:var(--text-muted);">+${ft.length - 3} more</li>` : '')
-                        + '</ul></div>'
-                    : '';
-                let latestLine;
-                if (latest) {
-                    const dateEl = latest.job_url
-                        ? `<a href="${esc(latest.job_url)}" target="_blank" style="color:var(--text-secondary);">${esc(latest.date)}</a>`
-                        : `<span>${esc(latest.date)}</span>`;
-                    latestLine = `${dateEl}&nbsp;&mdash;&nbsp;${latest.passed}/${latest.total} passed`;
-                } else {
-                    latestLine = `No runs in last ${data.history_weeks} weeks`;
+                let ftCell = '<span style="color:var(--text-muted);">—</span>';
+                if (ft.length) {
+                    const shown = ft.slice(0, 2).map(t => `<div style="font-size:12px;color:var(--accent-red);line-height:1.5;">${esc(t)}</div>`).join('');
+                    const more = ft.length > 2 ? `<div style="font-size:11px;color:var(--text-muted);">+${ft.length - 2} more</div>` : '';
+                    ftCell = shown + more;
                 }
-                return `<div class="health-card" style="border-left:4px solid ${opColor};">
-                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-                    <span class="platform-name" style="color:${opColor};">${esc(opName)}</span>
+
+                // Last run cell
+                let lastRunCell = `<span style="color:var(--text-muted);">No runs in last ${data.history_weeks} weeks</span>`;
+                let resultCell = '<span style="color:var(--text-muted);">—</span>';
+                if (latest) {
+                    lastRunCell = latest.job_url
+                        ? `<a href="${esc(latest.job_url)}" target="_blank" style="color:var(--accent-blue);text-decoration:none;">${esc(latest.date)}</a>`
+                        : `<span>${esc(latest.date)}</span>`;
+                    const pct = latest.total > 0 ? Math.round(latest.passed / latest.total * 100) : 0;
+                    const pctColor = pct === 100 ? 'var(--accent-green)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)';
+                    resultCell = `<span style="font-weight:600;color:${pctColor};">${latest.passed}/${latest.total}</span>`;
+                }
+
+                return `<tr style="${altBg}border-bottom:1px solid var(--border);">
+                  <td style="padding:12px 16px;border-left:3px solid ${opColor};">
+                    <strong style="color:${opColor};font-size:14px;">${esc(opName)}</strong>
+                  </td>
+                  <td style="padding:12px 16px;">
                     <span class="status-badge ${BADGE[d.status] || 'status-neutral'}">${LABEL[d.status] || esc(d.status)}</span>
-                  </div>
-                  <div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">${latestLine}</div>
-                  ${ftHtml}
-                  <div style="margin-top:10px;font-size:16px;letter-spacing:4px;">${spark}</div>
-                </div>`;
+                  </td>
+                  <td style="padding:12px 16px;font-size:13px;">${lastRunCell}</td>
+                  <td style="padding:12px 16px;text-align:center;">${resultCell}</td>
+                  <td style="padding:12px 16px;max-width:320px;">${ftCell}</td>
+                  <td style="padding:12px 16px;white-space:nowrap;letter-spacing:3px;">${trend}</td>
+                </tr>`;
             }).join('');
         }
 

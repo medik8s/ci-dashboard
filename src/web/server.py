@@ -1640,6 +1640,137 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         )
         return jsonify({"operators": operators, "history_weeks": history_weeks})
 
+    @app.route('/api/export/operator-health')
+    def api_export_operator_health():
+        """Export Operator Health view to XLSX (Summary + Run History + Failed Tests sheets)."""
+        history_weeks = request.args.get('history_weeks', 8, type=int)
+        if history_weeks not in (4, 8, 12):
+            history_weeks = 8
+        version = normalize_version(request.args.get('version'))
+        operator = normalize_operator(request.args.get('operator'))
+
+        data = db.get_operator_health(
+            history_weeks=history_weeks, version=version, operator=operator
+        )
+        operators = data.get('operators', {})
+
+        # Sort worst-first (same order as the UI)
+        severity = {'failed': 0, 'degraded': 1, 'stale': 2, 'no_data': 3, 'healthy': 4}
+        sorted_ops = sorted(operators.items(), key=lambda kv: (severity.get(kv[1]['status'], 5), kv[0]))
+
+        wb = Workbook()
+        header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=10)
+        pass_fill = PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')
+        fail_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+        warn_fill = PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid')
+        link_font = Font(color='0563C1', underline='single', size=10)
+
+        def _pct(passed, total):
+            return round(passed / total * 100, 1) if total else None
+
+        def _style_header(ws, headers, col_widths):
+            ws.append(headers)
+            for col_num, (header, width) in enumerate(zip(headers, col_widths), 1):
+                cell = ws.cell(row=1, column=col_num)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+                ws.column_dimensions[get_column_letter(col_num)].width = width
+            ws.freeze_panes = 'A2'
+
+        # --- Sheet 1: Summary ---
+        ws_summary = wb.active
+        ws_summary.title = 'Summary'
+        _style_header(ws_summary,
+            ['Operator', 'Status', 'Last Run Date', 'Passed', 'Failed', 'Total', 'Pass Rate %', 'Failed Count', 'Job URL'],
+            [12, 12, 16, 10, 10, 10, 14, 14, 60])
+
+        for op_name, op_data in sorted_ops:
+            latest = op_data.get('latest_run') or {}
+            passed = latest.get('passed', 0) or 0
+            failed = latest.get('failed', 0) or 0
+            total = latest.get('total', 0) or 0
+            ft_count = len(latest.get('failed_tests') or [])
+            pct = _pct(passed, total)
+            row_num = ws_summary.max_row + 1
+            ws_summary.append([
+                op_name,
+                op_data.get('status', '').upper(),
+                latest.get('date') or '',
+                passed,
+                failed,
+                total,
+                pct,
+                ft_count,
+                latest.get('job_url') or '',
+            ])
+            status = op_data.get('status', '')
+            fill = pass_fill if status == 'healthy' else (fail_fill if status in ('failed', 'degraded') else warn_fill)
+            ws_summary.cell(row=row_num, column=2).fill = fill
+            if pct is not None:
+                ws_summary.cell(row=row_num, column=7).number_format = '0.0'
+            job_url = latest.get('job_url')
+            if job_url:
+                url_cell = ws_summary.cell(row=row_num, column=9)
+                url_cell.hyperlink = job_url
+                url_cell.font = link_font
+
+        # --- Sheet 2: Run History ---
+        ws_history = wb.create_sheet('Run History')
+        _style_header(ws_history,
+            ['Operator', 'Week Date', 'Status', 'Passed', 'Failed', 'Total', 'Pass Rate %'],
+            [12, 14, 12, 10, 10, 10, 14])
+
+        for op_name, op_data in sorted_ops:
+            for run in (op_data.get('run_history') or []):
+                passed = run.get('passed', 0) or 0
+                total = run.get('total', 0) or 0
+                failed = run.get('failed', 0) or 0
+                pct = _pct(passed, total)
+                row_num = ws_history.max_row + 1
+                ws_history.append([
+                    op_name, run.get('date') or '', run.get('status', '').upper(),
+                    passed, failed, total, pct,
+                ])
+                if pct is not None:
+                    ws_history.cell(row=row_num, column=7).number_format = '0.0'
+
+        # --- Sheet 3: Failed Tests ---
+        ws_failed = wb.create_sheet('Failed Tests')
+        _style_header(ws_failed,
+            ['Operator', 'Run Date', 'Test Name', 'Job URL'],
+            [12, 14, 80, 60])
+
+        for op_name, op_data in sorted_ops:
+            latest = op_data.get('latest_run') or {}
+            date = latest.get('date') or ''
+            job_url = latest.get('job_url') or ''
+            for test_name in (latest.get('failed_tests') or []):
+                row_num = ws_failed.max_row + 1
+                ws_failed.append([op_name, date, test_name, job_url])
+                if job_url:
+                    url_cell = ws_failed.cell(row=row_num, column=4)
+                    url_cell.hyperlink = job_url
+                    url_cell.font = link_font
+
+        import io
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        from datetime import datetime as _dt
+        today = _dt.now().strftime('%Y-%m-%d')
+        version_part = (version or 'all').replace(' ', '_')
+        filename = f'operator-health-{version_part}-{history_weeks}w-{today}.xlsx'
+
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+
     @app.route('/api/operator-tests')
     def api_operator_tests():
         """Get test rankings for a specific operator (details drill-down)."""
