@@ -20,6 +20,21 @@ class TestStatus(Enum):
     UNKNOWN = "unknown"
 
 
+# Canonical artifact step-dir vocabulary: the single source of truth shared by
+# the collector (which resolves the real dir from the GCS listing at collect
+# time) and the web layer (which needs a heuristic fallback for rows collected
+# before log_dirs was stored). Candidates are listed in priority order per
+# logical log type. Keep this list here so the two layers cannot drift apart.
+ARTIFACT_STEP_DIR_CANDIDATES = {
+    'e2e': ('e2e-test', 'e2e-upgrade-test'),
+    'install': ('ipi-install-install', 'ipi-install-install-stableinitial',
+                'ipi-install-install-aws'),
+    'subscribe': ('medik8s-operator-subscribe',),
+    'catalog': ('medik8s-catalogsource', 'medik8s-disconnected-catalogsource'),
+    'must_gather': ('gather-must-gather',),
+}
+
+
 @dataclass
 class TestResult:
     """Normalized test result from any data source"""
@@ -69,6 +84,11 @@ class JobRun:
     csv_version: Optional[str] = None
     fbc_image: Optional[str] = None
     step_name: Optional[str] = None
+    # Resolved artifact step-dir names (JSON), e.g. {"e2e": "e2e-upgrade-test",
+    # "install": "ipi-install-install-stableinitial"}. Variant-aware: the inner
+    # dir names differ per job variant (upgrade/disconnected), so they are
+    # discovered from GCS at collection time instead of hardcoded.
+    log_dirs: Optional[str] = None
 
     # Failure classification (from Prow build-log.txt)
     failure_reason: Optional[str] = None

@@ -249,7 +249,8 @@ class DashboardDatabase:
         # Add enriched metadata columns to job_runs
         jr_cols = {row[1] for row in cursor.execute("PRAGMA table_info(job_runs)")}
         for col in ['ocp_version', 'csv_version', 'fbc_image', 'step_name',
-                     'failure_reason', 'failed_step', 'failure_category']:
+                     'failure_reason', 'failed_step', 'failure_category',
+                     'log_dirs']:
             if col not in jr_cols:
                 cursor.execute(f"ALTER TABLE job_runs ADD COLUMN {col} TEXT")
 
@@ -334,8 +335,8 @@ class DashboardDatabase:
                         skipped_tests, pass_rate, job_url,
                         ocp_version, csv_version, fbc_image, step_name,
                         job_type, pr_number, pr_author, pr_repo, gcs_prefix,
-                        failure_reason, failed_step, failure_category
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        failure_reason, failed_step, failure_category, log_dirs
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(job_name, build_id) DO UPDATE SET
                         status = excluded.status,
                         timestamp = excluded.timestamp,
@@ -359,7 +360,8 @@ class DashboardDatabase:
                         gcs_prefix = COALESCE(excluded.gcs_prefix, job_runs.gcs_prefix),
                         failure_reason = COALESCE(excluded.failure_reason, job_runs.failure_reason),
                         failed_step = COALESCE(excluded.failed_step, job_runs.failed_step),
-                        failure_category = COALESCE(excluded.failure_category, job_runs.failure_category)
+                        failure_category = COALESCE(excluded.failure_category, job_runs.failure_category),
+                        log_dirs = COALESCE(excluded.log_dirs, job_runs.log_dirs)
                 """, (
                     run.job_name,
                     run.build_id,
@@ -386,6 +388,7 @@ class DashboardDatabase:
                     getattr(run, 'failure_reason', None),
                     getattr(run, 'failed_step', None),
                     getattr(run, 'failure_category', None),
+                    getattr(run, 'log_dirs', None),
                 ))
                 inserted += 1
             except sqlite3.IntegrityError:
@@ -991,7 +994,8 @@ class DashboardDatabase:
                 jr.fbc_image,
                 jr.step_name,
                 jr.job_url,
-                jr.build_id
+                jr.build_id,
+                jr.log_dirs
             FROM test_results tr
             JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
             WHERE tr.timestamp >= datetime('now', ? || ' days')
@@ -1044,7 +1048,8 @@ class DashboardDatabase:
                 jr.pr_number AS jr_pr_number,
                 jr.pr_author,
                 jr.pr_repo,
-                jr.gcs_prefix
+                jr.gcs_prefix,
+                jr.log_dirs
             FROM test_results tr
             JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
             WHERE tr.timestamp >= datetime('now', ? || ' days')
@@ -1095,7 +1100,8 @@ class DashboardDatabase:
                 jr.pr_number,
                 jr.pr_author,
                 jr.pr_repo,
-                jr.gcs_prefix
+                jr.gcs_prefix,
+                jr.log_dirs
             FROM job_runs jr
             WHERE jr.timestamp >= datetime('now', ? || ' days')
             AND COALESCE(jr.job_type, 'periodic') = 'presubmit'
@@ -1178,7 +1184,8 @@ class DashboardDatabase:
                 jr.step_name,
                 jr.failure_reason,
                 jr.failed_step,
-                jr.failure_category
+                jr.failure_category,
+                jr.log_dirs
             FROM job_runs jr
             WHERE jr.timestamp >= datetime('now', ? || ' days')
             AND COALESCE(jr.job_type, 'periodic') = 'periodic'
@@ -1384,7 +1391,7 @@ class DashboardDatabase:
                 SELECT tr.test_name, tr.operator, tr.status, tr.error_message,
                        tr.job_name, tr.build_id, tr.polarion_id,
                        jr.timestamp AS run_date, jr.job_url, jr.ocp_version,
-                       jr.fbc_image, jr.csv_version, jr.step_name
+                       jr.fbc_image, jr.csv_version, jr.step_name, jr.log_dirs
                 FROM test_results tr
                 JOIN ranked_runs rr ON tr.job_name = rr.job_name AND tr.build_id = rr.build_id AND rr.rn = 1
                 JOIN job_runs jr ON tr.job_name = jr.job_name AND tr.build_id = jr.build_id
@@ -1421,6 +1428,7 @@ class DashboardDatabase:
                 curr.fbc_image,
                 curr.csv_version,
                 curr.step_name,
+                curr.log_dirs,
                 curr.polarion_id,
                 prev.run_date AS prev_run_date,
                 prev.job_url AS prev_job_url,

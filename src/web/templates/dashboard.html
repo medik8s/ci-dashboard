@@ -4561,7 +4561,8 @@
                 if (r.prev_job_url) linksHtml += '<a href="' + esc(r.prev_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Previous Prow Job</a>';
                 if (r.curr_job_url) linksHtml += '<a href="' + esc(r.curr_job_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Current Prow Job</a>';
                 if (r.e2e_log_url) linksHtml += '<a href="' + esc(r.e2e_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Test Log</a>';
-                if (r.install_log_url) linksHtml += '<a href="' + esc(r.install_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Install Log</a>';
+                if (r.install_log_url) linksHtml += '<a href="' + esc(r.install_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Cluster Install Log</a>';
+                if (r.subscribe_log_url) linksHtml += '<a href="' + esc(r.subscribe_log_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Operator Install Log</a>';
                 if (r.artifacts_url) linksHtml += '<a href="' + esc(r.artifacts_url) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;font-size:12px;">Artifacts</a>';
                 linksHtml += '</div>';
 

@@ -26,6 +26,7 @@ from openpyxl.utils import get_column_letter
 from storage.database import DashboardDatabase
 from metrics.calculator import MetricsCalculator
 from reports.weekly_report import WeeklyReportGenerator
+from collectors.base import ARTIFACT_STEP_DIR_CANDIDATES
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -526,7 +527,7 @@ def _format_export_row(row, empty_placeholder='-'):
     job_name = row.get('periodic_job') or ''
     build_id = row.get('build_id') or ''
     step_name = row.get('step_name') or ''
-    urls = _build_log_urls(job_name, build_id, step_name)
+    urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
     short_job = job_name.replace('periodic-ci-medik8s-system-tests-main-', '')
     dur_secs = row.get('job_duration')
     if dur_secs and dur_secs > 0:
@@ -550,8 +551,37 @@ GCS_HOST = 'https://storage.googleapis.com'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
 
 
-def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None):
-    """Build GCS and gcsweb log URLs from job metadata."""
+def _resolve_log_dirs(log_dirs):
+    """Return the inner artifact step-dir names to use for each log link.
+
+    The dirs are resolved from the actual GCS listing at collection time and
+    stored per run in job_runs.log_dirs. A key is present only when that step
+    actually ran, so a missing key (or a missing/invalid log_dirs blob) yields
+    None and the caller omits that link rather than guessing a path that may
+    404. Rows collected before log_dirs existed simply show no links until the
+    next collection back-fills them (the collection window equals the max UI
+    range, so every displayed row is re-resolved on each collection).
+    """
+    resolved = {}
+    if log_dirs:
+        try:
+            parsed = json.loads(log_dirs)
+        except (ValueError, TypeError):
+            parsed = None
+        if isinstance(parsed, dict):
+            resolved = parsed
+    return {k: resolved.get(k) for k in ARTIFACT_STEP_DIR_CANDIDATES}
+
+
+def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None, log_dirs=None):
+    """Build GCS and gcsweb log URLs from job metadata.
+
+    Inner step-dir names are variant-specific (e.g. upgrade jobs use
+    'e2e-upgrade-test' / 'ipi-install-install-stableinitial'), so they come from
+    log_dirs (resolved from GCS at collection time) rather than being hardcoded.
+    A link whose step dir is unknown is returned empty so the UI omits it
+    instead of linking to a guaranteed-404 GCS error page.
+    """
     has_job = bool(job_name and build_id)
     if gcs_prefix:
         gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
@@ -559,13 +589,21 @@ def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None):
     else:
         gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
-    artifacts_base = f"{gcs_base}/artifacts/{step_name}" if (has_job and step_name) else ''
+    have_base = bool(has_job and step_name)
+    artifacts_base = f"{gcs_base}/artifacts/{step_name}" if have_base else ''
+    dirs = _resolve_log_dirs(log_dirs) if have_base else {}
+
+    def _log(dir_key):
+        d = dirs.get(dir_key)
+        return f"{artifacts_base}/{d}/build-log.txt" if d else ''
+
+    must_gather = dirs.get('must_gather')
     return {
-        'e2e_log_url': f"{artifacts_base}/e2e-test/build-log.txt" if (has_job and step_name) else '',
-        'install_log_url': f"{artifacts_base}/ipi-install-install/build-log.txt" if (has_job and step_name) else '',
-        'subscribe_log_url': f"{artifacts_base}/medik8s-operator-subscribe/build-log.txt" if (has_job and step_name) else '',
-        'catalog_log_url': f"{artifacts_base}/medik8s-catalogsource/build-log.txt" if (has_job and step_name) else '',
-        'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/gather-must-gather/" if (has_job and step_name) else '',
+        'e2e_log_url': _log('e2e'),
+        'install_log_url': _log('install'),
+        'subscribe_log_url': _log('subscribe'),
+        'catalog_log_url': _log('catalog'),
+        'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/{must_gather}/" if (have_base and must_gather) else '',
         'build_log_url': f"{gcs_base}/build-log.txt" if has_job else '',
     }
 
@@ -1101,7 +1139,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('periodic_job') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
 
             fbc_image = row.get('fbc_image') or ''
             fbc_urls = _build_fbc_urls(fbc_image)
@@ -1162,7 +1200,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
 
             curr_fbc = row.get('fbc_image') or ''
             prev_fbc = row.get('prev_fbc_image') or ''
@@ -1232,7 +1270,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
             fbc_image = row.get('fbc_image') or ''
 
             runs.append({
@@ -1297,7 +1335,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 op = m.group(1).upper()
             if not op:
                 continue
-            urls = _build_log_urls(job_name, build_id, step_name)
+            urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
             run_date = row.get('run_date') or ''
             if run_date and (not entry['latest_date'] or run_date > entry['latest_date']):
                 entry['latest_date'] = run_date
@@ -1458,7 +1496,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
+            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'), log_dirs=row.get('log_dirs'))
             pr_number = row.get('pr_number') or row.get('jr_pr_number')
 
             fbc_image = row.get('fbc_image') or ''
@@ -1507,7 +1545,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
-            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'))
+            urls = _build_log_urls(job_name, build_id, step_name, gcs_prefix=row.get('gcs_prefix'), log_dirs=row.get('log_dirs'))
 
             runs.append({
                 'job_name': job_name,
