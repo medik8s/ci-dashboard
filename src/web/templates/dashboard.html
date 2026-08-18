@@ -3282,7 +3282,7 @@
                         const _vBg = vdata.status === 'healthy' ? 'rgba(115,191,105,0.15)' : vdata.status === 'failed' ? 'rgba(242,73,92,0.15)' : vdata.status === 'degraded' ? 'rgba(255,152,48,0.15)' : 'rgba(100,116,139,0.1)';
                         const _vBorder = vdata.status === 'healthy' ? 'rgba(115,191,105,0.35)' : vdata.status === 'failed' ? 'rgba(242,73,92,0.35)' : vdata.status === 'degraded' ? 'rgba(255,152,48,0.35)' : 'rgba(100,116,139,0.25)';
                         rows.push(`<tr class="variant-row-${esc(opName)}" style="display:${display};border-bottom:1px solid var(--border);opacity:0.85;">
-                          <td style="padding:12px 16px 12px 40px;white-space:nowrap;vertical-align:middle;"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:${_vBg};border:1px solid ${_vBorder};color:${_vColor};font-size:0.75rem;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${_vColor};flex:0 0 auto;"></span><span>${esc(vLabel)}</span></span></td>
+                          <td style="padding:12px 16px 12px 40px;white-space:nowrap;vertical-align:middle;"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:${_vBg};border:1px solid ${_vBorder};color:var(--text-primary);font-size:0.75rem;"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${_vColor};flex:0 0 auto;"></span><span>${esc(vLabel)}</span></span></td>
                           ${_dataColumns(vdata.status, '10px', vLastRun, vResult, vFt, vTrend, '12px 16px')}
                         </tr>`);
                     });
