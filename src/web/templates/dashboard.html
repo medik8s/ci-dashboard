@@ -3172,6 +3172,67 @@
 
         const SEVERITY_ORDER = { failed: 0, degraded: 1, stale: 2, no_data: 3, healthy: 4 };
 
+        // Track which operator rows are expanded (persists across re-renders)
+        const _expandedOps = new Set();
+
+        function toggleVariantRows(opName) {
+            const rows = document.querySelectorAll(`.variant-row-${CSS.escape(opName)}`);
+            const arrow = document.getElementById(`arrow-${opName}`);
+            if (_expandedOps.has(opName)) {
+                _expandedOps.delete(opName);
+                rows.forEach(r => { r.style.display = 'none'; });
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            } else {
+                _expandedOps.add(opName);
+                rows.forEach(r => { r.style.display = 'table-row'; });
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+            }
+        }
+
+        function _sparkline(history) {
+            return history.map(r => {
+                if (r.status === 'healthy')
+                    return `<span style="color:var(--accent-green);font-size:15px;" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
+                if (r.status === 'degraded' || r.status === 'failed')
+                    return `<span style="color:var(--accent-red);font-size:15px;" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
+                return `<span style="color:var(--text-muted);font-size:15px;" title="${esc(r.date)}: no run">&mdash;</span>`;
+            }).join(' ');
+        }
+
+        function _latestRunCells(latest, historyWeeks) {
+            let lastRunCell = `<span style="color:var(--text-muted);">No runs in last ${historyWeeks} weeks</span>`;
+            let resultCell = '<span style="color:var(--text-muted);">—</span>';
+            if (latest) {
+                lastRunCell = latest.job_url
+                    ? `<a href="${esc(latest.job_url)}" target="_blank" style="color:var(--accent-blue);text-decoration:none;">${esc(latest.date)}</a>`
+                    : `<span>${esc(latest.date)}</span>`;
+                const pct = latest.total > 0 ? Math.round(latest.passed / latest.total * 100) : 0;
+                const pctColor = pct === 100 ? 'var(--accent-green)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)';
+                resultCell = `<span style="font-weight:600;color:${pctColor};">${latest.passed}/${latest.total}</span>`;
+            }
+            return [lastRunCell, resultCell];
+        }
+
+        function _failedTestsCell(failedTests) {
+            if (!failedTests || !failedTests.length)
+                return '<span style="color:var(--text-muted);">—</span>';
+            const shown = failedTests.slice(0, 2).map(t => `<div style="font-size:12px;color:var(--accent-red);line-height:1.5;">${esc(t)}</div>`).join('');
+            const more = failedTests.length > 2 ? `<div style="font-size:11px;color:var(--text-muted);">+${failedTests.length - 2} more</div>` : '';
+            return shown + more;
+        }
+
+        // Shared cell builder for columns 2-6 (status, lastRun, result, failedTests, trend).
+        // Adding a new column only requires editing this one function.
+        function _dataColumns(status, badgeFontSize, lastRunCell, resultCell, ftCell, trend, pad) {
+            const BADGE = {healthy:'status-ok',degraded:'status-warn',failed:'status-fail',stale:'status-neutral',no_data:'status-neutral',no_run:'status-neutral'};
+            const LABEL = {healthy:'HEALTHY',degraded:'DEGRADED',failed:'FAILED',stale:'STALE',no_data:'NO DATA',no_run:'NO RUN'};
+            return `<td style="padding:${pad};"><span class="status-badge ${BADGE[status] || 'status-neutral'}"${badgeFontSize ? ` style="font-size:${badgeFontSize};"` : ''}>${LABEL[status] || esc(status)}</span></td>
+                  <td style="padding:${pad};font-size:13px;">${lastRunCell}</td>
+                  <td style="padding:${pad};text-align:center;">${resultCell}</td>
+                  <td style="padding:${pad};max-width:320px;">${ftCell}</td>
+                  <td style="padding:${pad};white-space:nowrap;letter-spacing:3px;">${trend}</td>`;
+        }
+
         function renderOperatorHealthTable(data) {
             const tbody = document.getElementById('operatorHealthTableBody');
             const ops = data.operators || {};
@@ -3183,62 +3244,46 @@
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted);">No data</td></tr>';
                 return;
             }
-            const BADGE = {
-                healthy: 'status-ok', degraded: 'status-warn',
-                failed: 'status-fail', stale: 'status-neutral', no_data: 'status-neutral'
-            };
-            const LABEL = {
-                healthy: 'HEALTHY', degraded: 'DEGRADED',
-                failed: 'FAILED', stale: 'STALE', no_data: 'NO DATA'
-            };
-            tbody.innerHTML = entries.map(([opName, d], rowIdx) => {
-                const opColor = OP_COLORS[opName] || '#6b7280';
-                const latest = d.latest_run;
+            const rows = [];
+            entries.forEach(([opName, d], rowIdx) => {
+                const variants = d.variants || {};
+                const variantKeys = Object.keys(variants);
+                const hasMultipleVariants = variantKeys.length > 1;
                 const altBg = rowIdx % 2 === 1 ? 'background:var(--bg-surface);' : '';
+                const isExpanded = _expandedOps.has(opName);
 
-                // Trend sparkline
-                const trend = d.run_history.map(r => {
-                    if (r.status === 'healthy')
-                        return `<span style="color:var(--accent-green);font-size:15px;" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
-                    if (r.status === 'degraded' || r.status === 'failed')
-                        return `<span style="color:var(--accent-red);font-size:15px;" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
-                    return `<span style="color:var(--text-muted);font-size:15px;" title="${esc(r.date)}: no run">&mdash;</span>`;
-                }).join(' ');
+                const [lastRunCell, resultCell] = _latestRunCells(d.latest_run, data.history_weeks);
+                const ftCell = _failedTestsCell(d.latest_run ? d.latest_run.failed_tests : []);
+                const trend = _sparkline(d.run_history || []);
 
-                // Failed tests: first 2 + count
-                const ft = latest ? (latest.failed_tests || []) : [];
-                let ftCell = '<span style="color:var(--text-muted);">—</span>';
-                if (ft.length) {
-                    const shown = ft.slice(0, 2).map(t => `<div style="font-size:12px;color:var(--accent-red);line-height:1.5;">${esc(t)}</div>`).join('');
-                    const more = ft.length > 2 ? `<div style="font-size:11px;color:var(--text-muted);">+${ft.length - 2} more</div>` : '';
-                    ftCell = shown + more;
+                // Expand toggle: only show if multiple variants exist
+                const toggleIcon = hasMultipleVariants
+                    ? `<span id="arrow-${esc(opName)}" style="display:inline-block;margin-right:6px;font-size:10px;transition:transform 0.2s;color:var(--text-muted);${isExpanded ? 'transform:rotate(90deg)' : ''}">&#9654;</span>`
+                    : '<span style="display:inline-block;width:16px;margin-right:6px;"></span>';
+                const clickHandler = hasMultipleVariants ? `onclick="toggleVariantRows('${esc(opName)}')" style="cursor:pointer;"` : '';
+
+                rows.push(`<tr ${clickHandler} style="${altBg}border-bottom:1px solid var(--border);">
+                  <td style="padding:12px 16px;">${toggleIcon}${opChip(opName)}</td>
+                  ${_dataColumns(d.status, '', lastRunCell, resultCell, ftCell, trend, '12px 16px')}
+                </tr>`);
+
+                // Variant sub-rows (hidden unless expanded)
+                if (hasMultipleVariants) {
+                    variantKeys.sort().forEach(variantKey => {
+                        const vdata = variants[variantKey];
+                        const vLabel = vdata.label || variantKey;
+                        const [vLastRun, vResult] = _latestRunCells(vdata.latest_run, data.history_weeks);
+                        const vFt = _failedTestsCell(vdata.latest_run ? vdata.latest_run.failed_tests : []);
+                        const vTrend = _sparkline(vdata.run_history || []);
+                        const display = isExpanded ? 'table-row' : 'none';
+                        rows.push(`<tr class="variant-row-${esc(opName)}" style="display:${display};border-bottom:1px solid var(--border);opacity:0.85;">
+                          <td style="padding:8px 16px 8px 52px;font-size:12px;color:var(--text-secondary);">↳ ${esc(vLabel)}</td>
+                          ${_dataColumns(vdata.status, '10px', vLastRun, vResult, vFt, vTrend, '8px 16px')}
+                        </tr>`);
+                    });
                 }
-
-                // Last run cell
-                let lastRunCell = `<span style="color:var(--text-muted);">No runs in last ${data.history_weeks} weeks</span>`;
-                let resultCell = '<span style="color:var(--text-muted);">—</span>';
-                if (latest) {
-                    lastRunCell = latest.job_url
-                        ? `<a href="${esc(latest.job_url)}" target="_blank" style="color:var(--accent-blue);text-decoration:none;">${esc(latest.date)}</a>`
-                        : `<span>${esc(latest.date)}</span>`;
-                    const pct = latest.total > 0 ? Math.round(latest.passed / latest.total * 100) : 0;
-                    const pctColor = pct === 100 ? 'var(--accent-green)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-red)';
-                    resultCell = `<span style="font-weight:600;color:${pctColor};">${latest.passed}/${latest.total}</span>`;
-                }
-
-                return `<tr style="${altBg}border-bottom:1px solid var(--border);">
-                  <td style="padding:12px 16px;">
-                    ${opChip(opName)}
-                  </td>
-                  <td style="padding:12px 16px;">
-                    <span class="status-badge ${BADGE[d.status] || 'status-neutral'}">${LABEL[d.status] || esc(d.status)}</span>
-                  </td>
-                  <td style="padding:12px 16px;font-size:13px;">${lastRunCell}</td>
-                  <td style="padding:12px 16px;text-align:center;">${resultCell}</td>
-                  <td style="padding:12px 16px;max-width:320px;">${ftCell}</td>
-                  <td style="padding:12px 16px;white-space:nowrap;letter-spacing:3px;">${trend}</td>
-                </tr>`;
-            }).join('');
+            });
+            tbody.innerHTML = rows.join('');
         }
 
         // Collection status polling
