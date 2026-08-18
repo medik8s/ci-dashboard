@@ -1668,6 +1668,19 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         def _pct(passed, total):
             return round(passed / total * 100, 1) if total else None
 
+        def _status_fill(status):
+            if status == 'healthy':
+                return pass_fill
+            if status in ('failed', 'degraded'):
+                return fail_fill
+            return warn_fill
+
+        def _metrics_from_latest(latest):
+            passed = latest.get('passed', 0) or 0
+            failed = latest.get('failed', 0) or 0
+            total = latest.get('total', 0) or 0
+            return passed, failed, total, _pct(passed, total)
+
         def _style_header(ws, headers, col_widths):
             ws.append(headers)
             for col_num, (header, width) in enumerate(zip(headers, col_widths), 1):
@@ -1678,44 +1691,68 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 ws.column_dimensions[get_column_letter(col_num)].width = width
             ws.freeze_panes = 'A2'
 
-        # --- Sheet 1: Summary ---
+        # --- Sheet 1: Summary (one row per operator, rollup status) ---
         ws_summary = wb.active
         ws_summary.title = 'Summary'
         _style_header(ws_summary,
-            ['Operator', 'Status', 'Last Run Date', 'Passed', 'Failed', 'Total', 'Pass Rate %', 'Failed Count', 'Job URL'],
-            [12, 12, 16, 10, 10, 10, 14, 14, 60])
+            ['Operator', 'Status', 'Variants', 'Last Run Date', 'Passed', 'Failed', 'Total', 'Pass Rate %', 'Failed Variants'],
+            [12, 12, 14, 16, 10, 10, 10, 14, 30])
 
         for op_name, op_data in sorted_ops:
             latest = op_data.get('latest_run') or {}
-            passed = latest.get('passed', 0) or 0
-            failed = latest.get('failed', 0) or 0
-            total = latest.get('total', 0) or 0
-            ft_count = len(latest.get('failed_tests') or [])
-            pct = _pct(passed, total)
+            passed, failed, total, pct = _metrics_from_latest(latest)
+            variants = op_data.get('variants') or {}
+            variant_labels = ', '.join(v.get('label', k) for k, v in variants.items())
+            failed_variants = ', '.join(
+                v.get('label', k) for k, v in variants.items()
+                if v.get('status') in ('failed', 'degraded')
+            )
             row_num = ws_summary.max_row + 1
             ws_summary.append([
                 op_name,
                 op_data.get('status', '').upper(),
+                variant_labels,
                 latest.get('date') or '',
-                passed,
-                failed,
-                total,
-                pct,
-                ft_count,
-                latest.get('job_url') or '',
+                passed, failed, total, pct,
+                failed_variants or '—',
             ])
-            status = op_data.get('status', '')
-            fill = pass_fill if status == 'healthy' else (fail_fill if status in ('failed', 'degraded') else warn_fill)
-            ws_summary.cell(row=row_num, column=2).fill = fill
+            ws_summary.cell(row=row_num, column=2).fill = _status_fill(op_data.get('status', ''))
             if pct is not None:
-                ws_summary.cell(row=row_num, column=7).number_format = '0.0'
+                ws_summary.cell(row=row_num, column=8).number_format = '0.0'
             job_url = latest.get('job_url')
             if job_url:
-                url_cell = ws_summary.cell(row=row_num, column=9)
+                url_cell = ws_summary.cell(row=row_num, column=4)
                 url_cell.hyperlink = job_url
                 url_cell.font = link_font
 
-        # --- Sheet 2: Run History ---
+        # --- Sheet 2: Variants (one row per operator+variant) ---
+        ws_variants = wb.create_sheet('Variants')
+        _style_header(ws_variants,
+            ['Operator', 'Variant', 'Status', 'Last Run Date', 'Passed', 'Failed', 'Total', 'Pass Rate %', 'Job URL'],
+            [12, 18, 12, 16, 10, 10, 10, 14, 60])
+
+        for op_name, op_data in sorted_ops:
+            for variant_key, vdata in sorted((op_data.get('variants') or {}).items()):
+                latest = vdata.get('latest_run') or {}
+                passed, failed, total, pct = _metrics_from_latest(latest)
+                row_num = ws_variants.max_row + 1
+                ws_variants.append([
+                    op_name, vdata.get('label', variant_key),
+                    vdata.get('status', '').upper(),
+                    latest.get('date') or '',
+                    passed, failed, total, pct,
+                    latest.get('job_url') or '',
+                ])
+                ws_variants.cell(row=row_num, column=3).fill = _status_fill(vdata.get('status', ''))
+                if pct is not None:
+                    ws_variants.cell(row=row_num, column=8).number_format = '0.0'
+                job_url = latest.get('job_url')
+                if job_url:
+                    url_cell = ws_variants.cell(row=row_num, column=9)
+                    url_cell.hyperlink = job_url
+                    url_cell.font = link_font
+
+        # --- Sheet 3: Run History (per operator, aggregate rollup per week) ---
         ws_history = wb.create_sheet('Run History')
         _style_header(ws_history,
             ['Operator', 'Week Date', 'Status', 'Passed', 'Failed', 'Total', 'Pass Rate %'],
@@ -1735,23 +1772,25 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 if pct is not None:
                     ws_history.cell(row=row_num, column=7).number_format = '0.0'
 
-        # --- Sheet 3: Failed Tests ---
+        # --- Sheet 4: Failed Tests (per variant's latest run) ---
         ws_failed = wb.create_sheet('Failed Tests')
         _style_header(ws_failed,
-            ['Operator', 'Run Date', 'Test Name', 'Job URL'],
-            [12, 14, 80, 60])
+            ['Operator', 'Variant', 'Run Date', 'Test Name', 'Job URL'],
+            [12, 18, 14, 80, 60])
 
         for op_name, op_data in sorted_ops:
-            latest = op_data.get('latest_run') or {}
-            date = latest.get('date') or ''
-            job_url = latest.get('job_url') or ''
-            for test_name in (latest.get('failed_tests') or []):
-                row_num = ws_failed.max_row + 1
-                ws_failed.append([op_name, date, test_name, job_url])
-                if job_url:
-                    url_cell = ws_failed.cell(row=row_num, column=4)
-                    url_cell.hyperlink = job_url
-                    url_cell.font = link_font
+            for variant_key, vdata in sorted((op_data.get('variants') or {}).items()):
+                latest = vdata.get('latest_run') or {}
+                date = latest.get('date') or ''
+                job_url = latest.get('job_url') or ''
+                label = vdata.get('label', variant_key)
+                for test_name in (latest.get('failed_tests') or []):
+                    row_num = ws_failed.max_row + 1
+                    ws_failed.append([op_name, label, date, test_name, job_url])
+                    if job_url:
+                        url_cell = ws_failed.cell(row=row_num, column=5)
+                        url_cell.hyperlink = job_url
+                        url_cell.font = link_font
 
         import io
         output = io.BytesIO()

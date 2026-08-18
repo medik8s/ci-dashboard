@@ -1204,18 +1204,69 @@ class DashboardDatabase:
 
     _KNOWN_OPERATORS = ("FAR", "SBR", "SNR", "NHC", "MDR", "NMO")
 
+    # Maps the distinguishing tail of a variant key to a user-facing label.
+    # Checked from most-specific to least-specific (order matters).
+    _VARIANT_LABEL_MAP = [
+        ("disconnected", "Disconnected"),
+        ("odf",          "ODF"),
+        ("efs",          "EFS"),
+        ("upgrade",      "Upgrade"),
+        ("interop",      "Interop"),
+    ]
+
+    @staticmethod
+    def _variant_label(variant_key: str) -> str:
+        """Return a short human-friendly display label for a variant key.
+
+        Examples:
+          far-weekly-aws            → Weekly
+          far-weekly-aws-disconnected → Disconnected
+          sbr-weekly-aws-odf        → ODF
+          far-upgrade-aws           → Upgrade
+        """
+        key = variant_key.lower()
+        for token, label in DashboardDatabase._VARIANT_LABEL_MAP:
+            if token in key:
+                return label
+        return "Weekly"
+
+    @staticmethod
+    def _no_run_slot(slot: str) -> Dict[str, Any]:
+        """Placeholder dict for a week with no run data."""
+        return {"date": slot, "passed": 0, "failed": 0, "total": 0, "status": "no_run"}
+
+    @staticmethod
+    def _run_status(total: int, failed: int) -> str:
+        if total == 0:
+            return "failed"
+        return "degraded" if failed > 0 else "healthy"
+
+    @staticmethod
+    def _rollup_status(statuses: List[str]) -> str:
+        """Worst-of-actual-runs: only considers variants that ran (non-no_run)."""
+        actual = [s for s in statuses if s not in ("no_run",)]
+        if not actual:
+            return "no_run"
+        priority = {"failed": 0, "degraded": 1, "healthy": 2}
+        return min(actual, key=lambda s: priority.get(s, 99))
+
     def get_operator_health(
         self,
         history_weeks: int = 8,
         version: Optional[str] = None,
         operator: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Per-operator health: latest run + weekly sparkline for last N weeks.
+        """Per-operator health with per-variant breakdown.
 
-        Starts from job_runs (not test_results) so FAILED runs with 0 tests
-        are included. Operator is resolved via an all-time job_name→operator
-        map built from test_results, falling back to a substring match on the
-        job name.
+        Returns one entry per operator with:
+        - status: rollup (worst-of-actual-runs-this-week's-latest)
+        - latest_run: run data from the most recently run variant (not an aggregate)
+        - variants: {variant_key: {status, label, latest_run, run_history}}
+        - run_history: aggregate per-week history (worst-of-actual-variants)
+
+        Starts from job_runs so FAILED runs with 0 tests are included. Operator
+        is resolved via an all-time job_name→operator map built from test_results,
+        falling back to a substring match on the job name.
         """
         history_weeks = history_weeks if history_weeks in (4, 8, 12) else 8
         now = datetime.now(timezone.utc)
@@ -1248,6 +1299,17 @@ class DashboardDatabase:
                     return op
             return None
 
+        def extract_variant_key(job_name: str, step_name: Optional[str]) -> str:
+            """Extract a stable variant key. Prefer step_name (already the e2e suffix)."""
+            if step_name:
+                s = step_name.strip()
+                if s and s.startswith("e2e-") and len(s) > 4:
+                    return s[4:]
+                if s:
+                    return s
+            m = re.search(r'e2e-(.+)$', job_name)
+            return m.group(1) if m else job_name
+
         # Query all periodic job_runs in the window
         params: list = [window_start.strftime("%Y-%m-%d %H:%M:%S")]
         version_clause = ""
@@ -1257,7 +1319,8 @@ class DashboardDatabase:
 
         run_rows = self.conn.execute(f"""
             SELECT job_name, CAST(build_id AS TEXT) AS build_id,
-                   timestamp, total_tests, passed_tests, failed_tests, job_url
+                   timestamp, total_tests, passed_tests, failed_tests, job_url,
+                   step_name
             FROM job_runs
             WHERE timestamp >= ?
               AND COALESCE(job_type, 'periodic') = 'periodic'
@@ -1273,43 +1336,47 @@ class DashboardDatabase:
             except (ValueError, TypeError):
                 return ""
 
-        # Bucket by operator + ISO week (one slot per week, first=latest run wins)
-        weeks_by_op: Dict[str, Dict[str, Any]] = defaultdict(dict)
+        # Bucket by (operator, variant_key, ISO week) — one slot per combo per week.
+        # weeks_by_op_variant: {op: {variant_key: {week: run_info}}}
+        weeks_by_op_variant: Dict[str, Dict[str, Dict[str, Any]]] = defaultdict(
+            lambda: defaultdict(dict)
+        )
         for row in run_rows:
             op = resolve_op(row["job_name"])
             if not op or op not in targets:
                 continue
+            variant = extract_variant_key(row["job_name"], row["step_name"])
             wk = week_start_iso(row["timestamp"])
-            if not wk or wk in weeks_by_op[op]:
+            if not wk or wk in weeks_by_op_variant[op][variant]:
                 continue
             total = int(row["total_tests"] or 0)
             failed = int(row["failed_tests"] or 0)
-            weeks_by_op[op][wk] = {
+            weeks_by_op_variant[op][variant][wk] = {
                 "date": row["timestamp"][:10],
                 "passed": int(row["passed_tests"] or 0),
                 "failed": failed,
                 "total": total,
-                "status": "failed" if total == 0 else ("degraded" if failed > 0 else "healthy"),
+                "status": self._run_status(total, failed),
                 "job_name": row["job_name"],
                 "build_id": row["build_id"],
                 "job_url": row["job_url"] or "",
             }
 
-        # Fetch failed test names only for each operator's latest run
+        # Fetch failed test names for each variant's latest run
         failed_by_run: Dict[tuple, List[str]] = defaultdict(list)
         for op in targets:
-            wks = weeks_by_op.get(op, {})
-            if wks:
-                latest = max(wks.values(), key=lambda r: r["date"])
-                rows = self.conn.execute("""
-                    SELECT test_name FROM test_results
-                    WHERE job_name = ? AND CAST(build_id AS TEXT) = ?
-                      AND LOWER(status) IN ('failed', 'failure', 'error')
-                    ORDER BY test_name
-                """, (latest["job_name"], latest["build_id"])).fetchall()
-                failed_by_run[(latest["job_name"], latest["build_id"])] = [
-                    r["test_name"] for r in rows
-                ]
+            for variant, wks in weeks_by_op_variant.get(op, {}).items():
+                if wks:
+                    latest = max(wks.values(), key=lambda r: r["date"])
+                    rows = self.conn.execute("""
+                        SELECT test_name FROM test_results
+                        WHERE job_name = ? AND CAST(build_id AS TEXT) = ?
+                          AND LOWER(status) IN ('failed', 'failure', 'error')
+                        ORDER BY test_name
+                    """, (latest["job_name"], latest["build_id"])).fetchall()
+                    failed_by_run[(latest["job_name"], latest["build_id"])] = [
+                        r["test_name"] for r in rows
+                    ]
 
         # Historical operator presence (for STALE vs NO DATA)
         seen_ops = {
@@ -1329,20 +1396,36 @@ class DashboardDatabase:
 
         result: Dict[str, Any] = {}
         for op in targets:
-            wks = weeks_by_op.get(op, {})
-            history = [
-                wks.get(slot) or {
-                    "date": slot, "passed": 0, "failed": 0, "total": 0, "status": "no_run"
-                }
-                for slot in week_slots
-            ]
-            if wks:
-                latest = max(wks.values(), key=lambda r: r["date"])
-                failed_tests = failed_by_run.get(
-                    (latest["job_name"], latest["build_id"]), []
-                )
+            op_variants_raw = weeks_by_op_variant.get(op, {})
+
+            if not op_variants_raw:
                 result[op] = {
+                    "status": "stale" if op in seen_ops else "no_data",
+                    "latest_run": None,
+                    "variants": {},
+                    "run_history": [
+                        self._no_run_slot(slot)
+                        for slot in week_slots
+                    ],
+                }
+                continue
+
+            # Build per-variant data with its own run_history
+            variants_data: Dict[str, Any] = {}
+            for variant, wks in sorted(op_variants_raw.items()):
+                if not wks:
+                    continue
+                latest = max(wks.values(), key=lambda r: r["date"])
+                failed_tests = failed_by_run.get((latest["job_name"], latest["build_id"]), [])
+                variant_history = [
+                    wks.get(slot) or {
+                        "date": slot, "passed": 0, "failed": 0, "total": 0, "status": "no_run"
+                    }
+                    for slot in week_slots
+                ]
+                variants_data[variant] = {
                     "status": latest["status"],
+                    "label": self._variant_label(variant),
                     "latest_run": {
                         "date": latest["date"],
                         "passed": latest["passed"],
@@ -1351,14 +1434,50 @@ class DashboardDatabase:
                         "job_url": latest["job_url"],
                         "failed_tests": failed_tests,
                     },
-                    "run_history": history,
+                    "run_history": variant_history,
                 }
-            else:
-                result[op] = {
-                    "status": "stale" if op in seen_ops else "no_data",
-                    "latest_run": None,
-                    "run_history": history,
-                }
+
+            # Aggregate run_history: rollup is worst-of-actual-runs per week.
+            # Use positional indexing (not date comparison) because slot dates are
+            # week-start Mondays while run dates are the actual run timestamps.
+            # Variant histories are always built by iterating week_slots (see
+            # variant_history construction above), so index i corresponds to slot i.
+            agg_history = []
+            for i, slot in enumerate(week_slots):
+                slot_statuses = []
+                slot_passed = 0
+                slot_total = 0
+                for vdata in variants_data.values():
+                    rh = vdata["run_history"]
+                    if i >= len(rh):
+                        continue
+                    r = rh[i]
+                    if r.get("status") != "no_run":
+                        slot_statuses.append(r["status"])
+                        slot_passed += r.get("passed", 0)
+                        slot_total += r.get("total", 0)
+                agg_status = self._rollup_status(slot_statuses)
+                agg_history.append({
+                    "date": slot,
+                    "passed": slot_passed,
+                    "failed": slot_total - slot_passed,
+                    "total": slot_total,
+                    "status": agg_status,
+                })
+
+            # Operator-level latest_run: the most recently run variant's data
+            all_latest = [vdata["latest_run"] for vdata in variants_data.values() if vdata.get("latest_run")]
+            op_latest = max(all_latest, key=lambda r: r["date"]) if all_latest else None
+
+            # Operator-level status: rollup of each variant's current status
+            op_status = self._rollup_status([vdata["status"] for vdata in variants_data.values()])
+
+            result[op] = {
+                "status": op_status,
+                "latest_run": op_latest,
+                "variants": variants_data,
+                "run_history": agg_history,
+            }
         return result
 
     def get_job_run_history(
