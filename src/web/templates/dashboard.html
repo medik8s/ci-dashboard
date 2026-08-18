@@ -3190,13 +3190,14 @@
         }
 
         function _sparkline(history) {
+            var slot = 'display:inline-block;width:16px;text-align:center;font-size:15px;line-height:1;';
             return history.map(r => {
                 if (r.status === 'healthy')
-                    return `<span style="color:var(--accent-green);font-size:15px;" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
+                    return `<span style="${slot}color:var(--accent-green);" title="${esc(r.date)}: ${r.passed}/${r.total} passed">&#10003;</span>`;
                 if (r.status === 'degraded' || r.status === 'failed')
-                    return `<span style="color:var(--accent-red);font-size:15px;" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
-                return `<span style="color:var(--text-muted);font-size:15px;" title="${esc(r.date)}: no run">&mdash;</span>`;
-            }).join(' ');
+                    return `<span style="${slot}color:var(--accent-red);" title="${esc(r.date)}: ${r.failed} failed">&#10007;</span>`;
+                return `<span style="${slot}color:var(--text-muted);" title="${esc(r.date)}: no run">&#x2014;</span>`;
+            }).join('');
         }
 
         function _latestRunCells(latest, historyWeeks) {
@@ -3230,7 +3231,7 @@
                   <td style="padding:${pad};font-size:13px;">${lastRunCell}</td>
                   <td style="padding:${pad};text-align:center;">${resultCell}</td>
                   <td style="padding:${pad};max-width:320px;">${ftCell}</td>
-                  <td style="padding:${pad};white-space:nowrap;letter-spacing:3px;">${trend}</td>`;
+                  <td style="padding:${pad};white-space:nowrap;">${trend}</td>`;
         }
 
         function renderOperatorHealthTable(data) {
@@ -3271,13 +3272,16 @@
                 if (hasMultipleVariants) {
                     variantKeys.sort().forEach(variantKey => {
                         const vdata = variants[variantKey];
-                        const vLabel = vdata.label || variantKey;
+                        const rawLabel = vdata.label || variantKey;
+                        // Strip redundant operator prefix so [FAR] + "far-weekly-aws" shows as [FAR] "weekly-aws"
+                        const opPrefix = opName.toLowerCase() + '-';
+                        const vLabel = rawLabel.toLowerCase().startsWith(opPrefix) ? rawLabel.slice(opPrefix.length) : rawLabel;
                         const [vLastRun, vResult] = _latestRunCells(vdata.latest_run, data.history_weeks);
                         const vFt = _failedTestsCell(vdata.latest_run ? vdata.latest_run.failed_tests : []);
                         const vTrend = _sparkline(vdata.run_history || []);
                         const display = isExpanded ? 'table-row' : 'none';
                         rows.push(`<tr class="variant-row-${esc(opName)}" style="display:${display};border-bottom:1px solid var(--border);opacity:0.85;">
-                          <td style="padding:8px 16px 8px 52px;font-size:12px;color:var(--text-secondary);">↳ ${esc(vLabel)}</td>
+                          <td style="padding:8px 16px 8px 52px;white-space:nowrap;">${opChip(opName)} <span style="font-size:0.8rem;color:var(--text-muted);">${esc(vLabel)}</span></td>
                           ${_dataColumns(vdata.status, '10px', vLastRun, vResult, vFt, vTrend, '8px 16px')}
                         </tr>`);
                     });
