@@ -1237,8 +1237,12 @@
                 .pipe-step-badge { display:inline-block;font-size:0.55rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;padding:1px 6px;border-radius:3px;margin-bottom:6px; }
                 .pipe-step-badge.manual { background:rgba(255,152,48,0.18);color:var(--accent-orange);border:1px solid var(--accent-orange); }
                 .pipe-step-badge.auto { background:rgba(87,148,242,0.12);color:var(--accent-blue);border:1px solid rgba(87,148,242,0.4); }
-                .pipe-diagram-wrap { overflow-x:auto;overflow-y:hidden;padding-bottom:8px; }
-                .pipe-diagram { display:flex;align-items:center;gap:140px;min-width:5500px;padding:40px 30px;position:relative; }
+                .pipe-diagram-wrap { overflow-x:auto;overflow-y:auto;padding-bottom:8px; }
+                .pipe-zoom-toolbar { display:flex;gap:6px;align-items:center;margin-bottom:10px; }
+                .pipe-zoom-toolbar button { background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);border-radius:6px;min-width:34px;height:30px;padding:0 10px;font-size:0.85rem;font-weight:600;cursor:pointer;line-height:1;transition:background 0.15s,color 0.15s; }
+                .pipe-zoom-toolbar button:hover { background:var(--bg-surface);color:var(--text-heading); }
+                .pipe-zoom-toolbar #pipeZoomLabel { min-width:54px;text-align:center; }
+                .pipe-diagram { display:flex;align-items:center;gap:140px;min-width:5500px;width:max-content;padding:40px 30px;position:relative; }
                 .pipe-phase { display:flex;flex-direction:column;gap:16px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-phase-fork { display:flex;flex-direction:column;gap:160px;flex-shrink:0;position:relative;z-index:2; }
                 .pipe-fork-badge { display:inline-block;font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 8px;border-radius:4px;margin-bottom:4px; }
@@ -1277,8 +1281,15 @@
             <div style="padding:20px;">
                 <h2 style="margin-bottom:8px;font-size:1.3rem;">FBC Build, Release & Test Pipeline</h2>
                 <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;">How a code change becomes a tested operator catalog. Hover over connecting lines and boxes for details.</p>
-                <p style="color:var(--text-muted);font-size:0.75rem;margin-bottom:20px;">Scroll horizontally to see the full pipeline &#x2192;</p>
-                <div class="pipe-diagram-wrap">
+                <p style="color:var(--text-muted);font-size:0.75rem;margin-bottom:12px;">Scroll horizontally, or use the zoom controls to see the whole pipeline at once.</p>
+                <div class="pipe-zoom-toolbar" role="toolbar" aria-label="Pipeline zoom">
+                    <button type="button" id="pipeZoomOut" title="Zoom out" aria-label="Zoom out">&#8722;</button>
+                    <button type="button" id="pipeZoomLabel" title="Reset to 100%" aria-label="Reset zoom to 100 percent">100%</button>
+                    <button type="button" id="pipeZoomIn" title="Zoom in" aria-label="Zoom in">+</button>
+                    <button type="button" id="pipeZoomFit" title="Fit the whole pipeline to the window">Fit</button>
+                </div>
+                <div class="pipe-diagram-wrap" id="pipeDiagramWrap">
+                <div class="pipe-zoom-sizer" id="pipeZoomSizer">
                 <div class="pipe-diagram" id="pipeDiagram">
                 <svg class="pipe-arrows-svg" id="pipeArrowsSvg"></svg>
 
@@ -1489,6 +1500,7 @@
 
                 </div>
                 </div>
+                </div>
                 <script>
                 (function() {
                     function equalizeForkCardHeights() {
@@ -1500,12 +1512,19 @@
                         });
                     }
                     function drawPipeArrows() {
-                        equalizeForkCardHeights();
                         var svg = document.getElementById('pipeArrowsSvg');
                         var diagram = document.getElementById('pipeDiagram');
                         if (!svg || !diagram) return;
+                        // Measure at scale 1: clear any zoom transform so getBoundingClientRect
+                        // and scrollWidth share one (unscaled) coordinate space, then re-apply the
+                        // zoom at the end via applyPipeZoom(). The SVG is a child of #pipeDiagram,
+                        // so the arrows drawn here scale with the nodes and stay aligned.
+                        diagram.style.transform = 'none';
+                        equalizeForkCardHeights();
                         var dr = diagram.getBoundingClientRect();
-                        if (dr.width === 0 || dr.height === 0) return;
+                        // Tab hidden / not laid out yet: re-apply the current zoom (pipeZoom is
+                        // the source of truth) so the transform is never left cleared, and bail.
+                        if (dr.width === 0 || dr.height === 0) { applyPipeZoom(); return; }
                         svg.setAttribute('width', diagram.scrollWidth);
                         svg.setAttribute('height', diagram.scrollHeight);
                         while (svg.firstChild) svg.removeChild(svg.firstChild);
@@ -1595,9 +1614,64 @@
                         drawEdge('pcIib','pcStage','red','auto-push','Every IIB is automatically pushed to registry.stage.redhat.io for internal validation. This happens for every FBC build.');
                         drawEdge('pcStage','pcGaPrep','main','GA decision','When the team decides to do a GA release (e.g., rhwa-4.22-1), they coordinate upstream release branches and create a release-specific FBC catalog MR. Most continuous builds skip this step.');
                         drawEdge('pcGaPrep','pcProd','main','advisory/errata','The release-specific FBC build flows through the pipeline to Stage, then is promoted to registry.redhat.io via a manually-approved advisory/errata.');
+
+                        // Re-apply the current zoom (also sizes the scroll area); default 100%.
+                        applyPipeZoom();
                     }
                     window.drawPipeArrows = drawPipeArrows;
                     window.addEventListener('resize', drawPipeArrows);
+
+                    // --- Pipeline zoom controls (Miro-style +/- / Fit) ---
+                    var ZOOM_MIN = 0.2, ZOOM_MAX = 2, ZOOM_STEP = 0.1, FIT_MARGIN_PX = 16;
+                    var pipeZoom = 1;
+                    function pipeNaturalSize() {
+                        var d = document.getElementById('pipeDiagram');
+                        // scrollWidth/Height are unscaled layout metrics (a CSS transform does not
+                        // change them), so they give the natural diagram size at any zoom level.
+                        return d ? { w: d.scrollWidth, h: d.scrollHeight } : { w: 0, h: 0 };
+                    }
+                    function applyPipeZoom() {
+                        var diagram = document.getElementById('pipeDiagram');
+                        var sizer = document.getElementById('pipeZoomSizer');
+                        if (!diagram || !sizer) return;
+                        var nat = pipeNaturalSize();
+                        diagram.style.transformOrigin = '0 0';
+                        diagram.style.transform = 'scale(' + pipeZoom + ')';
+                        // A CSS transform does not change layout size, so size the (untransformed)
+                        // sizer to the scaled dimensions - that is what the scroll container tracks.
+                        sizer.style.width = (nat.w * pipeZoom) + 'px';
+                        sizer.style.height = (nat.h * pipeZoom) + 'px';
+                        var label = document.getElementById('pipeZoomLabel');
+                        if (label) label.textContent = Math.round(pipeZoom * 100) + '%';
+                    }
+                    function setPipeZoom(z) {
+                        // round to avoid float drift from repeated +/- ZOOM_STEP (e.g. 0.7000001)
+                        pipeZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+                        applyPipeZoom();
+                    }
+                    function fitPipeZoom() {
+                        var wrap = document.getElementById('pipeDiagramWrap');
+                        var nat = pipeNaturalSize();
+                        if (!wrap || !nat.w) return;
+                        setPipeZoom(Math.min(1, (wrap.clientWidth - FIT_MARGIN_PX) / nat.w));
+                    }
+                    window.applyPipeZoom = applyPipeZoom;
+                    (function wirePipeZoom() {
+                        var zi = document.getElementById('pipeZoomIn');
+                        var zo = document.getElementById('pipeZoomOut');
+                        var zl = document.getElementById('pipeZoomLabel');
+                        var zf = document.getElementById('pipeZoomFit');
+                        var wrap = document.getElementById('pipeDiagramWrap');
+                        if (zi) zi.addEventListener('click', function() { setPipeZoom(pipeZoom + ZOOM_STEP); });
+                        if (zo) zo.addEventListener('click', function() { setPipeZoom(pipeZoom - ZOOM_STEP); });
+                        if (zl) zl.addEventListener('click', function() { setPipeZoom(1); });
+                        if (zf) zf.addEventListener('click', fitPipeZoom);
+                        if (wrap) wrap.addEventListener('wheel', function(e) {
+                            if (!(e.ctrlKey || e.metaKey)) return;
+                            e.preventDefault();
+                            setPipeZoom(pipeZoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+                        }, { passive: false });
+                    })();
                 })();
                 </script>
 
