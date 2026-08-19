@@ -667,19 +667,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
     <div class="meta" id="meta-info"></div>
 </div>
 <script>
-var mdContent = {{ md_content_json|safe }};
-var mdUrl = {{ md_url_json|safe }};
-var jobName = {{ job_name_json|safe }};
-var buildId = {{ build_id_json|safe }};
-var el = document.getElementById('analysis-content');
-var metaEl = document.getElementById('meta-info');
+const mdContent = {{ md_content|tojson }};
+const mdUrl = {{ md_url|tojson }};
+const el = document.getElementById('analysis-content');
+const metaEl = document.getElementById('meta-info');
 if (mdContent) {
     el.innerHTML = marked.parse(mdContent);
     el.querySelectorAll('pre code').forEach(function(block) { hljs.highlightElement(block); });
-    var links = [];
+    const links = [];
     if (mdUrl) links.push('<a href="' + mdUrl + '" target="_blank">Raw markdown</a>');
-    var artifactsDir = mdUrl ? mdUrl.replace(/failure-analysis\\.md$/, '') : '';
-    if (artifactsDir) links.push('<a href="' + artifactsDir.replace('storage.googleapis.com/test-platform-results/', 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/').replace('https://','https://') + '" target="_blank">All analysis artifacts</a>');
+    const artifactsDir = mdUrl ? mdUrl.replace(/failure-analysis\\.md$/, '') : '';
+    if (artifactsDir) links.push('<a href="' + artifactsDir.replace('storage.googleapis.com/test-platform-results/', 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/') + '" target="_blank">All analysis artifacts</a>');
     if (links.length) metaEl.innerHTML = links.join(' &middot; ');
 } else {
     el.innerHTML = '<div class="not-available"><h2>Analysis not available</h2>'
@@ -2872,6 +2870,12 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
             download_name=f'{filename}.xlsx'
         )
 
+    def _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix):
+        gcs_base = (f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}" if gcs_prefix
+                    else f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}")
+        return (f"{gcs_base}/artifacts/{step_name}"
+                "/medik8s-analyze-e2e-failure/artifacts/failure-analysis.md")
+
     _ai_check_cache = {}
 
     @app.route('/api/check-ai-analysis')
@@ -2882,17 +2886,13 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
         step_name = request.args.get('step_name', '')
         gcs_prefix = request.args.get('gcs_prefix', '')
 
-        cache_key = (job_name, build_id)
+        cache_key = (job_name, build_id, step_name, gcs_prefix)
         if cache_key in _ai_check_cache:
             return jsonify({'available': _ai_check_cache[cache_key]})
 
         available = False
         if job_name and build_id and step_name:
-            if gcs_prefix:
-                gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
-            else:
-                gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}"
-            md_url = f"{gcs_base}/artifacts/{step_name}/medik8s-analyze-e2e-failure/artifacts/failure-analysis.md"
+            md_url = _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix)
             try:
                 req = urllib.request.Request(md_url, method='HEAD',
                                             headers={'User-Agent': 'ci-dashboard/1.0'})
@@ -2916,11 +2916,7 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
         md_url = ''
 
         if job_name and build_id and step_name:
-            if gcs_prefix:
-                gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
-            else:
-                gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}"
-            md_url = f"{gcs_base}/artifacts/{step_name}/medik8s-analyze-e2e-failure/artifacts/failure-analysis.md"
+            md_url = _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix)
             try:
                 req = urllib.request.Request(md_url, headers={'User-Agent': 'ci-dashboard/1.0'})
                 with urllib.request.urlopen(req, timeout=15) as resp:
@@ -2930,10 +2926,8 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
 
         return render_template_string(
             AI_ANALYSIS_TEMPLATE,
-            md_content_json=json.dumps(md_content),
-            md_url_json=json.dumps(md_url),
-            job_name_json=json.dumps(job_name),
-            build_id_json=json.dumps(build_id),
+            md_content=md_content,
+            md_url=md_url,
         )
 
     @app.teardown_appcontext
