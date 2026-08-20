@@ -548,6 +548,13 @@ def _format_export_row(row, empty_placeholder='-'):
 GCS_BUCKET = 'test-platform-results'
 GCS_HOST = 'https://storage.googleapis.com'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
+AI_ANALYSIS_STEP = 'medik8s-analyze-e2e-failure'
+
+
+def _gcs_base(job_name, build_id, gcs_prefix):
+    if gcs_prefix:
+        return f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
+    return f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}"
 
 
 def _resolve_log_dirs(log_dirs):
@@ -582,11 +589,10 @@ def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None, log_dirs=Non
     instead of linking to a guaranteed-404 GCS error page.
     """
     has_job = bool(job_name and build_id)
+    gcs_base = _gcs_base(job_name, build_id, gcs_prefix) if has_job else ''
     if gcs_prefix:
-        gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/{gcs_prefix}"
     else:
-        gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
     have_base = bool(has_job and step_name)
     artifacts_base = f"{gcs_base}/artifacts/{step_name}" if have_base else ''
@@ -623,6 +629,7 @@ AI_ANALYSIS_TEMPLATE = """<!DOCTYPE html>
 <title>AI Failure Analysis</title>
 <link rel="icon" type="image/png" href="/static/favicon.png">
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
 <style>
@@ -672,17 +679,17 @@ const mdUrl = {{ md_url|tojson }};
 const el = document.getElementById('analysis-content');
 const metaEl = document.getElementById('meta-info');
 if (mdContent) {
-    el.innerHTML = marked.parse(mdContent);
+    el.innerHTML = DOMPurify.sanitize(marked.parse(mdContent));
     el.querySelectorAll('pre code').forEach(function(block) { hljs.highlightElement(block); });
     const links = [];
     if (mdUrl) links.push('<a href="' + mdUrl + '" target="_blank">Raw markdown</a>');
     const artifactsDir = mdUrl ? mdUrl.replace(/failure-analysis\\.md$/, '') : '';
-    if (artifactsDir) links.push('<a href="' + artifactsDir.replace('storage.googleapis.com/test-platform-results/', 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results/') + '" target="_blank">All analysis artifacts</a>');
+    if (artifactsDir) links.push('<a href="' + artifactsDir.replace({{ gcs_host|tojson }} + '/' + {{ gcs_bucket|tojson }} + '/', 'https://' + {{ gcsweb_host|tojson }} + '/gcs/' + {{ gcs_bucket|tojson }} + '/') + '" target="_blank">All analysis artifacts</a>');
     if (links.length) metaEl.innerHTML = links.join(' &middot; ');
 } else {
     el.innerHTML = '<div class="not-available"><h2>Analysis not available</h2>'
         + '<p>No AI failure analysis was generated for this job run.</p>'
-        + '<p style="font-size:0.85rem;">The <code>medik8s-analyze-e2e-failure</code> step only runs on certain operator jobs.</p></div>';
+        + '<p style="font-size:0.85rem;">The <code>' + {{ ai_step|tojson }} + '</code> step only runs on certain operator jobs.</p></div>';
 }
 </script>
 </body>
@@ -2871,11 +2878,10 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
         )
 
     def _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix):
-        gcs_base = (f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}" if gcs_prefix
-                    else f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}")
-        return (f"{gcs_base}/artifacts/{step_name}"
-                "/medik8s-analyze-e2e-failure/artifacts/failure-analysis.md")
+        return (f"{_gcs_base(job_name, build_id, gcs_prefix)}/artifacts/{step_name}"
+                f"/{AI_ANALYSIS_STEP}/artifacts/failure-analysis.md")
 
+    _AI_CHECK_CACHE_MAX = 2048
     _ai_check_cache = {}
 
     @app.route('/api/check-ai-analysis')
@@ -2891,6 +2897,7 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
             return jsonify({'available': _ai_check_cache[cache_key]})
 
         available = False
+        cacheable = True
         if job_name and build_id and step_name:
             md_url = _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix)
             try:
@@ -2898,10 +2905,17 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
                                             headers={'User-Agent': 'ci-dashboard/1.0'})
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     available = resp.status == 200
+            except urllib.error.HTTPError as e:
+                available = False
+                cacheable = e.code == 404
             except Exception:
                 available = False
+                cacheable = False
 
-        _ai_check_cache[cache_key] = available
+        if cacheable:
+            if len(_ai_check_cache) >= _AI_CHECK_CACHE_MAX:
+                _ai_check_cache.clear()
+            _ai_check_cache[cache_key] = available
         return jsonify({'available': available})
 
     @app.route('/ai-analysis')
@@ -2928,6 +2942,10 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
             AI_ANALYSIS_TEMPLATE,
             md_content=md_content,
             md_url=md_url,
+            gcs_host=GCS_HOST,
+            gcs_bucket=GCS_BUCKET,
+            gcsweb_host=GCSWEB_HOST,
+            ai_step=AI_ANALYSIS_STEP,
         )
 
     @app.teardown_appcontext
