@@ -2,7 +2,7 @@
 Flask web server for dashboard
 """
 
-from flask import Flask, render_template, jsonify, request, send_file
+from flask import Flask, render_template, render_template_string, jsonify, request, send_file
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import re
@@ -548,6 +548,13 @@ def _format_export_row(row, empty_placeholder='-'):
 GCS_BUCKET = 'test-platform-results'
 GCS_HOST = 'https://storage.googleapis.com'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
+AI_ANALYSIS_STEP = 'medik8s-analyze-e2e-failure'
+
+
+def _gcs_base(job_name, build_id, gcs_prefix):
+    if gcs_prefix:
+        return f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
+    return f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}"
 
 
 def _resolve_log_dirs(log_dirs):
@@ -582,11 +589,10 @@ def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None, log_dirs=Non
     instead of linking to a guaranteed-404 GCS error page.
     """
     has_job = bool(job_name and build_id)
+    gcs_base = _gcs_base(job_name, build_id, gcs_prefix) if has_job else ''
     if gcs_prefix:
-        gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/{gcs_prefix}"
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/{gcs_prefix}"
     else:
-        gcs_base = f"{GCS_HOST}/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
         gcsweb_base = f"https://{GCSWEB_HOST}/gcs/{GCS_BUCKET}/logs/{job_name}/{build_id}" if has_job else ''
     have_base = bool(has_job and step_name)
     artifacts_base = f"{gcs_base}/artifacts/{step_name}" if have_base else ''
@@ -597,6 +603,13 @@ def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None, log_dirs=Non
         return f"{artifacts_base}/{d}/build-log.txt" if d else ''
 
     must_gather = dirs.get('must_gather')
+
+    ai_analysis_url = ''
+    if have_base:
+        params = {'job_name': job_name, 'build_id': build_id, 'step_name': step_name}
+        if gcs_prefix:
+            params['gcs_prefix'] = gcs_prefix
+        ai_analysis_url = f"/ai-analysis?{urllib.parse.urlencode(params)}"
     return {
         'e2e_log_url': _log('e2e'),
         'install_log_url': _log('install'),
@@ -604,7 +617,83 @@ def _build_log_urls(job_name, build_id, step_name, gcs_prefix=None, log_dirs=Non
         'catalog_log_url': _log('catalog'),
         'artifacts_url': f"{gcsweb_base}/artifacts/{step_name}/{must_gather}/" if (have_base and must_gather) else '',
         'build_log_url': f"{gcs_base}/build-log.txt" if has_job else '',
+        'ai_analysis_url': ai_analysis_url,
     }
+
+
+AI_ANALYSIS_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Failure Analysis</title>
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.0/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<style>
+:root{--bg-body:#0d1117;--bg-card:#161b22;--border:#30363d;--text-primary:#e6edf3;--text-muted:#8b949e;--accent-blue:#58a6ff;--accent-green:#3fb950;--accent-red:#f85149}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg-body);color:var(--text-primary);line-height:1.6;margin:0;padding:0}
+.container{max-width:960px;margin:0 auto;padding:24px}
+.header{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.back-link{color:var(--accent-blue);text-decoration:none;font-size:0.9rem;white-space:nowrap}
+.back-link:hover{text-decoration:underline}
+.header h1{font-size:1.2rem;margin:0;font-weight:600}
+.content{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:24px 32px}
+.content h1{font-size:1.3rem;border-bottom:1px solid var(--border);padding-bottom:8px;margin-top:0}
+.content h2{font-size:1.1rem;margin-top:28px;color:var(--accent-blue)}
+.content h3{font-size:0.95rem;margin-top:16px}
+.content table{width:100%;border-collapse:collapse;margin:12px 0}
+.content th,.content td{padding:6px 10px;border:1px solid var(--border);text-align:left;font-size:0.85rem}
+.content th{background:var(--bg-body);font-weight:600}
+.content code{background:var(--bg-body);padding:2px 6px;border-radius:4px;font-size:0.85em;font-family:ui-monospace,Consolas,monospace}
+.content pre{background:var(--bg-body);border:1px solid var(--border);border-radius:6px;padding:12px 16px;overflow-x:auto;margin:12px 0}
+.content pre code{background:transparent;padding:0}
+.content ul,.content ol{padding-left:20px}
+.content li{margin:4px 0}
+.content a{color:var(--accent-blue)}
+.content hr{border:none;border-top:1px solid var(--border);margin:24px 0}
+.content strong{color:#f0f3f6}
+.content blockquote{border-left:3px solid var(--accent-blue);margin:12px 0;padding:4px 16px;color:var(--text-muted)}
+.meta{font-size:0.8rem;color:var(--text-muted);margin-top:12px}
+.meta a{color:var(--accent-blue);text-decoration:none}
+.meta a:hover{text-decoration:underline}
+.not-available{text-align:center;padding:48px 24px;color:var(--text-muted)}
+.not-available h2{color:var(--text-muted);font-size:1.1rem}
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <a href="/" class="back-link">&larr; Dashboard</a>
+        <h1>AI Failure Analysis</h1>
+    </div>
+    <div class="content" id="analysis-content">Loading...</div>
+    <div class="meta" id="meta-info"></div>
+</div>
+<script>
+const mdContent = {{ md_content|tojson }};
+const mdUrl = {{ md_url|tojson }};
+const el = document.getElementById('analysis-content');
+const metaEl = document.getElementById('meta-info');
+if (mdContent) {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(mdContent));
+    el.querySelectorAll('pre code').forEach(function(block) { hljs.highlightElement(block); });
+    const links = [];
+    if (mdUrl) links.push('<a href="' + mdUrl + '" target="_blank">Raw markdown</a>');
+    const artifactsDir = mdUrl ? mdUrl.replace(/failure-analysis\\.md$/, '') : '';
+    if (artifactsDir) links.push('<a href="' + artifactsDir.replace({{ gcs_host|tojson }} + '/' + {{ gcs_bucket|tojson }} + '/', 'https://' + {{ gcsweb_host|tojson }} + '/gcs/' + {{ gcs_bucket|tojson }} + '/') + '" target="_blank">All analysis artifacts</a>');
+    if (links.length) metaEl.innerHTML = links.join(' &middot; ');
+} else {
+    el.innerHTML = '<div class="not-available"><h2>Analysis not available</h2>'
+        + '<p>No AI failure analysis was generated for this job run.</p>'
+        + '<p style="font-size:0.85rem;">The <code>' + {{ ai_step|tojson }} + '</code> step only runs on certain operator jobs.</p></div>';
+}
+</script>
+</body>
+</html>"""
 
 
 def run_collection_background(db_path: str, config_file: str = 'config.yaml', days: int = 30):
@@ -2825,6 +2914,77 @@ a { color: #5794f2; text-decoration: none; } a:hover { text-decoration: underlin
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             as_attachment=True,
             download_name=f'{filename}.xlsx'
+        )
+
+    def _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix):
+        return (f"{_gcs_base(job_name, build_id, gcs_prefix)}/artifacts/{step_name}"
+                f"/{AI_ANALYSIS_STEP}/artifacts/failure-analysis.md")
+
+    _AI_CHECK_CACHE_MAX = 2048
+    _ai_check_cache = {}
+
+    @app.route('/api/check-ai-analysis')
+    def check_ai_analysis():
+        """Check if AI failure analysis exists for a job run (HEAD request, cached)."""
+        job_name = request.args.get('job_name', '')
+        build_id = request.args.get('build_id', '')
+        step_name = request.args.get('step_name', '')
+        gcs_prefix = request.args.get('gcs_prefix', '')
+
+        cache_key = (job_name, build_id, step_name, gcs_prefix)
+        if cache_key in _ai_check_cache:
+            return jsonify({'available': _ai_check_cache[cache_key]})
+
+        available = False
+        cacheable = True
+        if job_name and build_id and step_name:
+            md_url = _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix)
+            try:
+                req = urllib.request.Request(md_url, method='HEAD',
+                                            headers={'User-Agent': 'ci-dashboard/1.0'})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    available = resp.status == 200
+            except urllib.error.HTTPError as e:
+                available = False
+                cacheable = e.code == 404
+            except Exception:
+                available = False
+                cacheable = False
+
+        if cacheable:
+            if len(_ai_check_cache) >= _AI_CHECK_CACHE_MAX:
+                _ai_check_cache.clear()
+            _ai_check_cache[cache_key] = available
+        return jsonify({'available': available})
+
+    @app.route('/ai-analysis')
+    def ai_analysis_page():
+        """Render AI failure analysis markdown from GCS artifacts."""
+        job_name = request.args.get('job_name', '')
+        build_id = request.args.get('build_id', '')
+        step_name = request.args.get('step_name', '')
+        gcs_prefix = request.args.get('gcs_prefix', '')
+
+        md_content = None
+        md_url = ''
+
+        if job_name and build_id and step_name:
+            md_url = _ai_analysis_md_url(job_name, build_id, step_name, gcs_prefix)
+            try:
+                req = urllib.request.Request(md_url, headers={'User-Agent': 'ci-dashboard/1.0'})
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    md_content = resp.read().decode('utf-8')
+            except Exception:
+                md_content = None
+
+        return render_template_string(
+            AI_ANALYSIS_TEMPLATE,
+            md_content=md_content,
+            md_url=md_url,
+            gcs_host=GCS_HOST,
+            gcs_bucket=GCS_BUCKET,
+            gcsweb_host=GCSWEB_HOST,
+            ai_step=AI_ANALYSIS_STEP,
         )
 
     @app.teardown_appcontext

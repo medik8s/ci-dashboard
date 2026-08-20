@@ -1638,8 +1638,8 @@
                     window.addEventListener('resize', drawPipeArrows);
 
                     // --- Pipeline zoom controls (Miro-style +/- / Fit) ---
-                    var ZOOM_MIN = 0.2, ZOOM_MAX = 2, ZOOM_STEP = 0.1, FIT_MARGIN_PX = 16;
-                    var pipeZoom = 1;
+                    const ZOOM_MIN = 0.2, ZOOM_MAX = 2, ZOOM_STEP = 0.1, FIT_MARGIN_PX = 16;
+                    let pipeZoom = 1;
                     function pipeNaturalSize() {
                         var d = document.getElementById('pipeDiagram');
                         // scrollWidth/Height are unscaled layout metrics (a CSS transform does not
@@ -3746,9 +3746,39 @@
             items.push('<div><strong>CatalogSource Log</strong>' + linkEl(r.catalog_log_url, 'CatalogSource') + '</div>');
             items.push('<div><strong>Artifacts</strong>' + linkEl(r.artifacts_url, 'Artifacts') + '</div>');
             items.push('<div><strong>Build Log</strong>' + linkEl(r.build_log_url, 'Build Log') + '</div>');
+            items.push('<div><strong>AI Analysis</strong><span class="ai-check" data-ai-url="' + esc(r.ai_analysis_url || '') + '">-</span></div>');
             items.push('<div><strong>Polarion</strong>' + (r.polarion_id ? linkEl(r.polarion_url, r.polarion_id) : '-') + '</div>');
             return '<div class="detail-grid">' + items.join('') + '</div>';
         }
+
+        // ---- AI Analysis lazy check ----
+        const _aiCache = {};
+        const _extLinkIcon = ' <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;opacity:0.7;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+        function _checkAiSpan(span) {
+            const url = span.dataset.aiUrl;
+            if (!url) return;
+            if (url in _aiCache) {
+                span.innerHTML = _aiCache[url] ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;">View Analysis' + _extLinkIcon + '</a>' : '-';
+                return;
+            }
+            span.textContent = '...';
+            span.classList.add('checked');
+            fetch('/api/check-ai-analysis' + url.substring(url.indexOf('?')))
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    _aiCache[url] = d.available;
+                    span.innerHTML = d.available ? '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;">View Analysis' + _extLinkIcon + '</a>' : '-';
+                })
+                .catch(function() { span.textContent = '-'; });
+        }
+        document.addEventListener('click', function(e) {
+            const row = e.target.closest('tr[style*="cursor"]');
+            if (!row) return;
+            const detail = row.nextElementSibling;
+            if (!detail || !detail.classList.contains('detail-row') || !detail.classList.contains('open')) return;
+            const span = detail.querySelector('.ai-check:not(.checked)');
+            if (span) _checkAiSpan(span);
+        });
 
         // ---- Operator filter ----
         var selectedOperator = '';
