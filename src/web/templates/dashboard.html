@@ -997,7 +997,7 @@
             <div class="stat-panel stat-panel--green"><div class="sp-label">Pass Rate</div><div class="sp-value" id="spPassRate">--</div><div class="sp-unit"><span id="spPassed">--</span>/<span id="spTotalPR">--</span> passed</div></div>
             <div class="stat-panel stat-panel--red"><div class="sp-label">Failures</div><div class="sp-value" id="spFails">--</div><div class="sp-unit">of <span id="spTotal">--</span> tests</div></div>
             <div class="stat-panel stat-panel--blue"><div class="sp-label">Last Run</div><div class="sp-value" id="spLastRun" style="font-size:1rem;">--</div><div class="sp-unit"><span id="spJobs">--</span> jobs</div></div>
-            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="font-size:0.85rem; line-height:1.4; overflow-wrap:break-word;">--</div></div>
+            <div class="stat-panel stat-panel--purple"><div class="sp-label">OCP Version</div><div class="sp-value" id="spOcp" style="line-height:1.4; overflow-wrap:break-word;">--</div></div>
         </div>
 
         <div class="chart-container" style="margin-bottom:16px;">
@@ -3828,6 +3828,9 @@
                         var ocpEl = document.getElementById('spOcp');
                         var ocpVer = String(jrRuns[0].ocp_version || jrRuns[0].version || '-');
                         var nightlyMatch = ocpVer.match(/^(\d+\.\d+\.\d+-\d+)\.(nightly(?:-[a-z0-9]+)*)-(\d{4}-.+)$/);
+                        // Long nightly strings need the smaller size to fit the panel;
+                        // short stable versions (e.g. 4.22.9) use the default stat size.
+                        ocpEl.style.fontSize = nightlyMatch ? '0.85rem' : '';
                         if (nightlyMatch) {
                             var streamName = nightlyMatch[1] + '.nightly';
                             var releaseUrl = 'https://openshift-release.apps.ci.l2s4.p1.openshiftapps.com/releasestream/' + encodeURIComponent(streamName) + '/release/' + encodeURIComponent(ocpVer);
@@ -3837,6 +3840,7 @@
                         }
                     } else {
                         document.getElementById('spLastRun').textContent = '-';
+                        document.getElementById('spOcp').style.fontSize = '';
                         document.getElementById('spOcp').textContent = '-';
                     }
                 } catch (jrErr) { console.error('job-runs stats error:', jrErr); }
