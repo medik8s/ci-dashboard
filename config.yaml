@@ -41,6 +41,10 @@ collector:
         label: NHC
         variant: weekly
         day: "Thu 08:00 UTC"
+      nhc-weekly-aws-disconnected:
+        label: NHC
+        variant: disconnected
+        day: "Tue 12:00 UTC"
       sbr-weekly-aws-disconnected-nfs:
         label: SBR
         variant: disconnected
@@ -80,6 +84,7 @@ collector:
       - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-sbr-weekly-aws-disconnected-nfs"
       - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected"
       - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-snr-weekly-aws-disconnected"
+      - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected"
       - "periodic-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws"
 
     # Presubmit E2E jobs (triggered on system-tests PRs)
@@ -97,6 +102,7 @@ collector:
       - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-far-aws-disconnected"
       - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-snr-aws-disconnected"
       - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-sbr-aws-disconnected-nfs"
+      - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-nhc-aws-disconnected"
       - "pull-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-presubmit-aws"
       # Dev repo E2E presubmit jobs (triggered on operator PRs)
       - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
