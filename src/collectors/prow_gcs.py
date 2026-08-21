@@ -214,6 +214,45 @@ class ProwGCSCollector(BaseCollector):
         match = re.search(r'(\d+\.\d+\.\d+)', text)
         return match.group(1) if match else None
 
+    def _is_upgrade_job(self, job_name: str) -> bool:
+        """True if this is an OCP upgrade variant (boots N-1, upgrades to N)."""
+        return bool(re.search(r'\d+\.\d+-upgrade-', job_name))
+
+    def _parse_target_ocp_version(self, base: str, target_minor: str) -> Optional[str]:
+        """Return the post-upgrade *target* OCP version for an upgrade job.
+
+        Upgrade jobs boot the initial N-1 release, then upgrade to the target N
+        release, so the install-step log records only the pre-upgrade version.
+        The target is read from the cluster's ClusterVersion (captured by the
+        gather-extra step): the newest status.history entry whose version matches
+        the target major.minor (the job's variant), which excludes the N-1 initial
+        entries. Returns None if the artifact is missing or has no target entry, so
+        the caller never falls back to the pre-upgrade version.
+        """
+        text = self._fetch_gcs_text(f"{base}/{self._CLUSTERVERSION_ARTIFACT}")
+        if not text:
+            return None
+        try:
+            data = json.loads(text)
+        except (ValueError, TypeError):
+            return None
+        # clusterversion.json is a kind:List (has 'items'); tolerate a single object too.
+        obj = data['items'][0] if isinstance(data, dict) and data.get('items') else data
+        if not isinstance(obj, dict):
+            return None
+        status = obj.get('status') or {}
+        if not isinstance(status, dict):
+            return None
+        prefix = f"{target_minor}." if target_minor else None
+        for entry in status.get('history') or []:          # newest-first
+            version = (entry or {}).get('version') or ''
+            if version and (not prefix or version.startswith(prefix)):
+                return version
+        desired = (status.get('desired') or {}).get('version') or ''
+        if desired and (not prefix or desired.startswith(prefix)):
+            return desired
+        return None
+
     def _parse_csv_version(self, text: str) -> Optional[str]:
         """Parse operator CSV version from medik8s-operator-subscribe log."""
         match = re.search(r'Found CSV:\s*(\S+)', text)
@@ -349,6 +388,11 @@ class ProwGCSCollector(BaseCollector):
     # resolved from the actual GCS artifact listing rather than hardcoded.
     _STEP_DIR_CANDIDATES = ARTIFACT_STEP_DIR_CANDIDATES
 
+    # Relative path (under the test step's artifacts dir) to the ClusterVersion
+    # JSON captured by the gather-extra step. Used to read the post-upgrade target
+    # version for upgrade jobs (the install-step log has only the initial version).
+    _CLUSTERVERSION_ARTIFACT = 'gather-extra/artifacts/clusterversion.json'
+
     @staticmethod
     def _extract_dir_hrefs(html: str) -> List[str]:
         """Return directory hrefs (those ending in '/') from a gcsweb HTML listing.
@@ -468,9 +512,20 @@ class ProwGCSCollector(BaseCollector):
             defaults = ARTIFACT_STEP_DIR_CANDIDATES.get(key, ())
             return tuple(([found] if found else []) + [d for d in defaults if d != found])
 
-        job_run.ocp_version = self._try_parse_from_steps(
-            base, _candidates('install'), self._parse_ocp_version,
-        ) or job_run.ocp_version
+        # Upgrade jobs install the initial N-1 release, then upgrade to the target
+        # N release; the install-step log records only the pre-upgrade version, so
+        # read the post-upgrade target from the ClusterVersion and fall back to the
+        # variant's major.minor -- never the pre-upgrade version.
+        if self._is_upgrade_job(job_run.job_name):
+            target = self._parse_target_ocp_version(base, job_run.version)
+            if target:
+                job_run.ocp_version = target
+            elif re.match(r'^\d+\.\d+$', job_run.version or ''):
+                job_run.ocp_version = job_run.version
+        else:
+            job_run.ocp_version = self._try_parse_from_steps(
+                base, _candidates('install'), self._parse_ocp_version,
+            ) or job_run.ocp_version
 
         job_run.csv_version = self._try_parse_from_steps(
             base, _candidates('subscribe'), self._parse_csv_version,
