@@ -261,9 +261,18 @@ class ProwGCSCollector(BaseCollector):
     def _parse_csv_from_junit(self, base: str, job_name: str = '') -> Optional[str]:
         """Parse CSV version from JUnit XML (upgrade jobs fallback).
 
-        Upgrade jobs log CSV versions in JUnit system-err, e.g.:
-          'New CSV: fence-agents-remediation.v0.8.0 (was: ...)'
-        We prefer 'New CSV' (post-upgrade version).
+        Upgrade jobs install an initial operator version and then upgrade it, so
+        the JUnit contains BOTH the pre-upgrade and post-upgrade CSVs. We want
+        the version the job ended up on (post-upgrade). Preference order:
+          1. OLM's settled Subscription end-state, taking the LAST occurrence:
+             'state=AtLatestKnown ... currentCSV=fence-agents-remediation.v0.8.1'
+          2. an explicit 'New CSV: ...' marker (some jobs log this)
+          3. a bare 'CSV ...vX.Y.Z' mention (last resort)
+        Taking the LAST settled state is required: the initial install settles
+        at AtLatestKnown on the OLD version before the upgrade settles again on
+        the target, so a first-match would return the pre-upgrade version.
+        Without (1), the bare-mention fallback returns the FIRST CSV in the log,
+        which is the pre-upgrade install version, not the upgrade target.
         """
         raw_op = self._extract_operator(job_name) if job_name else None
         operator = raw_op.lower() if raw_op else None
@@ -274,6 +283,13 @@ class ProwGCSCollector(BaseCollector):
                     f"{base}/{step}/artifacts/{suite}_suite_test_junit.xml")
                 if not xml:
                     continue
+                # [^<]*? tolerates other Subscription attrs between the fields
+                # while staying bounded by XML tag boundaries (no run-away).
+                settled = re.findall(
+                    r'state=AtLatestKnown\b[^<]*?currentCSV=([\w.-]+\.v[\d.]+)',
+                    xml)
+                if settled:
+                    return settled[-1]
                 match = re.search(r'New CSV:\s*(\S+)', xml)
                 if match:
                     return match.group(1)
