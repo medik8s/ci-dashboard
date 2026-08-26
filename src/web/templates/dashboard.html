@@ -1066,6 +1066,19 @@
 
         <!-- Job Runs Tab -->
         <div id="job-runs-tab" class="tab-content">
+            <div class="controls" style="display:flex; align-items:center; gap:8px;">
+                <label>Operator:</label>
+                <div class="op-filter-bar" id="jobRunsOpFilterBar">
+                    <button class="op-filter-chip active" data-op="">All</button>
+                    <button class="op-filter-chip" data-op="FAR" style="border-color:#2563eb;">FAR</button>
+                    <button class="op-filter-chip" data-op="SBR" style="border-color:#f97316;">SBR</button>
+                    <button class="op-filter-chip" data-op="SNR" style="border-color:#22c55e;">SNR</button>
+                    <button class="op-filter-chip" data-op="NHC" style="border-color:#a855f7;">NHC</button>
+                    <button class="op-filter-chip" data-op="MDR" style="border-color:#eab308;">MDR</button>
+                    <button class="op-filter-chip" data-op="NMO" style="border-color:#06b6d4;">NMO</button>
+                    <button class="op-filter-chip" data-op="TLS" style="border-color:#ec4899;">TLS</button>
+                </div>
+            </div>
             <div class="controls" style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <label>Trigger E2E:</label>
@@ -3802,6 +3815,18 @@
             loadTestResults();
         });
 
+        // ---- Job Runs operator filter (client-side; job_runs has no operator column) ----
+        var jobRunsSelectedOperator = '';
+        document.getElementById('jobRunsOpFilterBar').addEventListener('click', function(e) {
+            var chip = e.target.closest('[data-op]');
+            if (!chip) return;
+            jobRunsSelectedOperator = chip.dataset.op;
+            document.querySelectorAll('#jobRunsOpFilterBar .op-filter-chip').forEach(function(c) {
+                c.classList.toggle('active', c === chip);
+            });
+            loadJobRuns();
+        });
+
         // ---- Stat panels + operator health cards ----
         async function loadOperatorStats() {
             try {
@@ -4137,6 +4162,12 @@
                 var resp = await fetch('/api/job-runs?' + new URLSearchParams(params));
                 var data = await resp.json();
                 var runs = data.job_runs || [];
+
+                if (jobRunsSelectedOperator) {
+                    runs = runs.filter(function(r) {
+                        return deriveOperator(r.step_name || r.job_name || '') === jobRunsSelectedOperator;
+                    });
+                }
 
                 if (runs.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted);">No job runs found</td></tr>';
