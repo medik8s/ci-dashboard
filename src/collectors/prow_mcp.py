@@ -96,8 +96,7 @@ class ProwMCPCollector(BaseCollector):
         start_date: datetime,
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[JobRun]:
         """
         Collect job runs using prow-mcp-server
@@ -120,10 +119,8 @@ class ProwMCPCollector(BaseCollector):
 
                 version, platform = self._extract_version_platform(job_name)
 
-                # Filter by version/platform if specified
+                # Filter by version if specified
                 if versions and version not in versions:
-                    continue
-                if platforms and platform not in platforms:
                     continue
 
                 # Parse job run data from MCP response
@@ -194,8 +191,7 @@ class ProwMCPCollector(BaseCollector):
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
         test_names: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[TestResult]:
         """
         Collect test results using prow-mcp-server
@@ -211,7 +207,7 @@ class ProwMCPCollector(BaseCollector):
             futures = {
                 executor.submit(
                     self._fetch_test_results_for_job,
-                    job_name, versions, platforms, test_names
+                    job_name, versions, test_names
                 ): job_name
                 for job_name in job_list
             }
@@ -230,7 +226,6 @@ class ProwMCPCollector(BaseCollector):
         self,
         job_name: str,
         versions: Optional[List[str]],
-        platforms: Optional[List[str]],
         test_names: Optional[List[str]]
     ) -> List[TestResult]:
         """Fetch test results for a single job"""
@@ -239,10 +234,8 @@ class ProwMCPCollector(BaseCollector):
         try:
             version, platform = self._extract_version_platform(job_name)
 
-            # Filter by version/platform
+            # Filter by version
             if versions and version not in versions:
-                return []
-            if platforms and platform not in platforms:
                 return []
 
             # Get latest job run first

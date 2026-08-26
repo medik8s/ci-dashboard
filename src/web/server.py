@@ -757,7 +757,6 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
 
         # Get job patterns based on collector type
         versions = config['tracking']['versions']
-        platforms = config['tracking']['platforms']
 
         if collector_type == 'reportportal':
             job_patterns = config['collector']['reportportal']['job_patterns']
@@ -784,8 +783,7 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
             start_date=start_date,
             end_date=end_date,
             job_patterns=expanded_patterns,
-            versions=versions,
-            platforms=platforms
+            versions=versions
         )
         logger.info(f"Collected {len(job_runs)} job runs")
 
@@ -796,8 +794,7 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
             start_date=start_date,
             end_date=end_date,
             job_patterns=expanded_patterns,
-            versions=versions,
-            platforms=platforms
+            versions=versions
         )
         logger.info(f"Collected {len(test_results)} test results")
 
@@ -813,7 +810,6 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
                 end_date=end_date,
                 job_patterns=presubmit_patterns,
                 versions=versions,
-                platforms=platforms,
             )
             logger.info(f"Collected {len(presubmit_job_runs)} presubmit job runs")
 
@@ -827,7 +823,6 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
                 end_date=end_date,
                 job_patterns=presubmit_patterns,
                 versions=versions,
-                platforms=platforms,
                 job_runs=presubmit_job_runs,
             )
             logger.info(f"Collected {len(presubmit_test_results)} presubmit test results")
