@@ -62,6 +62,12 @@ GCS_METADATA_TIMEOUT_SECONDS = 30
 SQLITE_CONNECT_TIMEOUT_SECONDS = 5
 _gcs_client = None
 _restore_blocked = False
+# Observability for the startup GCS restore. Distinguishes an auth/network
+# download failure from a genuinely corrupt backup, and is surfaced via
+# /api/collector-status so a silent rebuild-from-scratch is visible.
+# One of: not_attempted | restored | fresh_start | download_failed | corrupt
+_restore_status = 'not_attempted'
+_restore_detail = None
 
 
 class _TempFile:
@@ -115,8 +121,9 @@ def backup_db_to_gcs(db_path):
     if not blob:
         return False
     if _restore_blocked:
-        logger.warning("Skipping backup: restore failed or "
-                       "found corrupt data")
+        logger.warning("Skipping backup to avoid overwriting the "
+                       "last-known-good GCS copy: %s",
+                       _restore_detail or "prior restore did not complete")
         return False
     with _TempFile(os.path.dirname(db_path), '.backup') as tmp_path:
         src = sqlite3.connect(
@@ -152,7 +159,7 @@ def restore_db_from_gcs(db_path):
     or download failure so that backup_db_to_gcs refuses to
     overwrite the last-known-good GCS copy.
     """
-    global _restore_blocked
+    global _restore_blocked, _restore_status, _restore_detail
     blob = _gcs_blob()
     if not blob:
         return False
@@ -162,13 +169,20 @@ def restore_db_from_gcs(db_path):
                     timeout=GCS_METADATA_TIMEOUT_SECONDS):
                 logger.info(
                     "No GCS backup found, starting fresh")
+                _restore_status = 'fresh_start'
                 return False
             blob.download_to_filename(
                 tmp_path,
                 timeout=GCS_TRANSFER_TIMEOUT_SECONDS)
         except Exception as e:
-            logger.warning("GCS download failed: %s", e)
+            # Network/auth failure reaching GCS (e.g. oauth2.googleapis.com
+            # blocked by egress) - NOT a corrupt backup. Block backups so the
+            # empty DB from this pod does not overwrite the good GCS copy.
+            logger.error("GCS restore download failed (network/auth, "
+                         "backup NOT corrupt): %s", e)
             _restore_blocked = True
+            _restore_status = 'download_failed'
+            _restore_detail = f"GCS download/auth failed: {e}"
             return False
         conn = sqlite3.connect(
             tmp_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
@@ -178,13 +192,16 @@ def restore_db_from_gcs(db_path):
         finally:
             conn.close()
         if not result or result[0] != 'ok':
-            logger.warning(
-                "Backup failed integrity check: %s", result)
+            logger.error(
+                "GCS backup is corrupt (quick_check: %s)", result)
             _restore_blocked = True
+            _restore_status = 'corrupt'
+            _restore_detail = f"backup failed integrity check: {result}"
             return False
         os.replace(tmp_path, db_path)
         size_mb = os.path.getsize(db_path) / (1024 * 1024)
         logger.info("Restored DB from GCS (%.1f MB)", size_mb)
+        _restore_status = 'restored'
         return True
 
 
@@ -1182,6 +1199,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'last_finished': None,
                 'jobs_collected': 0,
                 'tests_collected': 0,
+                'restore': {'status': _restore_status, 'detail': _restore_detail},
             })
 
         finished = status.get('finished_at')
@@ -1214,6 +1232,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             'tests_collected': status.get('tests_collected', 0),
             'error_message': status.get('error_message'),
             'trigger': status.get('trigger', 'unknown'),
+            'restore': {'status': _restore_status, 'detail': _restore_detail},
         })
 
     @app.route('/api/test-results')
