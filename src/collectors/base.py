@@ -131,8 +131,7 @@ class BaseCollector(ABC):
         start_date: datetime,
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[JobRun]:
         """
         Collect job runs within date range
@@ -142,7 +141,6 @@ class BaseCollector(ABC):
             end_date: End of date range
             job_patterns: Optional list of job name patterns to filter
             versions: Optional list of versions to filter (e.g., ["4.21", "4.22"])
-            platforms: Optional list of platforms to filter (e.g., ["aws", "gcp"])
 
         Returns:
             List of normalized JobRun objects
@@ -156,8 +154,7 @@ class BaseCollector(ABC):
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
         test_names: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[TestResult]:
         """
         Collect individual test results within date range
@@ -168,7 +165,6 @@ class BaseCollector(ABC):
             job_patterns: Optional list of job name patterns to filter
             test_names: Optional list of test names to filter (e.g., ["OCP-11111"])
             versions: Optional list of versions to filter
-            platforms: Optional list of platforms to filter
 
         Returns:
             List of normalized TestResult objects

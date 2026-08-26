@@ -574,8 +574,7 @@ class ProwGCSCollector(BaseCollector):
         start_date: datetime,
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[JobRun]:
         """
         Collect job runs using per-job Prow job-history endpoint.
@@ -635,8 +634,9 @@ class ProwGCSCollector(BaseCollector):
                 )
                 if versions and version not in versions:
                     continue
-                if platforms and platform not in platforms:
-                    continue
+                # No platform filter: all medik8s jobs run on AWS, and some job
+                # names carry no platform token (e.g. tls13-adherence-all), which
+                # a platform filter would wrongly drop.
 
                 for build in builds:
                     started_str = build.get('Started', '')
@@ -703,8 +703,7 @@ class ProwGCSCollector(BaseCollector):
         start_date: datetime,
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[JobRun]:
         """Collect presubmit job runs using the pr-logs/directory/ endpoint."""
         import json as json_mod
@@ -742,8 +741,9 @@ class ProwGCSCollector(BaseCollector):
                 version, platform = self._extract_version_platform(job_name)
                 if versions and version not in versions:
                     continue
-                if platforms and platform not in platforms:
-                    continue
+                # No platform filter: all medik8s jobs run on AWS, and some job
+                # names carry no platform token (e.g. tls13-adherence-all), which
+                # a platform filter would wrongly drop.
 
                 for build in builds:
                     started_str = build.get('Started', '')
@@ -823,8 +823,7 @@ class ProwGCSCollector(BaseCollector):
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
         test_names: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[TestResult]:
         """
         Collect test results from GCS artifacts
@@ -835,7 +834,7 @@ class ProwGCSCollector(BaseCollector):
         4. Fetch logs for failed tests
         """
         # First get job runs
-        job_runs = self.collect_job_runs(start_date, end_date, job_patterns, versions, platforms)
+        job_runs = self.collect_job_runs(start_date, end_date, job_patterns, versions)
 
         all_results = []
 
@@ -868,12 +867,11 @@ class ProwGCSCollector(BaseCollector):
         job_patterns: Optional[List[str]] = None,
         test_names: Optional[List[str]] = None,
         versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None,
         job_runs: Optional[List[JobRun]] = None,
     ) -> List[TestResult]:
         """Collect test results from presubmit job runs."""
         if job_runs is None:
-            job_runs = self.collect_presubmit_job_runs(start_date, end_date, job_patterns, versions, platforms)
+            job_runs = self.collect_presubmit_job_runs(start_date, end_date, job_patterns, versions)
 
         all_results = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:

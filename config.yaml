@@ -142,9 +142,6 @@ tracking:
     - "4.22"
     - "5.0"
 
-  platforms:
-    - "aws"
-
   test_suite_filter: ""
 
   # Weekly jobs need longer lookback than daily

@@ -138,7 +138,6 @@ def collect(ctx, days, dry_run):
     # Collect job runs
     collector_type = config['collector']['type']
     versions = config['tracking']['versions']
-    platforms = config['tracking']['platforms']
 
     # Get job patterns based on collector type
     if collector_type == 'reportportal':
@@ -162,8 +161,7 @@ def collect(ctx, days, dry_run):
             start_date=start_date,
             end_date=end_date,
             job_patterns=expanded_patterns,
-            versions=versions,
-            platforms=platforms
+            versions=versions
         )
 
         progress.update(task, completed=True)
@@ -178,8 +176,7 @@ def collect(ctx, days, dry_run):
             start_date=start_date,
             end_date=end_date,
             job_patterns=expanded_patterns,
-            versions=versions,
-            platforms=platforms
+            versions=versions
         )
 
         progress.update(task, completed=True)
@@ -198,8 +195,7 @@ def collect(ctx, days, dry_run):
                 start_date=start_date,
                 end_date=end_date,
                 job_patterns=presubmit_patterns,
-                versions=versions,
-                platforms=platforms
+                versions=versions
             )
             progress.update(task, completed=True)
 
@@ -212,7 +208,6 @@ def collect(ctx, days, dry_run):
                 end_date=end_date,
                 job_patterns=presubmit_patterns,
                 versions=versions,
-                platforms=platforms,
                 job_runs=presubmit_job_runs,
             )
             progress.update(task, completed=True)

@@ -129,8 +129,7 @@ class ReportPortalCollector(BaseCollector):
         start_date: datetime,
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[JobRun]:
         """Collect job runs from ReportPortal launches"""
 
@@ -140,10 +139,8 @@ class ReportPortalCollector(BaseCollector):
         for launch in launches:
             metadata = self._extract_metadata(launch['name'])
 
-            # Filter by version/platform if specified
+            # Filter by version if specified
             if versions and metadata['version'] not in versions:
-                continue
-            if platforms and metadata['platform'] not in platforms:
                 continue
 
             # Get statistics
@@ -182,8 +179,7 @@ class ReportPortalCollector(BaseCollector):
         end_date: datetime,
         job_patterns: Optional[List[str]] = None,
         test_names: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[TestResult]:
         """Collect individual test results from ReportPortal"""
 
@@ -194,7 +190,7 @@ class ReportPortalCollector(BaseCollector):
         max_workers = self.config.get('max_workers', 5)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self._fetch_test_items, launch, test_names, versions, platforms): launch
+                executor.submit(self._fetch_test_items, launch, test_names, versions): launch
                 for launch in launches
             }
 
@@ -316,17 +312,14 @@ class ReportPortalCollector(BaseCollector):
         self,
         launch: Dict[str, Any],
         test_names: Optional[List[str]] = None,
-        versions: Optional[List[str]] = None,
-        platforms: Optional[List[str]] = None
+        versions: Optional[List[str]] = None
     ) -> List[TestResult]:
         """Fetch test items for a specific launch"""
 
         metadata = self._extract_metadata(launch['name'])
 
-        # Filter by version/platform
+        # Filter by version
         if versions and metadata['version'] not in versions:
-            return []
-        if platforms and metadata['platform'] not in platforms:
             return []
 
         url = f"{self.url}/api/v1/{self.project}/item"
