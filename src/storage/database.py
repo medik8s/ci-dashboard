@@ -1202,7 +1202,7 @@ class DashboardDatabase:
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-    _KNOWN_OPERATORS = ("FAR", "SBR", "SNR", "NHC", "MDR", "NMO")
+    _KNOWN_OPERATORS = ("FAR", "SBR", "SNR", "NHC", "MDR", "NMO", "TLS")
 
     # Maps the distinguishing tail of a variant key to a user-facing label.
     # Checked from most-specific to least-specific (order matters).
