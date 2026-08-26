@@ -3193,7 +3193,9 @@
             window.location.href = `/api/export/operator-health?${params.toString()}`;
         }
 
-        const SEVERITY_ORDER = { failed: 0, degraded: 1, stale: 2, no_data: 3, healthy: 4 };
+        // Canonical operator display order (matches the filter chips and the other tabs).
+        const OPERATOR_ORDER = Object.freeze(['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO', 'TLS']);
+        const OPERATOR_RANK = Object.fromEntries(OPERATOR_ORDER.map((op, i) => [op, i]));
 
         // Track which operator rows are expanded (persists across re-renders)
         const _expandedOps = new Set();
@@ -3261,7 +3263,7 @@
             const tbody = document.getElementById('operatorHealthTableBody');
             const ops = data.operators || {};
             const entries = Object.entries(ops).sort(
-                (a, b) => (SEVERITY_ORDER[a[1].status] ?? 9) - (SEVERITY_ORDER[b[1].status] ?? 9)
+                (a, b) => (OPERATOR_RANK[a[0]] ?? OPERATOR_ORDER.length) - (OPERATOR_RANK[b[0]] ?? OPERATOR_ORDER.length)
                     || a[0].localeCompare(b[0])
             );
             if (!entries.length) {
@@ -3908,7 +3910,7 @@
                     var opStatsMap = {};
                     ops.forEach(function(o) { opStatsMap[o.operator] = o; });
 
-                    var allOps = ['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO', 'TLS'];
+                    var allOps = OPERATOR_ORDER;
                     var tbl = '<table class="op-health-tbl"><thead><tr>' +
                         '<th>Operator</th><th>Pass Rate</th><th>Passed</th><th>Failed</th>' +
                         '<th>Jobs</th><th>Last Run</th></tr></thead><tbody>';
