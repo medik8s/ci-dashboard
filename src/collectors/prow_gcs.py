@@ -556,6 +556,10 @@ class ProwGCSCollector(BaseCollector):
     def _extract_operator(self, job_name: str, raw_test_name: str = '') -> Optional[str]:
         """Extract operator name from Prow job name, with test-name fallback."""
         job_lower = job_name.lower()
+        # TLS jobs (tls13-adherence-all, tls-pqc-readiness-all) are cross-operator
+        # and have no -e2e-<op>- segment; classify them under a single TLS bucket.
+        if '-tls' in job_lower:
+            return 'TLS'
         operators = ['far', 'sbr', 'snr', 'nhc', 'nmo', 'mdr']
         for op in operators:
             if f'-e2e-{op}-' in job_lower or job_lower.endswith(f'-e2e-{op}'):

@@ -711,6 +711,7 @@
         .op-chip--nhc { background: #a855f7; }
         .op-chip--mdr { background: #eab308; color: #111; }
         .op-chip--nmo { background: #06b6d4; }
+        .op-chip--tls { background: #ec4899; }
 
         /* Operator filter chips */
         .op-filter-bar { display: flex; gap: 6px; align-items: center; margin-left: 16px; }
@@ -1037,6 +1038,7 @@
                         <button class="op-filter-chip" data-op="NHC" style="border-color:#a855f7;">NHC</button>
                         <button class="op-filter-chip" data-op="MDR" style="border-color:#eab308;">MDR</button>
                         <button class="op-filter-chip" data-op="NMO" style="border-color:#06b6d4;">NMO</button>
+                        <button class="op-filter-chip" data-op="TLS" style="border-color:#ec4899;">TLS</button>
                     </div>
                     <input type="text" class="table-search" id="testResultsSearch" placeholder="Search tests..." oninput="filterTableRows('testResultsList', this.value)">
                 </div>
@@ -1149,6 +1151,7 @@
                         <button class="op-filter-chip" data-op="NHC" style="border-color:#a855f7;">NHC</button>
                         <button class="op-filter-chip" data-op="MDR" style="border-color:#eab308;">MDR</button>
                         <button class="op-filter-chip" data-op="NMO" style="border-color:#06b6d4;">NMO</button>
+                        <button class="op-filter-chip" data-op="TLS" style="border-color:#ec4899;">TLS</button>
                     </div>
                 </div>
             </div>
@@ -1190,6 +1193,7 @@
                     <button class="op-filter-chip" style="border-color:#a855f7;" onclick="setHealthOpFilter('NHC', this)">NHC</button>
                     <button class="op-filter-chip" style="border-color:#eab308;" onclick="setHealthOpFilter('MDR', this)">MDR</button>
                     <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="setHealthOpFilter('NMO', this)">NMO</button>
+                    <button class="op-filter-chip" style="border-color:#ec4899;" onclick="setHealthOpFilter('TLS', this)">TLS</button>
                 </div>
             </div>
             <div style="font-size:12px;color:var(--text-muted);margin:4px 0 12px;">
@@ -1236,6 +1240,7 @@
                         <button class="op-filter-chip" style="border-color:#a855f7;" onclick="changesOpFilter='NHC';loadChanges();">NHC</button>
                         <button class="op-filter-chip" style="border-color:#eab308;" onclick="changesOpFilter='MDR';loadChanges();">MDR</button>
                         <button class="op-filter-chip" style="border-color:#06b6d4;" onclick="changesOpFilter='NMO';loadChanges();">NMO</button>
+                        <button class="op-filter-chip" style="border-color:#ec4899;" onclick="changesOpFilter='TLS';loadChanges();">TLS</button>
                     </div>
                     <input type="text" class="table-search" id="changesSearch" placeholder="Search tests..." oninput="filterTableRows('changesContent', this.value)">
                 </div>
@@ -3557,7 +3562,7 @@
         // ---- Operator colors ----
         const OP_COLORS = {
             FAR: '#2563eb', SBR: '#f97316', SNR: '#22c55e',
-            NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4'
+            NHC: '#a855f7', MDR: '#eab308', NMO: '#06b6d4', TLS: '#ec4899'
         };
         function filterTableRows(containerId, query) {
             var container = document.getElementById(containerId);
@@ -3582,6 +3587,7 @@
             if (name.match(/^NHC\b|\bnhc-/i)) return 'NHC';
             if (name.match(/^MDR\b|\bmdr-/i)) return 'MDR';
             if (name.match(/^NMO\b|\bnmo-/i)) return 'NMO';
+            if (name.match(/^TLS\b|\btls/i)) return 'TLS';
             return '';
         }
         function buildLatestByKey(runs) {
@@ -3877,7 +3883,7 @@
                     var opStatsMap = {};
                     ops.forEach(function(o) { opStatsMap[o.operator] = o; });
 
-                    var allOps = ['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO'];
+                    var allOps = ['FAR', 'SBR', 'SNR', 'NHC', 'MDR', 'NMO', 'TLS'];
                     var tbl = '<table class="op-health-tbl"><thead><tr>' +
                         '<th>Operator</th><th>Pass Rate</th><th>Passed</th><th>Failed</th>' +
                         '<th>Jobs</th><th>Last Run</th></tr></thead><tbody>';
