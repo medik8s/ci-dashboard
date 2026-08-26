@@ -69,6 +69,14 @@ collector:
         label: FAR
         variant: upgrade
         day: "Fri 08:00 UTC"
+      tls13-adherence-all:
+        label: TLS
+        variant: "TLS 1.3 adherence (all operators)"
+        day: "Mon 10:00 UTC"
+      tls-pqc-readiness-all:
+        label: TLS
+        variant: "PQC readiness (all operators)"
+        day: "Wed 10:00 UTC"
 
     # Periodic job patterns to track
     job_patterns:
@@ -86,6 +94,9 @@ collector:
       - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-snr-weekly-aws-disconnected"
       - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected"
       - "periodic-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws"
+      # 5.0 (system-tests main__5.0.yaml — TLS periodics only; no konflux/disconnected/upgrade files yet)
+      - "periodic-ci-medik8s-system-tests-main-5.0-tls13-adherence-all"
+      - "periodic-ci-medik8s-system-tests-main-5.0-tls-pqc-readiness-all"
 
     # Presubmit E2E jobs (triggered on system-tests PRs)
     presubmit_job_patterns:
@@ -108,6 +119,13 @@ collector:
       - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
       - "pull-ci-medik8s-storage-based-remediation-main-4.20-openshift-e2e"
       - "pull-ci-medik8s-self-node-remediation-main-4.22-openshift-e2e"
+      # 5.0 operator-repo E2E (from *-main__5.0.yaml)
+      - "pull-ci-medik8s-fence-agents-remediation-main-5.0-openshift-e2e"
+      - "pull-ci-medik8s-storage-based-remediation-main-5.0-openshift-e2e"
+      - "pull-ci-medik8s-self-node-remediation-main-5.0-openshift-e2e"
+      - "pull-ci-medik8s-node-healthcheck-operator-main-5.0-openshift-e2e"
+      - "pull-ci-medik8s-node-maintenance-operator-main-5.0-openshift-e2e"
+      - "pull-ci-medik8s-machine-deletion-remediation-main-5.0-openshift-e2e"
 
   # ReportPortal (disabled - uncomment and set values)
   # reportportal:
@@ -122,6 +140,7 @@ tracking:
   versions:
     - "4.21"
     - "4.22"
+    - "5.0"
 
   platforms:
     - "aws"
