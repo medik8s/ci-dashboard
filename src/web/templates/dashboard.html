@@ -3275,7 +3275,6 @@
                 const variants = d.variants || {};
                 const variantKeys = Object.keys(variants);
                 const hasMultipleVariants = variantKeys.length > 1;
-                const altBg = rowIdx % 2 === 1 ? 'background:var(--bg-surface);' : '';
                 const isExpanded = _expandedOps.has(opName);
 
                 const [lastRunCell, resultCell] = _latestRunCells(d.latest_run, data.history_weeks);
@@ -3288,7 +3287,7 @@
                     : '<span style="display:inline-block;width:16px;margin-right:6px;"></span>';
                 const clickHandler = hasMultipleVariants ? `onclick="toggleVariantRows('${esc(opName)}')"` : '';
 
-                rows.push(`<tr ${clickHandler} style="${hasMultipleVariants ? 'cursor:pointer;' : ''}${altBg}border-bottom:1px solid var(--border);">
+                rows.push(`<tr ${clickHandler} style="${hasMultipleVariants ? 'cursor:pointer;' : ''}border-bottom:1px solid var(--border);">
                   <td style="padding:12px 16px;">${toggleIcon}${opChip(opName)}</td>
                   ${_dataColumns(d.status, '', lastRunCell, resultCell, ftCell, trend, '12px 16px')}
                 </tr>`);
