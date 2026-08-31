@@ -2,8 +2,9 @@
 .git/
 .gitignore
 
-# Local Claude Code worktrees (not application code)
+# Local AI agent worktrees (not application code)
 .claude/
+.opencode/
 
 # Python caches / build artifacts / virtualenvs
 __pycache__/
