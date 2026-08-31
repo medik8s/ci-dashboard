@@ -16,5 +16,6 @@ venv/
 .env
 *.env.local
 
-# Claude Code worktrees
+# AI agent worktrees
 .claude/
+.opencode/
