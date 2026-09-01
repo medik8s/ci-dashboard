@@ -2168,7 +2168,7 @@
                     container.innerHTML = '<span style="font-size:0.75rem;color:var(--text-muted);">No triggerable jobs configured</span>';
                     return;
                 }
-                var opOrder = ['far','sbr','snr','nhc','mdr','nmo'];
+                var opOrder = ['far','sbr','snr','nhc','mdr','nmo','tls'];
                 var sortedOps = Object.keys(operators).sort(function(a, b) {
                     var ia = opOrder.indexOf(a), ib = opOrder.indexOf(b);
                     if (ia === -1) ia = 999;

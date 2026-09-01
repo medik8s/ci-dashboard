@@ -22,6 +22,7 @@ PROW_BASE_URL = "https://prow.ci.openshift.org"
 PROW_GCS_BUCKET = "test-platform-results"
 
 _OPERATOR_PATTERN = re.compile(r'-e2e-([a-z0-9]+)-')
+_TLS_JOB_PATTERN = re.compile(r'-tls[\w]*-')
 
 _job_map_cache = None
 
@@ -58,6 +59,8 @@ def get_operator_job_map():
         m = _OPERATOR_PATTERN.search(job)
         if m:
             result.setdefault(m.group(1), []).append(job)
+        elif _TLS_JOB_PATTERN.search(job):
+            result.setdefault('tls', []).append(job)
         else:
             skipped.append(job)
     if skipped:
@@ -75,7 +78,11 @@ def get_all_triggerable_jobs():
 def operator_from_job_name(job_name):
     """Extract operator name from a job name string, or return None."""
     m = _OPERATOR_PATTERN.search(job_name)
-    return m.group(1) if m else None
+    if m:
+        return m.group(1)
+    if _TLS_JOB_PATTERN.search(job_name):
+        return 'tls'
+    return None
 
 
 def resolve_trigger_target(job_name_or_operator):
