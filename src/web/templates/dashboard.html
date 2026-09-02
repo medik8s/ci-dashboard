@@ -938,7 +938,7 @@
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('changes')">Changes</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('test-results')">Test Results</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('job-runs')">Job Runs</button>
-                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('trigger-e2e')">Trigger E2E</button>
+                <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('trigger-jobs')">Trigger Jobs</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('presubmit')">Presubmit</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('fbc-summary')">FBC Summary</button>
                 <button class="tab-button" role="tab" aria-selected="false" onclick="showTab('operator-health')">Operator Health</button>
@@ -1103,11 +1103,11 @@
             </div>
         </div>
 
-        <!-- Trigger E2E Tab -->
-        <div id="trigger-e2e-tab" class="tab-content">
+        <!-- Trigger Jobs Tab -->
+        <div id="trigger-jobs-tab" class="tab-content">
             <div class="controls" style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                    <label>Trigger E2E:</label>
+                    <label>Trigger Jobs:</label>
                     <div class="op-filter-bar" id="triggerButtonBar">
                         <button class="op-filter-chip trigger-btn" onclick="triggerAllJobs(this)">All</button>
                         <span id="dynamicTriggerBtns"><span class="loading" style="font-size:0.75rem;">Loading jobs...</span></span>
@@ -1992,14 +1992,14 @@
             if (id === 'overview') refreshDashboard();
             else if (id === 'test-results') loadTestResults();
             else if (id === 'job-runs') loadJobRuns();
-            else if (id === 'trigger-e2e') { _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); loadJobSchedule(); }
+            else if (id === 'trigger-jobs') { _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); loadJobSchedule(); }
             else if (id === 'fbc-summary') loadFbcSummary();
             else if (id === 'presubmit') loadPresubmitResults();
             else if (id === 'changes') loadChanges();
         }
 
         var _pendingFbcSnapshot = null;
-        var VALID_TABS = ['overview','changes','test-results','job-runs','trigger-e2e','presubmit','fbc-summary','operator-health','pipeline'];
+        var VALID_TABS = ['overview','changes','test-results','job-runs','trigger-jobs','presubmit','fbc-summary','operator-health','pipeline'];
 
         function parseHash() {
             var raw = (location.hash || '').replace(/^#/, '');
@@ -2063,7 +2063,7 @@
                     (tabName === 'overview' && btn.textContent.trim() === 'Overview') ||
                     (tabName === 'test-results' && btn.textContent.trim() === 'Test Results') ||
                     (tabName === 'job-runs' && btn.textContent.trim() === 'Job Runs') ||
-                    (tabName === 'trigger-e2e' && btn.textContent.trim() === 'Trigger E2E') ||
+                    (tabName === 'trigger-jobs' && btn.textContent.trim() === 'Trigger Jobs') ||
                     (tabName === 'fbc-summary' && btn.textContent.trim() === 'FBC Summary') ||
                     (tabName === 'presubmit' && btn.textContent.trim() === 'Presubmit') ||
                     (tabName === 'operator-health' && btn.textContent.trim() === 'Operator Health') ||
@@ -2083,7 +2083,7 @@
             if (tabName === 'operator-health') refreshOperatorHealth();
             if (tabName === 'test-results') loadTestResults();
             if (tabName === 'job-runs') loadJobRuns();
-            if (tabName === 'trigger-e2e') { _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); loadJobSchedule(); }
+            if (tabName === 'trigger-jobs') { _triggerBtnsLoaded = false; loadTriggerButtons(); loadRecentTriggers(); loadJobSchedule(); }
             if (tabName === 'fbc-summary') loadFbcSummary();
             if (tabName === 'presubmit') loadPresubmitResults();
             if (tabName === 'changes') loadChanges();
@@ -4134,7 +4134,7 @@
             }
         }
 
-        // ---- Periodic Job Schedule (used by Trigger E2E tab) ----
+        // ---- Periodic Job Schedule (used by Trigger Jobs tab) ----
         var _scheduleLoaded = false;
         async function loadJobSchedule() {
             if (_scheduleLoaded) return;
