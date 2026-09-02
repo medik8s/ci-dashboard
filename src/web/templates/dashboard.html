@@ -2000,7 +2000,6 @@
 
         var _pendingFbcSnapshot = null;
         var VALID_TABS = ['overview','changes','test-results','job-runs','trigger-jobs','presubmit','fbc-summary','operator-health','pipeline'];
-        var TAB_ALIASES = { 'trigger-e2e': 'trigger-jobs' }; // backward compat for old bookmarks
 
         function parseHash() {
             var raw = (location.hash || '').replace(/^#/, '');
@@ -2020,7 +2019,6 @@
             if (slash >= 0) {
                 try { snapshot = decodeURIComponent(pathPart.substring(slash + 1)); } catch (e) { snapshot = pathPart.substring(slash + 1); }
             }
-            if (TAB_ALIASES[tab]) tab = TAB_ALIASES[tab];
             if (VALID_TABS.indexOf(tab) < 0) tab = 'overview';
             return { tab: tab, snapshot: snapshot, params: params };
         }
