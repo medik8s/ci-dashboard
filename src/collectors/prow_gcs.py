@@ -57,7 +57,7 @@ class ProwGCSCollector(BaseCollector):
         self.api_token = self._get_api_token(config)
 
         # GCS bucket name
-        self.bucket = config.get('bucket', 'test-platform-results')
+        self.bucket = config.get('bucket', 'test-platform-results-public')
 
         # Job patterns
         self.job_names = config.get('job_names', [])

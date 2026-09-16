@@ -562,7 +562,7 @@ def _format_export_row(row, empty_placeholder='-'):
     }
 
 
-GCS_BUCKET = 'test-platform-results'
+GCS_BUCKET = 'test-platform-results-public'
 GCS_HOST = 'https://storage.googleapis.com'
 GCSWEB_HOST = 'gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com'
 AI_ANALYSIS_STEP = 'medik8s-analyze-e2e-failure'
@@ -1473,7 +1473,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'run_date': run_date,
                 'job_name': job_name,
                 'build_id': build_id,
-                'prow_url': f"https://prow.ci.openshift.org/view/gs/test-platform-results/logs/{job_name}/{build_id}" if job_name and build_id else '',
+                'prow_url': f"https://prow.ci.openshift.org/view/gs/test-platform-results-public/logs/{job_name}/{build_id}" if job_name and build_id else '',
                 'e2e_log_url': urls.get('e2e_log_url', ''),
                 'install_log_url': urls.get('install_log_url', ''),
                 'subscribe_log_url': urls.get('subscribe_log_url', ''),

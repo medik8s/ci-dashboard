@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 GANGWAY_BASE_URL = "https://gangway-ci.apps.ci.l2s4.p1.openshiftapps.com/v1"
 PROW_BASE_URL = "https://prow.ci.openshift.org"
-PROW_GCS_BUCKET = "test-platform-results"
+PROW_GCS_BUCKET = "test-platform-results-public"
 
 _OPERATOR_PATTERN = re.compile(r'-e2e-([a-z0-9]+)-')
 _TLS_JOB_PATTERN = re.compile(r'-tls[\w]*-')
