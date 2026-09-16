@@ -12,8 +12,8 @@ collector:
   # Prow GCS configuration
   prow_gcs:
     prow_url: "https://prow.ci.openshift.org"
-    gcs_url: "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results"
-    bucket: "test-platform-results"
+    gcs_url: "https://gcsweb-ci.apps.ci.l2s4.p1.openshiftapps.com/gcs/test-platform-results-public"
+    bucket: "test-platform-results-public"
 
     # Periodic job schedules (from Prow configs in openshift/release)
     job_schedules:
