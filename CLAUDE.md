@@ -81,12 +81,12 @@ When a new OCP version needs tracking (e.g., adding 4.23 alongside existing 4.22
        - "4.23"   # new
 
    # Under prow_gcs.job_patterns, add:
-    - "periodic-ci-openshift-rhwa-system-tests-main-4.23-konflux-e2e-far-weekly-aws"
-    - "periodic-ci-openshift-rhwa-system-tests-main-4.23-konflux-e2e-sbr-weekly-aws-odf"
+   - "periodic-ci-openshift-rhwa-system-tests-main-4.23-konflux-e2e-far-weekly-aws"
+   - "periodic-ci-openshift-rhwa-system-tests-main-4.23-konflux-e2e-sbr-weekly-aws-odf"
    # ... repeat for each operator
 
    # Under prow_gcs.presubmit_job_patterns, add:
-    - "pull-ci-openshift-rhwa-system-tests-main-4.23-konflux-e2e-far-aws"
+   - "pull-ci-openshift-rhwa-system-tests-main-4.23-konflux-e2e-far-aws"
    # ... repeat for each operator
    ```
 
