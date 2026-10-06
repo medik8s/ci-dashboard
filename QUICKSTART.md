@@ -27,10 +27,10 @@ The `config.yaml` is pre-configured for medik8s tests with Prow GCS:
 collector:
   type: "prow_gcs"
   prow_gcs:
-    job_names:
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
-      # Add SNR, NHC, NMO, MDR weekly jobs when created
+    job_patterns:
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
+      # See config.yaml for the complete periodic and presubmit job lists
 ```
 
 ### 3. Test Connection
