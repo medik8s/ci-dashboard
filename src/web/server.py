@@ -544,7 +544,7 @@ def _format_export_row(row, empty_placeholder='-'):
     build_id = row.get('build_id') or ''
     step_name = row.get('step_name') or ''
     urls = _build_log_urls(job_name, build_id, step_name, log_dirs=row.get('log_dirs'))
-    short_job = job_name.replace('periodic-ci-medik8s-system-tests-main-', '')
+    short_job = job_name.replace('periodic-ci-openshift-rhwa-system-tests-main-', '')
     dur_secs = row.get('job_duration')
     if dur_secs and dur_secs > 0:
         h = int(dur_secs) // 3600

@@ -20,27 +20,27 @@ collector:
       far-nhc-interop-weekly-aws:
         label: FAR
         variant: "interop (NHC)"
-        day: "Tue 04:00 UTC"
+        day: "Fri 12:00 UTC"
       sbr-weekly-aws-efs:
         label: SBR
         variant: "weekly (EFS)"
-        day: "Tue 08:00 UTC"
+        day: "Wed 08:00 UTC"
       sbr-weekly-aws-odf:
         label: SBR
         variant: "weekly (ODF)"
-        day: "Wed 04:00 UTC"
+        day: "Tue 08:00 UTC"
       nmo-weekly-aws:
         label: NMO
         variant: weekly
-        day: "Wed 08:00 UTC"
+        day: "Thu 08:00 UTC"
       far-weekly-aws:
         label: FAR
         variant: weekly
-        day: "Thu 04:00 UTC"
+        day: "Tue 04:00 UTC"
       nhc-weekly-aws:
         label: NHC
         variant: weekly
-        day: "Thu 08:00 UTC"
+        day: "Fri 04:00 UTC"
       nhc-weekly-aws-disconnected:
         label: NHC
         variant: disconnected
@@ -52,11 +52,11 @@ collector:
       mdr-weekly-aws:
         label: MDR
         variant: weekly
-        day: "Fri 04:00 UTC"
+        day: "Thu 04:00 UTC"
       snr-weekly-aws:
         label: SNR
         variant: weekly
-        day: "Fri 08:00 UTC"
+        day: "Wed 04:00 UTC"
       snr-weekly-aws-disconnected:
         label: SNR
         variant: disconnected
@@ -64,7 +64,7 @@ collector:
       far-weekly-aws-disconnected:
         label: FAR
         variant: disconnected
-        day: "Fri 12:00 UTC"
+        day: "Jan 01 00:00 UTC"
       far-upgrade-aws:
         label: FAR
         variant: upgrade
@@ -77,44 +77,81 @@ collector:
         label: TLS
         variant: "PQC readiness (all operators)"
         day: "Wed 10:00 UTC"
+      far-daily-aws:
+        label: FAR
+        variant: "daily (upstream)"
+        day: "Daily 04:00 UTC"
+      sbr-daily-aws-odf:
+        label: SBR
+        variant: "daily (upstream, ODF)"
+        day: "Daily 04:00 UTC"
+      snr-daily-aws:
+        label: SNR
+        variant: "daily (upstream)"
+        day: "Daily 04:00 UTC"
+      mdr-daily-aws:
+        label: MDR
+        variant: "daily (upstream)"
+        day: "Daily 04:00 UTC"
+      nmo-daily-aws:
+        label: NMO
+        variant: "daily (upstream)"
+        day: "Daily 04:00 UTC"
+      nhc-daily-aws:
+        label: NHC
+        variant: "daily (upstream)"
+        day: "Daily 04:00 UTC"
 
     # Periodic job patterns to track
     job_patterns:
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-nhc-interop-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws"
-      - "periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-efs"
-      - "periodic-ci-medik8s-system-tests-main-4.21-disconnected-e2e-sbr-weekly-aws-disconnected-nfs"
-      - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-sbr-weekly-aws-disconnected-nfs"
-      - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected"
-      - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-snr-weekly-aws-disconnected"
-      - "periodic-ci-medik8s-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected"
-      - "periodic-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws"
-      # 5.0 (system-tests main__5.0.yaml — TLS periodics only; no konflux/disconnected/upgrade files yet)
-      - "periodic-ci-medik8s-system-tests-main-5.0-tls13-adherence-all"
-      - "periodic-ci-medik8s-system-tests-main-5.0-tls-pqc-readiness-all"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-nhc-interop-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-snr-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-nmo-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-efs"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.21-disconnected-e2e-sbr-weekly-aws-disconnected-nfs"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-sbr-weekly-aws-disconnected-nfs"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-snr-weekly-aws-disconnected"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws"
+      # 5.0 TLS and upstream operator periodics
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-tls13-adherence-all"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-tls-pqc-readiness-all"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-far-daily-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-sbr-daily-aws-odf"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-snr-daily-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-mdr-daily-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-nmo-daily-aws"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-nhc-daily-aws"
 
     # Presubmit E2E jobs (triggered on system-tests PRs)
     presubmit_job_patterns:
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-aws"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-nhc-interop-aws"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-odf"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-aws-efs"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-hypershift-aws-odf"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-sbr-hypershift-persistent-aws-odf"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-snr-aws"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nmo-aws"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-mdr-aws"
-      - "pull-ci-medik8s-system-tests-main-4.22-konflux-e2e-nhc-aws"
-      - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-far-aws-disconnected"
-      - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-snr-aws-disconnected"
-      - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-sbr-aws-disconnected-nfs"
-      - "pull-ci-medik8s-system-tests-main-4.22-disconnected-e2e-nhc-aws-disconnected"
-      - "pull-ci-medik8s-system-tests-main-4.22-upgrade-e2e-far-upgrade-presubmit-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-nhc-interop-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-aws-odf"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-aws-efs"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-hypershift-aws-odf"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-hypershift-persistent-aws-odf"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-snr-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-nmo-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-mdr-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-nhc-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-aws-disconnected"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-snr-aws-disconnected"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-sbr-aws-disconnected-nfs"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-nhc-aws-disconnected"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-upgrade-e2e-far-upgrade-presubmit-aws"
+      # 5.0 upstream operator presubmits
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-far-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-sbr-aws-odf"
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-snr-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-mdr-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-nmo-aws"
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-nhc-aws"
       # Dev repo E2E presubmit jobs (triggered on operator PRs)
       - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
       - "pull-ci-medik8s-storage-based-remediation-main-4.20-openshift-e2e"

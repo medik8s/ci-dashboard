@@ -198,13 +198,13 @@ def _find_best_prow_build(job_name, triggered_at_str):
 
 
 _STEP_NAME_RE = re.compile(
-    r'periodic-ci-medik8s-system-tests-main-[\d.]+-(?:konflux|disconnected|upgrade)-(.+)')
+    r'periodic-ci-openshift-rhwa-system-tests-main-[\d.]+-(?:konflux|disconnected|upgrade|upstream)-(.+)')
 
 
 def _step_name_from_job(job_name):
     """Derive the Prow step name from a periodic job name.
 
-    E.g. 'periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws'
+    E.g. 'periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-weekly-aws'
     returns 'e2e-far-weekly-aws'.
     """
     m = _STEP_NAME_RE.match(job_name)

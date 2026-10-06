@@ -105,7 +105,7 @@ class ReportPortalCollector(BaseCollector):
         """
         Extract version and platform from launch name
 
-        Example: periodic-ci-medik8s-system-tests-main-4.22-konflux-e2e-far-weekly-aws
+        Example: periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-weekly-aws
         Extracts: version="4.22", platform="aws"
         """
         metadata = {'version': 'unknown', 'platform': 'unknown'}
