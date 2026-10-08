@@ -64,7 +64,7 @@ collector:
       far-weekly-aws-disconnected:
         label: FAR
         variant: disconnected
-        day: "Jan 01 00:00 UTC"
+        day: "Thu 12:00 UTC"
       far-upgrade-aws:
         label: FAR
         variant: upgrade
