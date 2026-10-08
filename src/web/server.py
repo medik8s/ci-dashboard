@@ -294,6 +294,7 @@ QUAY_FBC_REPO_PREFIX = f"redhat-user-workloads/{KONFLUX_NAMESPACE}/rhwa-fbc"
 _konflux_token = os.environ.get("KONFLUX_TOKEN", "")
 _sha_expansion_cache = {}
 DEFAULT_FBC_APP = "rhwa-fbc-422"
+_FBC_APP_RE = re.compile(r'rhwa-fbc-\d+')
 _OCP_VERSION_RE = re.compile(r'(\d+)\.(\d+)')
 FBC_MINOR_DIGITS = 2
 
@@ -1553,10 +1554,9 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 existing_shas.add(s['fbc_full'][:7])
         seen_apps = set()
         for e in fbc_map.values():
-            repo = (e.get('fbc_quay_url') or '').split('/')
-            for part in repo:
-                if part.startswith('rhwa-fbc-'):
-                    seen_apps.add(part)
+            app_match = _FBC_APP_RE.search(e.get('fbc_image') or '')
+            if app_match:
+                seen_apps.add(app_match.group(0))
         for app_name in (seen_apps or {fbc_app_for_version(version) or DEFAULT_FBC_APP}):
             recent = _list_recent_snapshots(app_name, limit=5)
             for snap in recent:
