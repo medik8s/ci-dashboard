@@ -293,6 +293,23 @@ KONFLUX_UI = "https://konflux-ui.apps.stone-prod-p02.hjvn.p1.openshiftapps.com"
 QUAY_FBC_REPO_PREFIX = f"redhat-user-workloads/{KONFLUX_NAMESPACE}/rhwa-fbc"
 _konflux_token = os.environ.get("KONFLUX_TOKEN", "")
 _sha_expansion_cache = {}
+DEFAULT_FBC_APP = "rhwa-fbc-422"
+_OCP_VERSION_RE = re.compile(r'(\d+)\.(\d+)')
+FBC_MINOR_DIGITS = 2
+
+
+def fbc_app_for_version(version):
+    """Map an OCP version to its Konflux FBC application name.
+
+    The minor version is zero-padded to two digits: 4.22 -> rhwa-fbc-422,
+    5.0 -> rhwa-fbc-500. Returns None when no version can be parsed.
+    """
+    match = _OCP_VERSION_RE.search(version or '')
+    if not match:
+        return None
+    return f"rhwa-fbc-{match.group(1)}{match.group(2).zfill(FBC_MINOR_DIGITS)}"
+
+
 _snapshot_cache = {}
 _recent_snapshots_cache = {}
 _recent_snapshots_ts = 0
@@ -1540,7 +1557,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             for part in repo:
                 if part.startswith('rhwa-fbc-'):
                     seen_apps.add(part)
-        for app_name in (seen_apps or {'rhwa-fbc-422'}):
+        for app_name in (seen_apps or {fbc_app_for_version(version) or DEFAULT_FBC_APP}):
             recent = _list_recent_snapshots(app_name, limit=5)
             for snap in recent:
                 short = snap['commit_sha'][:7]
@@ -2396,8 +2413,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             sha = ex.get('fbc_commit_sha')
             job_name = ex.get('job_name') or ''
             if sha and _FBC_SHA_RE.fullmatch(sha):
-                ver_match = re.search(r'(?:release|main)-(\d+)\.(\d+)', job_name)
-                app_name = f"rhwa-fbc-{ver_match.group(1)}{ver_match.group(2)}" if ver_match else None
+                ver_match = re.search(r'(?:release|main)-(\d+\.\d+)', job_name)
+                app_name = fbc_app_for_version(ver_match.group(1)) if ver_match else None
                 cache_key = (sha, app_name or '')
                 if cache_key not in resolved_snaps:
                     try:
