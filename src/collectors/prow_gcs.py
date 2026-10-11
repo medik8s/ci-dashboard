@@ -913,6 +913,9 @@ class ProwGCSCollector(BaseCollector):
         match = re.search(r'\d+\.\d+-(?:konflux|openshift|upgrade|disconnected|upstream)-(.+)$', job_name)
         if match:
             return match.group(1)
+        match = re.search(r'-(tls13-adherence-all|tls-pqc-readiness-all)$', job_name)
+        if match:
+            return match.group(1)
         return None
 
     def _fetch_test_results_for_job(
@@ -925,6 +928,24 @@ class ProwGCSCollector(BaseCollector):
 
         try:
             artifact_base = self._artifact_base(job_run)
+
+            if self._extract_operator(job_run.job_name, '') == 'TLS':
+                # The scanner exports a root report and an identical nested copy.
+                # Never substitute cluster install/cleanup JUnit for TLS checks.
+                if not artifact_base:
+                    logger.warning("[prow_gcs] No scanner artifact path for %s", job_run.job_name)
+                    return results
+                scanner_url = f"{artifact_base}/tls-scanner-run/"
+                reports = sorted(
+                    (url for url in self._find_junit_files(scanner_url)
+                     if url.rsplit('/', 1)[-1] == 'junit_tls_scan.xml'),
+                    key=lambda url: (url.count('/'), url),
+                )
+                if not reports:
+                    logger.warning("[prow_gcs] No scanner report available for %s/%s",
+                                   job_run.job_name, job_run.build_id)
+                    return results
+                return self._parse_junit_xml(reports[0], job_run, test_names)
 
             if artifact_base:
                 for step_dir in ('e2e-test', 'e2e-upgrade-test'):
@@ -1149,7 +1170,8 @@ class ProwGCSCollector(BaseCollector):
                         job_type=job_run.job_type,
                         pr_number=job_run.pr_number,
                         job_url=job_run.job_url,
-                        log_url=log_url
+                        log_url=log_url,
+                        junit_source=junit_url,
                     )
 
                     results.append(result)
