@@ -60,6 +60,7 @@ class TestResult:
     # Links
     job_url: Optional[str] = None
     log_url: Optional[str] = None
+    junit_source: Optional[str] = None
 
 
 @dataclass

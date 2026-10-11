@@ -3621,7 +3621,7 @@
             var result = {};
             runs.forEach(function(run) {
                 var step = run.step_name || run.job_name || '';
-                var m = step.match(/e2e-(.+)/);
+                var m = step.match(/e2e-(.+)/) || step.match(/(?:^|-)(tls13-adherence-all|tls-pqc-readiness-all)$/);
                 var key = m ? m[1] : '';
                 if (!key) return;
                 if (!result[key] || (run.run_date || '') > (result[key].run_date || '')) {
@@ -3934,7 +3934,7 @@
                         var rate = totalTests > 0 ? Math.round(stats.passed / totalTests * 100) : -1;
                         var passed = stats ? stats.passed : 0;
                         var failed = stats ? stats.failed : 0;
-                        var rateStr = rate >= 0 ? rate + '%' : '-';
+                        var rateStr = rate >= 0 ? rate + '%' : (op === 'TLS' ? 'No scanner results' : '-');
                         var rateColor = rate < 0 ? 'var(--text-muted)' : rate >= 100 ? 'var(--accent-green)' : rate >= 80 ? '#eab308' : 'var(--accent-red)';
 
                         // Build variant pills
@@ -3983,7 +3983,7 @@
                         tbl += '<tr>' +
                             '<td><a href="#" onclick="setOperatorFilter(\'' + op + '\'); switchToTab(\'test-results-tab\'); return false;" style="text-decoration:none;">' + opChip(op) + '</a></td>' +
                             '<td style="font-weight:700; color:' + rateColor + ';">' + rateStr + '</td>' +
-                            '<td style="color:var(--accent-green);">' + passed + '</td>' +
+                            '<td style="color:' + (totalTests > 0 ? 'var(--accent-green)' : 'var(--text-muted)') + ';">' + passed + '</td>' +
                             '<td style="color:' + (failed > 0 ? 'var(--accent-red)' : 'var(--text-muted)') + ';">' + failed + '</td>' +
                             '<td>' + pillsHtml + '</td>' +
                             '<td>' + date + '</td>' +

@@ -14,6 +14,12 @@ from collectors.base import JobRun, TestResult, TestStatus
 
 logger = logging.getLogger(__name__)
 
+TLS_JOB_NAMES = tuple(
+    f'periodic-ci-{repo}-main-5.0-{step}'
+    for repo in ('medik8s-system-tests', 'openshift-rhwa-system-tests')
+    for step in ('tls13-adherence-all', 'tls-pqc-readiness-all')
+)
+
 
 class DashboardDatabase:
     """SQLite database for historical test data"""
@@ -42,6 +48,52 @@ class DashboardDatabase:
         self.conn.execute('PRAGMA temp_store=MEMORY')
 
         self._create_tables()
+        self._migrate_tls_results()
+
+    def _migrate_tls_results(self):
+        """Discard unverified infrastructure results from dedicated TLS jobs."""
+        self.conn.execute('BEGIN IMMEDIATE')
+        try:
+            columns = {row[1] for row in self.conn.execute('PRAGMA table_info(test_results)')}
+            if 'junit_source' not in columns:
+                self.conn.execute('ALTER TABLE test_results ADD COLUMN junit_source TEXT')
+            placeholders = ','.join('?' for _ in TLS_JOB_NAMES)
+            removed = self.conn.execute(
+                f'DELETE FROM test_results WHERE job_name IN ({placeholders}) '
+                'AND junit_source IS NULL', TLS_JOB_NAMES,
+            ).rowcount
+            self._refresh_tls_counts()
+            self.conn.commit()
+            if removed:
+                logger.info('Removed %s unverified TLS results and refreshed job counts', removed)
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def _refresh_tls_counts(self):
+        """Keep TLS counters based on persisted scanner results, even after fetch errors."""
+        placeholders = ','.join('?' for _ in TLS_JOB_NAMES)
+        conditions = {
+            'total_tests': "status != 'skipped'",
+            'passed_tests': "status = 'passed'",
+            'failed_tests': "status = 'failed'",
+            'skipped_tests': "status = 'skipped'",
+        }
+        assignments = ', '.join(
+            f'{column} = (SELECT COUNT(*) FROM test_results '
+            f'WHERE test_results.job_name = job_runs.job_name '
+            f'AND test_results.build_id = job_runs.build_id AND {condition})'
+            for column, condition in conditions.items()
+        )
+        self.conn.execute(
+            f'UPDATE job_runs SET {assignments} WHERE job_name IN ({placeholders})',
+            TLS_JOB_NAMES,
+        )
+        self.conn.execute(
+            'UPDATE job_runs SET pass_rate = CASE WHEN total_tests = 0 THEN 0 '
+            'ELSE CAST(passed_tests AS REAL) / total_tests * 100 END '
+            f'WHERE job_name IN ({placeholders})', TLS_JOB_NAMES,
+        )
 
     @staticmethod
     def _check_integrity_and_recover(db_path: str):
@@ -396,6 +448,7 @@ class DashboardDatabase:
                 # Already exists, skip
                 pass
 
+        self._refresh_tls_counts()
         self.conn.commit()
         return inserted
 
@@ -418,8 +471,8 @@ class DashboardDatabase:
                     INSERT INTO test_results (
                         test_name, test_description, status, timestamp, duration_seconds, error_message,
                         job_name, build_id, version, platform, job_url, log_url,
-                        polarion_id, operator, job_type, pr_number
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        polarion_id, operator, job_type, pr_number, junit_source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(test_name, job_name, build_id) DO UPDATE SET
                         test_description = excluded.test_description,
                         status = excluded.status,
@@ -433,7 +486,8 @@ class DashboardDatabase:
                         polarion_id = COALESCE(excluded.polarion_id, test_results.polarion_id),
                         operator = COALESCE(excluded.operator, test_results.operator),
                         job_type = excluded.job_type,
-                        pr_number = excluded.pr_number
+                        pr_number = excluded.pr_number,
+                        junit_source = excluded.junit_source
                 """, (
                     result.test_name,
                     result.test_description,
@@ -451,12 +505,14 @@ class DashboardDatabase:
                     result.operator,
                     getattr(result, 'job_type', 'periodic'),
                     getattr(result, 'pr_number', None),
+                    result.junit_source,
                 ))
                 inserted += 1
             except sqlite3.IntegrityError:
                 # Already exists, skip
                 pass
 
+        self._refresh_tls_counts()
         self.conn.commit()
         return inserted
 

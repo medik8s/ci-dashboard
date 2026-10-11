@@ -57,6 +57,7 @@ When you open http://localhost:8080, you'll see:
 - **Average Pass Rate**: Overall percentage of passing tests
 - **Total Runs**: Number of test runs in the selected period
 - **Trend**: Whether things are improving, declining, or stable
+- **TLS Pass Rate**: Counts only TLS scanner assertions, excluding cluster installation and cleanup checks. The overview Operator Health table shows "No scanner results" when no non-skipped scanner assertions are available. This does not prove the scanner never ran. TLS job chips and last-run dates in the overview and Weekly Schedule reflect the recorded job executions, including setup failures.
 
 #### Middle Section - Charts
 - **Pass Rate Trend Over Time**: Line graph showing daily pass rates
