@@ -4317,16 +4317,16 @@
                 sel.innerHTML = '';
                 summaries.forEach(function(fbc, i) {
                     var opt = document.createElement('option');
-                    opt.value = fbc.fbc_short;
+                    opt.value = fbc.summary_id;
                     var displayId = fbc.snapshot_name || (fbc.iib_id ? 'IIB ' + fbc.iib_id : (fbc.iib_digest_short || fbc.fbc_short));
                     var label = fbc.has_runs === false ? displayId + '  (no test runs)' : displayId + '  ' + fbc.passed + '/' + fbc.total + ' passed';
-                    opt.textContent = label;
+                    opt.textContent = label + '  (' + fbc.not_run + ' not run)';
                     sel.appendChild(opt);
                 });
                 if (_pendingFbcSnapshot) {
                     applyPendingFbcSnapshot();
                 } else {
-                    renderFbcCard(summaries[0].fbc_short);
+                    renderFbcCard(summaries[0].summary_id);
                 }
             } catch (e) {
                 container.innerHTML = '<div style="color:var(--accent-red);padding:20px;">Error: ' + e.message + '</div>';
@@ -4339,8 +4339,9 @@
             if (!target || typeof target !== 'string') return null;
             var summaries = getFbcSummaries();
             var lower = target.toLowerCase();
-            return summaries.find(function(s) { return s.snapshot_name === target || s.fbc_short === target; })
-                || summaries.find(function(s) { return (s.snapshot_name || '').toLowerCase().startsWith(lower) || (s.fbc_short || '').toLowerCase().startsWith(lower); });
+            return summaries.find(function(s) { return s.summary_id === target; })
+                || summaries.find(function(s) { return s.snapshot_name === target || s.fbc_full === lower; })
+                || summaries.find(function(s) { return (s.snapshot_name || '').toLowerCase().startsWith(lower) || (s.fbc_full || '').startsWith(lower); });
         }
         function navigateToFbc(fbcShort, replace) {
             setSelectValue('fbcSelector', fbcShort);
@@ -4353,18 +4354,18 @@
             _pendingFbcSnapshot = null;
             if (!target.trim()) {
                 var summaries = getFbcSummaries();
-                if (summaries.length > 0) renderFbcCard(summaries[0].fbc_short);
+                if (summaries.length > 0) renderFbcCard(summaries[0].summary_id);
                 return;
             }
             var activeTab = document.getElementById('fbc-summary-tab');
             if (!activeTab || !activeTab.classList.contains('active')) return;
             var match = findFbcSnapshot(target);
             if (match) {
-                navigateToFbc(match.fbc_short, true);
+                navigateToFbc(match.summary_id, true);
             } else {
                 var summaries = getFbcSummaries();
                 if (summaries.length > 0) {
-                    navigateToFbc(summaries[0].fbc_short, true);
+                    navigateToFbc(summaries[0].summary_id, true);
                     var statusEl = document.getElementById('fbcSummaryStatus');
                     if (statusEl) statusEl.textContent = target + ' not found in current data. Showing latest snapshot.';
                 }
@@ -4388,17 +4389,17 @@
                     ? summaries.find(function(s) { return s.iib_id === val; })
                     : findFbcSnapshot(val);
                 if (match) {
-                    navigateToFbc(match.fbc_short);
+                    navigateToFbc(match.summary_id);
                     document.getElementById('fbcSummaryStatus').textContent = '';
                 } else {
                     document.getElementById('fbcSummaryStatus').textContent = val + ' not found in current data. Try a different time range.';
                     document.getElementById('fbcSummaryContent').innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><code>' + esc(val) + '</code> not found in the loaded data. It may be from an older build not in the current time range.</div>';
                 }
             } else {
-                var short = val.slice(0, 8).toLowerCase();
+                var short = val.toLowerCase();
                 var match = findFbcSnapshot(short);
                 if (match) {
-                    navigateToFbc(match.fbc_short);
+                    navigateToFbc(match.summary_id);
                     document.getElementById('fbcSummaryStatus').textContent = '';
                 } else {
                     document.getElementById('fbcSummaryStatus').textContent = 'FBC ' + short + ' not found in current data';
@@ -4410,10 +4411,9 @@
             var container = document.getElementById('fbcSummaryContent');
             if (!_fbcCache) { container.innerHTML = '<div class="loading">Loading...</div>'; return; }
             var summaries = _fbcCache.fbc_summaries || [];
-            var allOps = _fbcCache.all_operators || [];
-            var fbc = summaries.find(function(s) { return s.fbc_short === fbcShort; });
+            var fbc = summaries.find(function(s) { return s.summary_id === fbcShort; });
             if (!fbc) { container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">FBC not found</div>'; return; }
-            var allPass = fbc.failed === 0 && fbc.total > 0;
+            var allPass = fbc.failed === 0 && fbc.total > 0 && fbc.not_run === 0;
             var borderColor = allPass ? 'var(--accent-green)' : (fbc.failed > 0 ? 'var(--accent-red)' : 'var(--border)');
             var links = '';
             if (fbc.fbc_konflux_url) links += '<a href="' + esc(fbc.fbc_konflux_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple);text-decoration:none;font-size:0.75rem;margin-right:10px;">Konflux</a>';
@@ -4429,8 +4429,8 @@
             html += '<span style="font-size:0.8rem;color:var(--text-muted);">' + esc(fbc.latest_date) + '</span>';
             html += '<span class="fbc-badge fbc-badge--pass">' + fbc.passed + ' passed</span>';
             if (fbc.failed > 0) html += '<span class="fbc-badge fbc-badge--fail">' + fbc.failed + ' failed</span>';
+            if (fbc.not_run > 0) html += '<span style="font-size:0.8rem;color:var(--text-muted);">' + fbc.not_run + '/' + fbc.expected_total + ' not run</span>';
             html += '</div></div>';
-            var allJobMap = _fbcCache.all_jobs || {};
             html += '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">';
             html += '<colgroup><col style="width:25%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:11%"><col style="width:9%"><col style="width:9%"><col style="width:5%"></colgroup>';
             html += '<tr style="font-size:0.75rem;color:var(--text-muted);"><th style="text-align:left;padding:6px 16px;">Job</th><th style="text-align:center;padding:6px 8px;">Status</th><th style="text-align:center;padding:6px 8px;">Tests (P/F)</th><th style="text-align:center;padding:6px 8px;">Version</th><th style="text-align:center;padding:6px 8px;">Duration</th><th style="text-align:center;padding:6px 8px;">Run Date</th><th style="text-align:center;padding:6px 8px;">Prow Job</th><th style="text-align:center;padding:6px 8px;">Test Log</th><th style="text-align:center;padding:6px 8px;"></th></tr>';
@@ -4438,16 +4438,16 @@
             opKeys.forEach(function(key, opIdx) {
                 var o = fbc.operators[key];
                 var op = o.operator || deriveOperator(key) || key;
-                var fullJob = o.job_name || allJobMap[key] || '';
+                var fullJob = o.job_name || '';
                 var statusCls = o.status === 'passed' ? 'result-pass' : 'result-fail';
                 var tests = (o.total_tests == null || o.total_tests === 0) ? '-' : o.passed_tests + '/' + o.failed_tests;
                 var prowLink = o.prow_url ? '<a href="' + esc(o.prow_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.8rem;">View Job</a>' : '-';
                 var logLink = o.e2e_log_url ? '<a href="' + esc(o.e2e_log_url) + '" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue);text-decoration:none;font-size:0.8rem;">Test Log</a>' : '-';
                 var runDate = o.run_date ? fmtDate(o.run_date) : '-';
-                var triggerBtn = fullJob ? '<button onclick="event.stopPropagation();fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this,\'' + esc(fbc.snapshot_name || '') + '\')" title="Retrigger" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button>' : '-';
+                var triggerBtn = fullJob && fbc.can_trigger ? '<button onclick="event.stopPropagation();fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this,\'' + esc(fbc.snapshot_name || '') + '\')" title="Retrigger" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button>' : '-';
                 var detailId = 'fbc-detail-' + esc(fbcShort) + '-' + opIdx;
                 html += '<tr style="border-top:1px solid var(--border);cursor:pointer;" onclick="document.getElementById(\'' + detailId + '\').classList.toggle(\'open\')">';
-                html += '<td style="padding:6px 16px;white-space:nowrap;"><span class="expand-arrow" style="display:inline-block;transition:transform 0.2s;margin-right:4px;font-size:0.6rem;">&#9654;</span>' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(key) + '</span></td>';
+                html += '<td style="padding:6px 16px;white-space:nowrap;"><span class="expand-arrow" style="display:inline-block;transition:transform 0.2s;margin-right:4px;font-size:0.6rem;">&#9654;</span>' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(o.display_name) + '</span></td>';
                 html += '<td style="text-align:center;"><span class="' + statusCls + '">' + esc(o.status.toUpperCase()) + '</span></td>';
                 html += '<td style="text-align:center;font-size:0.85rem;">' + tests + '</td>';
                 html += '<td style="text-align:center;font-size:0.85rem;">' + ((o.csv_version || '').replace(/^.*\.v/, '') || '-') + '</td>';
@@ -4459,17 +4459,14 @@
                 html += '</tr>';
                 html += '<tr id="' + detailId + '" class="detail-row"><td colspan="9">' + buildDetailGrid(o) + '</td></tr>';
             });
-            allOps.forEach(function(key) {
-                if (opKeys.indexOf(key) !== -1) return;
-                var op = deriveOperator(key) || key;
-                var fullJob = allJobMap[key] || '';
-                var triggerBtn = fullJob ? '<button onclick="fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this,\'' + esc(fbc.snapshot_name || '') + '\')" title="Retrigger" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button>' : '-';
+            (fbc.expected_jobs || []).forEach(function(job) {
+                if (opKeys.indexOf(job.job_name) !== -1) return;
+                var op = job.operator;
+                var fullJob = job.job_name;
+                var triggerBtn = fbc.can_trigger ? '<button onclick="fbcTriggerJob(\'' + esc(fullJob) + '\',\'' + esc(fbc.fbc_full) + '\',this,\'' + esc(fbc.snapshot_name || '') + '\')" title="Trigger" style="padding:2px 6px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-muted);cursor:pointer;font-size:0.7rem;">&#x21BB;</button>' : '-';
                 html += '<tr style="border-top:1px solid var(--border);opacity:0.5;">';
-                html += '<td style="padding:6px 16px;white-space:nowrap;">' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(key) + '</span></td>';
-                var schedInfo = '';
-                var schedMap = (_fbcCache || {}).job_schedules || {};
-                for (var sk in schedMap) { if (sk.indexOf(key) >= 0 || key.indexOf(sk) >= 0) { schedInfo = schedMap[sk].day || ''; break; } }
-                html += '<td style="text-align:center;color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">NOT RUN' + (schedInfo ? '<br><span style="font-size:0.65rem;">Next: ' + esc(schedInfo) + '</span>' : '') + '</td>';
+                html += '<td style="padding:6px 16px;white-space:nowrap;">' + opChip(op) + ' <span style="font-size:0.8rem;color:var(--text-muted);">' + esc(job.display_name) + '</span></td>';
+                html += '<td title="No run associated with this snapshot in the selected time range" style="text-align:center;color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">NOT RUN' + (job.schedule ? '<br><span style="font-size:0.65rem;">Scheduled: ' + esc(job.schedule) + '</span>' : '') + '</td>';
                 html += '<td colspan="6"></td>';
                 html += '<td style="text-align:center;">' + triggerBtn + '</td>';
                 html += '</tr>';

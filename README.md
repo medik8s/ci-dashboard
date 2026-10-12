@@ -17,6 +17,8 @@ Open source web dashboard for monitoring, analyzing, and tracking CI test failur
 - Filter failures by platform
 - Timestamp and job information for each failure
 - Direct links to Prow CI jobs
+- FBC Summary lists every configured FBC periodic for each snapshot's OCP version, including jobs with no associated run in the selected time range
+- Pending FBC rows show `NOT RUN` with exact version-specific schedules and job trigger targets
 
 ### Data Export
 - Export test results in XLSX, CSV, or Markdown formats
@@ -74,6 +76,7 @@ python dashboard.py serve
 Edit `config.yaml` to customize:
 
 - **Job patterns**: Which CI jobs to monitor
+- **FBC schedules**: `collector.prow_gcs.fbc_schedule_overrides` maps full periodic job names to `day` strings for FBC Summary. Add a schedule entry when adding a tracked FBC periodic. Expected jobs come from `job_patterns` for the `konflux`, `disconnected`, and `upgrade` variants
 - **Versions**: OpenShift versions to track
 - **Platforms**: Cloud platforms to monitor
 - **Time range**: How many days of history to collect

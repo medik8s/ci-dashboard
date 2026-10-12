@@ -26,6 +26,9 @@ from openpyxl.utils import get_column_letter
 from storage.database import DashboardDatabase
 from metrics.calculator import MetricsCalculator
 from collectors.base import ARTIFACT_STEP_DIR_CANDIDATES
+from web.fbc_jobs import (
+    expected_fbc_jobs, canonical_fbc_sha, FBC_SHA_LENGTH, FBC_SHORT_SHA_LENGTH,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -973,11 +976,14 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     # Load tracking config for blocklist and job schedules
     blocklist = []
     job_schedules = {}
+    fbc_jobs = {}
     try:
         with open(config_file, 'r') as f:
             yaml_config = yaml.safe_load(f)
             blocklist = yaml_config.get('tracking', {}).get('blocklist', [])
             job_schedules = yaml_config.get('collector', {}).get('prow_gcs', {}).get('job_schedules', {})
+            fbc_jobs = expected_fbc_jobs(
+                yaml_config.get('collector', {}).get('prow_gcs', {}))
     except Exception as e:
         print(f"Warning: Could not load config: {e}")
 
@@ -1434,18 +1440,39 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
         version = normalize_version(request.args.get('version'))
         rows = db.get_job_run_history(days=days, version=version)
 
-        fbc_map = {}
+        app_versions = {fbc_app_for_version(v): v for v in fbc_jobs}
+        apps = {fbc_app_for_version(version)} if version else set(app_versions)
+        prepared_rows = []
+        known_shas = {}
         for row in rows:
-            fbc_image = row.get('fbc_image') or ''
-            if not fbc_image:
-                continue
-            tag = fbc_image.split(':')[-1] if ':' in fbc_image else fbc_image
+            image = row.get('fbc_image') or ''
+            tag = image.rsplit(':', 1)[-1]
             if not re.fullmatch(r'[0-9a-fA-F]{7,40}', tag):
                 continue
-            short = tag[:7]
-            if short not in fbc_map:
+            match = _FBC_APP_RE.search(image)
+            app_name = match.group(0) if match else fbc_app_for_version(row.get('version'))
+            app_name = app_name or 'unknown'
+            apps.add(app_name)
+            known_shas.setdefault(app_name, set()).add(tag.lower())
+            prepared_rows.append((row, app_name, tag))
+        snapshots = {}
+        for app_name in sorted(a for a in apps if a and a != 'unknown'):
+            for snap in _list_recent_snapshots(app_name, limit=5):
+                sha = snap['commit_sha'].lower()
+                snapshots[(app_name, sha)] = snap
+                known_shas.setdefault(app_name, set()).add(sha)
+
+        fbc_map = {}
+        for row, app_name, raw_tag in prepared_rows:
+            fbc_image = row.get('fbc_image') or ''
+            tag = canonical_fbc_sha(raw_tag, known_shas.get(app_name, set()))
+            short = tag[:FBC_SHORT_SHA_LENGTH]
+            identity = (app_name, tag)
+            if identity not in fbc_map:
                 fbc_urls = _build_fbc_urls(fbc_image)
-                fbc_map[short] = {
+                fbc_map[identity] = {
+                    'app_name': app_name,
+                    'version': app_versions.get(app_name, ''),
                     'fbc_short': short,
                     'fbc_full': tag,
                     'fbc_image': fbc_image,
@@ -1453,7 +1480,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                     'operators': {},
                     'latest_date': None,
                 }
-            entry = fbc_map[short]
+            entry = fbc_map[identity]
             step_name = row.get('step_name') or ''
             job_name = row.get('job_name') or ''
             build_id = row.get('build_id') or ''
@@ -1467,8 +1494,8 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
             run_date = row.get('run_date') or ''
             if run_date and (not entry['latest_date'] or run_date > entry['latest_date']):
                 entry['latest_date'] = run_date
-            step_short = re.sub(r'^e2e-', '', step_name) if step_name else op.lower()
-            op_key = step_short
+            step_short = job_name.split('-e2e-', 1)[-1]
+            op_key = job_name
             if op_key in entry['operators']:
                 existing = entry['operators'][op_key]
                 if run_date > (existing.get('run_date') or ''):
@@ -1482,6 +1509,7 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 mins = (int(dur) % 3600) // 60
                 dur_str = f"{h}h {mins}m" if h > 0 else f"{mins}m"
             entry['operators'][op_key] = {
+                'display_name': step_short,
                 'operator': op,
                 'status': row.get('status') or 'unknown',
                 'passed_tests': row.get('passed_tests') or 0,
@@ -1516,19 +1544,37 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'failure_category': row.get('failure_category') or '',
             }
 
-        all_jobs = {}
-        for e in fbc_map.values():
-            for key, val in e['operators'].items():
-                if key not in all_jobs and val.get('job_name'):
-                    all_jobs[key] = val['job_name']
-        all_ops = sorted(all_jobs.keys())
+        for (app_name, sha), snap in snapshots.items():
+            identity = (app_name, sha)
+            if identity not in fbc_map:
+                image = f"quay.io/{QUAY_FBC_REPO_PREFIX}/{app_name}:{sha}"
+                fbc_map[identity] = {
+                    **_build_fbc_urls(image),
+                    'app_name': app_name,
+                    'version': app_versions.get(app_name, ''),
+                    'fbc_short': sha[:FBC_SHORT_SHA_LENGTH],
+                    'fbc_full': sha,
+                    'operators': {},
+                    'latest_date': snap['created'],
+                }
+            if not fbc_map[identity].get('snapshot_name'):
+                fbc_map[identity]['snapshot_name'] = snap['snapshot_name']
+
         summaries = []
-        for short in sorted(fbc_map.keys(), key=lambda k: fbc_map[k].get('latest_date') or '', reverse=True):
-            e = fbc_map[short]
+        for identity, e in fbc_map.items():
+            expected = fbc_jobs.get(e['version'], {})
             passed = sum(1 for o in e['operators'].values() if o['status'] == 'passed')
             failed = sum(1 for o in e['operators'].values() if o['status'] == 'failed')
             total = len(e['operators'])
             summaries.append({
+                'summary_id': ':'.join(identity),
+                'version': e['version'],
+                'app_name': e['app_name'],
+                'latest_ts': e['latest_date'] or '',
+                'expected_jobs': sorted(expected.values(), key=lambda j: j['display_name']),
+                'expected_total': len(expected),
+                'has_runs': bool(e['operators']),
+                'can_trigger': len(e['fbc_full']) == FBC_SHA_LENGTH,
                 'fbc_short': e['fbc_short'],
                 'fbc_full': e['fbc_full'],
                 'fbc_quay_url': e.get('fbc_quay_url', ''),
@@ -1544,60 +1590,12 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
                 'passed': passed,
                 'failed': failed,
                 'total': total,
-                'not_run': len(all_ops) - total,
+                'not_run': len(set(expected) - set(e['operators'])),
                 'operators': e['operators'],
             })
 
-        existing_shas = set()
-        for s in summaries:
-            if s.get('fbc_full'):
-                existing_shas.add(s['fbc_full'][:7])
-        seen_apps = set()
-        for e in fbc_map.values():
-            app_match = _FBC_APP_RE.search(e.get('fbc_image') or '')
-            if app_match:
-                seen_apps.add(app_match.group(0))
-        for app_name in (seen_apps or {fbc_app_for_version(version) or DEFAULT_FBC_APP}):
-            recent = _list_recent_snapshots(app_name, limit=5)
-            for snap in recent:
-                short = snap['commit_sha'][:7]
-                if short not in existing_shas:
-                    existing_shas.add(short)
-                    fbc_urls = _build_fbc_urls(
-                        f"quay.io/{QUAY_FBC_REPO_PREFIX}/{app_name}:{snap['commit_sha']}")
-                    summaries.append({
-                        'fbc_short': short,
-                        'fbc_full': snap['commit_sha'],
-                        'fbc_quay_url': fbc_urls.get('fbc_quay_url', ''),
-                        'fbc_konflux_url': fbc_urls.get('fbc_konflux_url', ''),
-                        'fbc_gitlab_url': fbc_urls.get('fbc_gitlab_url', ''),
-                        'iib_id': fbc_urls.get('iib_id', ''),
-                        'iib_digest_short': fbc_urls.get('iib_digest_short', ''),
-                        'iib_url': fbc_urls.get('iib_url', ''),
-                        'iib_log_url': fbc_urls.get('iib_log_url', ''),
-                        'iib_resolved': fbc_urls.get('iib_resolved', ''),
-                        'snapshot_name': fbc_urls.get('snapshot_name', '') or snap['snapshot_name'],
-                        'latest_date': snap['created'].split('T')[0],
-                        'passed': 0, 'failed': 0, 'total': 0,
-                        'not_run': len(all_ops),
-                        'operators': {},
-                        'has_runs': False,
-                    })
-
-        sched_data = {}
-        for key, sched in job_schedules.items():
-            sched_data[key] = {
-                'label': sched.get('label', key),
-                'variant': sched.get('variant', ''),
-                'day': sched.get('day', ''),
-            }
-
-        return jsonify({
-            'fbc_summaries': summaries,
-            'all_operators': all_ops,
-            'all_jobs': all_jobs,
-            'job_schedules': sched_data,
-        })
+        summaries.sort(key=lambda s: (s['latest_ts'], s['summary_id']), reverse=True)
+        return jsonify({'fbc_summaries': summaries})
 
     @app.route('/api/job-schedules')
     def api_job_schedules():
