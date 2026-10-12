@@ -102,6 +102,64 @@ collector:
         variant: "daily (upstream)"
         day: "Daily 04:00 UTC"
 
+    # FBC Summary schedules keyed by exact version-specific periodic job name.
+    # Keep shared suffix schedules above for their existing dashboard consumers.
+    fbc_schedule_overrides:
+      periodic-ci-openshift-rhwa-system-tests-main-4.21-disconnected-e2e-sbr-weekly-aws-disconnected-nfs:
+        day: "Wed 12:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected:
+        day: "Thu 12:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected:
+        day: "Tue 12:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-sbr-weekly-aws-disconnected-nfs:
+        day: "Wed 16:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-snr-weekly-aws-disconnected:
+        day: "Wed 12:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-nhc-interop-weekly-aws:
+        day: "Fri 12:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-weekly-aws:
+        day: "Tue 04:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-mdr-weekly-aws:
+        day: "Thu 04:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-nhc-weekly-aws:
+        day: "Fri 04:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-nmo-weekly-aws:
+        day: "Thu 08:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-efs:
+        day: "Wed 08:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-sbr-weekly-aws-odf:
+        day: "Tue 08:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-snr-weekly-aws:
+        day: "Wed 04:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws:
+        day: "Fri 08:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-far-weekly-aws-disconnected:
+        day: "Fri 00:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-nhc-weekly-aws-disconnected:
+        day: "Wed 00:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-sbr-weekly-aws-disconnected-nfs:
+        day: "Thu 04:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-snr-weekly-aws-disconnected:
+        day: "Thu 00:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-far-nhc-interop-weekly-aws:
+        day: "Sat 00:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-far-weekly-aws:
+        day: "Tue 16:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-mdr-weekly-aws:
+        day: "Thu 16:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-nhc-weekly-aws:
+        day: "Fri 16:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-nmo-weekly-aws:
+        day: "Thu 20:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-sbr-weekly-aws-efs:
+        day: "Wed 20:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-sbr-weekly-aws-odf:
+        day: "Tue 20:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-konflux-e2e-snr-weekly-aws:
+        day: "Wed 16:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-upgrade-e2e-far-upgrade-aws:
+        day: "Fri 20:00 UTC"
+
     # Periodic job patterns to track
     job_patterns:
       - "periodic-ci-openshift-rhwa-system-tests-main-4.22-konflux-e2e-far-weekly-aws"
