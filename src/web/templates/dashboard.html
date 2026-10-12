@@ -1219,14 +1219,16 @@
             </div>
 
             <div style="overflow-x:auto;">
-                <table id="operatorHealthTable" style="width:100%;table-layout:fixed;border-collapse:collapse;background:var(--bg-card);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">
+                <!-- Keep long variant chips readable and reserve room for 12 trend slots.
+                     At 16%, the trend needs a 1400px table for 192px of slots plus 32px of padding. -->
+                <table id="operatorHealthTable" style="width:100%;min-width:1400px;table-layout:fixed;border-collapse:collapse;background:var(--bg-card);border-radius:8px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--border);">
                     <colgroup>
-                        <col style="width:11%;">
-                        <col style="width:12%;">
-                        <col style="width:14%;">
+                        <col style="width:24%;">
                         <col style="width:10%;">
-                        <col style="width:34%;">
-                        <col style="width:19%;">
+                        <col style="width:11%;">
+                        <col style="width:8%;">
+                        <col style="width:31%;">
+                        <col style="width:16%;">
                     </colgroup>
                     <thead>
                         <tr style="background:var(--bg-table-header);">
