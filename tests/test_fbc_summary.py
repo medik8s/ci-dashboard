@@ -68,17 +68,19 @@ class FbcSummaryTests(unittest.TestCase):
                 'status': 'passed'}
 
     def test_registry_excludes_non_fbc_and_has_exact_schedules(self):
-        self.assertEqual(len(self.registry['5.0']), 13)
+        self.assertEqual(len(self.registry['5.0']), 14)
         all_jobs = {name for jobs in self.registry.values() for name in jobs}
         self.assertEqual(all_jobs, set(self.config['fbc_schedule_overrides']))
         disconnected = job('5.0', 'disconnected', 'far-weekly-aws-disconnected')
         self.assertEqual(self.registry['5.0'][disconnected]['schedule'], 'Fri 00:00 UTC')
+        interop = job('5.0', 'disconnected', 'far-nhc-interop-weekly-aws-disconnected')
+        self.assertEqual(self.registry['5.0'][interop]['schedule'], 'Fri 12:00 UTC')
         self.assertEqual(self.registry['4.22'][job('4.22')]['schedule'], 'Tue 04:00 UTC')
 
     def test_empty_history_lists_all_expected_jobs(self):
         summary = self.summary([], {'rhwa-fbc-500': [self.snapshot()]})[0]
-        self.assertEqual((summary['total'], summary['expected_total'], summary['not_run']), (0, 13, 13))
-        self.assertEqual(len(summary['expected_jobs']), 13)
+        self.assertEqual((summary['total'], summary['expected_total'], summary['not_run']), (0, 14, 14))
+        self.assertEqual(len(summary['expected_jobs']), 14)
         self.assertEqual(self.summary([], {}), [])
 
     def test_other_snapshot_and_missing_metadata_do_not_satisfy_coverage(self):
@@ -86,9 +88,9 @@ class FbcSummaryTests(unittest.TestCase):
         summaries = self.summary([self.row(sha=OTHER_SHA), missing],
                                  {'rhwa-fbc-500': [self.snapshot()]})
         selected = next(s for s in summaries if s['fbc_full'] == SHA)
-        self.assertEqual(selected['not_run'], 13)
+        self.assertEqual(selected['not_run'], 14)
         observed = next(s for s in summaries if s['fbc_full'] == OTHER_SHA)
-        self.assertEqual((observed['passed'], observed['total'], observed['not_run']), (1, 1, 12))
+        self.assertEqual((observed['passed'], observed['total'], observed['not_run']), (1, 1, 13))
 
     def test_same_commit_and_suffix_are_separate_across_versions(self):
         summaries = self.summary([self.row(), self.row('4.22')], {}, version='')
@@ -115,7 +117,7 @@ class FbcSummaryTests(unittest.TestCase):
 
     def test_unexpected_observed_job_does_not_reduce_not_run(self):
         summary = self.summary([self.row(job_name=job('5.0', name='far-extra-aws'))], {})[0]
-        self.assertEqual((summary['total'], summary['not_run']), (1, 13))
+        self.assertEqual((summary['total'], summary['not_run']), (1, 14))
 
     def test_unknown_application_keeps_observed_run_without_expected_jobs(self):
         row = {**self.row(), 'version': '', 'fbc_image': 'quay.io/other/catalog:' + SHA}

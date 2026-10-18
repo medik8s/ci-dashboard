@@ -21,6 +21,10 @@ collector:
         label: FAR
         variant: "interop (NHC)"
         day: "Fri 12:00 UTC"
+      far-nhc-interop-weekly-aws-disconnected:
+        label: FAR
+        variant: "interop (NHC), disconnected"
+        day: "Fri 12:00 UTC"
       sbr-weekly-aws-efs:
         label: SBR
         variant: "weekly (EFS)"
@@ -107,6 +111,8 @@ collector:
     fbc_schedule_overrides:
       periodic-ci-openshift-rhwa-system-tests-main-4.21-disconnected-e2e-sbr-weekly-aws-disconnected-nfs:
         day: "Wed 12:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-nhc-interop-weekly-aws-disconnected:
+        day: "Fri 12:00 UTC"
       periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected:
         day: "Thu 12:00 UTC"
       periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected:
@@ -133,6 +139,8 @@ collector:
         day: "Wed 04:00 UTC"
       periodic-ci-openshift-rhwa-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws:
         day: "Fri 08:00 UTC"
+      periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-far-nhc-interop-weekly-aws-disconnected:
+        day: "Fri 12:00 UTC"
       periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-far-weekly-aws-disconnected:
         day: "Fri 00:00 UTC"
       periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-nhc-weekly-aws-disconnected:
@@ -175,6 +183,7 @@ collector:
       - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected"
       - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-snr-weekly-aws-disconnected"
       - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-nhc-weekly-aws-disconnected"
+      - "periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-nhc-interop-weekly-aws-disconnected"
       - "periodic-ci-openshift-rhwa-system-tests-main-4.22-upgrade-e2e-far-upgrade-aws"
       # 5.0 TLS and upstream operator periodics
       - "periodic-ci-openshift-rhwa-system-tests-main-5.0-tls13-adherence-all"
@@ -198,6 +207,7 @@ collector:
       - "periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-far-weekly-aws-disconnected"
       - "periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-snr-weekly-aws-disconnected"
       - "periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-nhc-weekly-aws-disconnected"
+      - "periodic-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-far-nhc-interop-weekly-aws-disconnected"
       - "periodic-ci-openshift-rhwa-system-tests-main-5.0-upgrade-e2e-far-upgrade-aws"
 
     # Presubmit E2E jobs (triggered on system-tests PRs)
@@ -216,6 +226,7 @@ collector:
       - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-snr-aws-disconnected"
       - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-sbr-aws-disconnected-nfs"
       - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-nhc-aws-disconnected"
+      - "pull-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-nhc-interop-aws-disconnected"
       - "pull-ci-openshift-rhwa-system-tests-main-4.22-upgrade-e2e-far-upgrade-presubmit-aws"
       # 5.0 upstream operator presubmits
       - "pull-ci-openshift-rhwa-system-tests-main-5.0-upstream-e2e-far-aws"
@@ -237,18 +248,27 @@ collector:
       - "pull-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-snr-aws-disconnected"
       - "pull-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-sbr-aws-disconnected-nfs"
       - "pull-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-nhc-aws-disconnected"
+      - "pull-ci-openshift-rhwa-system-tests-main-5.0-disconnected-e2e-far-nhc-interop-aws-disconnected"
       - "pull-ci-openshift-rhwa-system-tests-main-5.0-upgrade-e2e-far-upgrade-presubmit-aws"
-      # Dev repo E2E presubmit jobs (triggered on operator PRs)
-      - "pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e"
-      - "pull-ci-medik8s-storage-based-remediation-main-4.20-openshift-e2e"
-      - "pull-ci-medik8s-self-node-remediation-main-4.22-openshift-e2e"
-      # 5.0 operator-repo E2E (from *-main__5.0.yaml)
-      - "pull-ci-medik8s-fence-agents-remediation-main-5.0-openshift-e2e"
-      - "pull-ci-medik8s-storage-based-remediation-main-5.0-openshift-e2e"
-      - "pull-ci-medik8s-self-node-remediation-main-5.0-openshift-e2e"
-      - "pull-ci-medik8s-node-healthcheck-operator-main-5.0-openshift-e2e"
-      - "pull-ci-medik8s-node-maintenance-operator-main-5.0-openshift-e2e"
-      - "pull-ci-medik8s-machine-deletion-remediation-main-5.0-openshift-e2e"
+      # Dev repo E2E presubmit jobs: system-tests suites run against operator
+      # PRs (openshift/release PR #85515). The old *-openshift-e2e names were
+      # removed from Prow by openshift/release PR #85307.
+      - "pull-ci-medik8s-fence-agents-remediation-main-5.0-e2e-system-tests-far-fbc-upgrade"
+      - "pull-ci-medik8s-fence-agents-remediation-main-5.0-e2e-system-tests-far-upstream-pr-upgrade"
+      - "pull-ci-medik8s-storage-based-remediation-main-5.0-e2e-system-tests-sbr-fbc-upgrade"
+      - "pull-ci-medik8s-storage-based-remediation-main-5.0-e2e-system-tests-sbr-pr-aws-odf"
+      - "pull-ci-medik8s-storage-based-remediation-main-5.0-e2e-system-tests-sbr-upstream-pr-upgrade"
+      - "pull-ci-medik8s-self-node-remediation-main-5.0-e2e-system-tests-snr-fbc-upgrade"
+      - "pull-ci-medik8s-self-node-remediation-main-5.0-e2e-system-tests-snr-pr-aws"
+      - "pull-ci-medik8s-self-node-remediation-main-5.0-e2e-system-tests-snr-upstream-pr-upgrade"
+      - "pull-ci-medik8s-node-healthcheck-operator-main-5.0-e2e-system-tests-nhc-fbc-upgrade"
+      - "pull-ci-medik8s-node-healthcheck-operator-main-5.0-e2e-system-tests-nhc-upstream-pr-upgrade"
+      - "pull-ci-medik8s-node-maintenance-operator-main-5.0-e2e-system-tests-nmo-fbc-upgrade"
+      - "pull-ci-medik8s-node-maintenance-operator-main-5.0-e2e-system-tests-nmo-pr-aws"
+      - "pull-ci-medik8s-node-maintenance-operator-main-5.0-e2e-system-tests-nmo-upstream-pr-upgrade"
+      - "pull-ci-medik8s-machine-deletion-remediation-main-5.0-e2e-system-tests-mdr-fbc-upgrade"
+      - "pull-ci-medik8s-machine-deletion-remediation-main-5.0-e2e-system-tests-mdr-pr-aws"
+      - "pull-ci-medik8s-machine-deletion-remediation-main-5.0-e2e-system-tests-mdr-upstream-pr-upgrade"
 
   # ReportPortal (disabled - uncomment and set values)
   # reportportal:
