@@ -560,6 +560,10 @@ class ProwGCSCollector(BaseCollector):
         # and have no -e2e-<op>- segment; classify them under a single TLS bucket.
         if '-tls' in job_lower:
             return 'TLS'
+        # Dev-repo presubmits run the shared system-tests suites under targets
+        # like e2e-system-tests-sbr-pr-aws-odf; normalize them to the
+        # system-tests -e2e-<op>- shape so one operator scan covers both.
+        job_lower = job_lower.replace('-e2e-system-tests-', '-e2e-')
         operators = ['far', 'sbr', 'snr', 'nhc', 'nmo', 'mdr']
         for op in operators:
             if f'-e2e-{op}-' in job_lower or job_lower.endswith(f'-e2e-{op}'):
@@ -907,10 +911,16 @@ class ProwGCSCollector(BaseCollector):
               -> e2e-far-upgrade-aws
           periodic-ci-openshift-rhwa-system-tests-main-4.22-disconnected-e2e-far-weekly-aws-disconnected
               -> e2e-far-weekly-aws-disconnected
-          pull-ci-medik8s-fence-agents-remediation-main-4.22-openshift-e2e
-              -> e2e
+          pull-ci-medik8s-storage-based-remediation-main-5.0-e2e-system-tests-sbr-pr-aws-odf
+              -> e2e-system-tests-sbr-pr-aws-odf
         """
-        match = re.search(r'\d+\.\d+-(?:konflux|openshift|upgrade|disconnected|upstream)-(.+)$', job_name)
+        match = re.search(r'\d+\.\d+-(?:konflux|upgrade|disconnected|upstream)-(.+)$', job_name)
+        if match:
+            return match.group(1)
+        # Dev-repo presubmits run the shared system-tests suites under a
+        # target like e2e-system-tests-sbr-pr-aws-odf, which also names the
+        # artifact step directory.
+        match = re.search(r'-(e2e-system-tests-[a-z0-9-]+)$', job_name)
         if match:
             return match.group(1)
         match = re.search(r'-(tls13-adherence-all|tls-pqc-readiness-all)$', job_name)
