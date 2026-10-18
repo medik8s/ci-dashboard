@@ -218,16 +218,17 @@ class ProwGCSCollector(BaseCollector):
         """True if this is an OCP upgrade variant (boots N-1, upgrades to N)."""
         return bool(re.search(r'\d+\.\d+-upgrade-', job_name))
 
-    def _parse_target_ocp_version(self, base: str, target_minor: str) -> Optional[str]:
-        """Return the post-upgrade *target* OCP version for an upgrade job.
+    def _parse_clusterversion_version(self, base: str, minor: str) -> Optional[str]:
+        """Return the OCP version from the cluster's ClusterVersion artifact.
 
-        Upgrade jobs boot the initial N-1 release, then upgrade to the target N
-        release, so the install-step log records only the pre-upgrade version.
-        The target is read from the cluster's ClusterVersion (captured by the
-        gather-extra step): the newest status.history entry whose version matches
-        the target major.minor (the job's variant), which excludes the N-1 initial
-        entries. Returns None if the artifact is missing or has no target entry, so
-        the caller never falls back to the pre-upgrade version.
+        The version is read from the ClusterVersion captured by the gather-extra
+        step: the newest status.history entry whose version matches the given
+        major.minor (the job's variant). For upgrade jobs this selects the
+        post-upgrade target, excluding the N-1 initial entries (the install-step
+        log records only the pre-upgrade version). For fresh installs the newest
+        matching entry is simply the installed version. Returns None if the
+        artifact is missing or has no matching entry, so the caller can fall
+        back without ever using a stale or pre-upgrade version.
         """
         text = self._fetch_gcs_text(f"{base}/{self._CLUSTERVERSION_ARTIFACT}")
         if not text:
@@ -243,7 +244,7 @@ class ProwGCSCollector(BaseCollector):
         status = obj.get('status') or {}
         if not isinstance(status, dict):
             return None
-        prefix = f"{target_minor}." if target_minor else None
+        prefix = f"{minor}." if minor else None
         for entry in status.get('history') or []:          # newest-first
             version = (entry or {}).get('version') or ''
             if version and (not prefix or version.startswith(prefix)):
@@ -533,15 +534,25 @@ class ProwGCSCollector(BaseCollector):
         # read the post-upgrade target from the ClusterVersion and fall back to the
         # variant's major.minor -- never the pre-upgrade version.
         if self._is_upgrade_job(job_run.job_name):
-            target = self._parse_target_ocp_version(base, job_run.version)
+            target = self._parse_clusterversion_version(base, job_run.version)
             if target:
                 job_run.ocp_version = target
             elif re.match(r'^\d+\.\d+$', job_run.version or ''):
                 job_run.ocp_version = job_run.version
         else:
-            job_run.ocp_version = self._try_parse_from_steps(
-                base, _candidates('install'), self._parse_ocp_version,
-            ) or job_run.ocp_version
+            # The cluster's own ClusterVersion is the ground truth, so prefer it
+            # over the install-step log. Disconnected install logs lead with a
+            # DEFAULT release-image reference that ci-operator overrides, and the
+            # log fallback then records that stale default (e.g. 4.22 for a 5.0
+            # cluster). For a fresh install the newest matching history entry is
+            # simply the installed version, so the same reader works.
+            job_run.ocp_version = (
+                self._parse_clusterversion_version(base, job_run.version)
+                or self._try_parse_from_steps(
+                    base, _candidates('install'), self._parse_ocp_version,
+                )
+                or job_run.ocp_version
+            )
 
         job_run.csv_version = self._try_parse_from_steps(
             base, _candidates('subscribe'), self._parse_csv_version,
