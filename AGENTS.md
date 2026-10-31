@@ -1,6 +1,6 @@
-# CLAUDE.md - medik8s CI Dashboard
+# AGENTS.md - medik8s CI Dashboard
 
-This file provides guidance to Claude Code when working with the CI dashboard codebase.
+This file provides guidance to coding agents when working with the CI dashboard codebase.
 
 ## Repository Overview
 
@@ -163,6 +163,13 @@ The SQLite database is backed up to GCS after each data collection cycle and res
 | Lifecycle         | Non-current versions auto-deleted after 30 days                            |
 | Env var           | `GCS_BACKUP_BUCKET` (set in `deployment.yaml`)                             |
 | Auth              | `GOOGLE_APPLICATION_CREDENTIALS` pointing to the Vertex AI SA key (reused) |
+
+An upload is refused when the local database is less than 70 percent of the remote object's size, which is the
+signature of a rebuilt or empty database. Set `ALLOW_BACKUP_SHRINK=true` only for an intentional shrink. A
+failed or corrupt restore also writes `/data/.restore_blocked`, which keeps backups blocked across container
+restarts until a restore succeeds. To clear the block manually, remove the file and restart the dashboard
+process, because the running process also keeps the block in memory. A restore that confirms the remote object
+is missing clears the block automatically.
 
 To list backup versions:
 ```bash
