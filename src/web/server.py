@@ -62,6 +62,8 @@ GCS_BACKUP_BUCKET = os.environ.get('GCS_BACKUP_BUCKET', '')
 GCS_BACKUP_BLOB = 'backup/dashboard.db'
 GCS_TRANSFER_TIMEOUT_SECONDS = 120
 GCS_METADATA_TIMEOUT_SECONDS = 30
+# Metadata reloads run inside the preStop request, which has a 140s budget.
+GCS_RELOAD_TIMEOUT_SECONDS = 10
 SQLITE_CONNECT_TIMEOUT_SECONDS = 5
 _gcs_client = None
 _restore_blocked = False
@@ -71,6 +73,13 @@ _restore_blocked = False
 # One of: not_attempted | restored | fresh_start | download_failed | corrupt
 _restore_status = 'not_attempted'
 _restore_detail = None
+
+# A backup that is much smaller than the remote copy is the signature of a
+# local database that was rebuilt from scratch (fresh start, purged corrupt
+# file, or a restart after a failed restore). Refuse it unless overridden.
+BACKUP_MIN_SIZE_RATIO = 0.7
+ALLOW_BACKUP_SHRINK_ENV = 'ALLOW_BACKUP_SHRINK'
+RESTORE_BLOCK_MARKER_NAME = '.restore_blocked'
 
 
 class _TempFile:
@@ -112,6 +121,52 @@ def _gcs_blob():
     return client.bucket(GCS_BACKUP_BUCKET).blob(GCS_BACKUP_BLOB)
 
 
+def _restore_marker_path(db_path):
+    """Path of the on-disk marker that survives a container restart."""
+    return os.path.join(
+        os.path.dirname(db_path), RESTORE_BLOCK_MARKER_NAME)
+
+
+def _block_restore(db_path, status, detail):
+    """Record a restore failure in memory and on disk.
+
+    The in-memory flag alone is lost on a container restart while the
+    emptyDir database survives, which would re-enable backups of an empty
+    database. The marker keeps the block in place across that restart.
+    """
+    global _restore_blocked, _restore_status, _restore_detail
+    _restore_blocked = True
+    _restore_status = status
+    _restore_detail = detail
+    try:
+        with open(_restore_marker_path(db_path), 'w') as marker:
+            marker.write(f"{status}\t{detail}")
+    except OSError as e:
+        logger.warning("Could not persist restore block marker: %s", e)
+
+
+def _clear_restore_block(db_path):
+    """Allow backups again after a verified restore."""
+    global _restore_blocked, _restore_detail
+    _restore_blocked = False
+    _restore_detail = None
+    try:
+        os.unlink(_restore_marker_path(db_path))
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        logger.warning("Could not clear restore block marker: %s", e)
+
+
+def _backup_would_shrink(local_size, remote_size):
+    """True when uploading the local DB would replace a much larger backup."""
+    if remote_size <= 0:
+        return False
+    if os.environ.get(ALLOW_BACKUP_SHRINK_ENV, '').lower() == 'true':
+        return False
+    return local_size < remote_size * BACKUP_MIN_SIZE_RATIO
+
+
 def backup_db_to_gcs(db_path):
     """Back up the SQLite database to GCS.
 
@@ -123,11 +178,28 @@ def backup_db_to_gcs(db_path):
     blob = _gcs_blob()
     if not blob:
         return False
-    if _restore_blocked:
+    if _restore_blocked or Path(_restore_marker_path(db_path)).exists():
         logger.warning("Skipping backup to avoid overwriting the "
                        "last-known-good GCS copy: %s",
                        _restore_detail or "prior restore did not complete")
         return False
+
+    # Read the remote object before uploading. A missing object is fine, any
+    # other metadata error means a safe overwrite cannot be proven.
+    try:
+        blob.reload(timeout=GCS_RELOAD_TIMEOUT_SECONDS)
+        remote_size = blob.size or 0
+        remote_generation = blob.generation
+    except Exception as e:
+        from google.api_core.exceptions import NotFound
+        if isinstance(e, NotFound):
+            remote_size = 0
+            remote_generation = 0
+        else:
+            logger.warning("Could not read remote backup metadata, "
+                           "skipping backup: %s", e)
+            return False
+
     with _TempFile(os.path.dirname(db_path), '.backup') as tmp_path:
         src = sqlite3.connect(
             db_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
@@ -142,14 +214,40 @@ def backup_db_to_gcs(db_path):
             return False
         finally:
             src.close()
+
+        # Never publish a snapshot that fails its own integrity check.
+        try:
+            check = sqlite3.connect(
+                tmp_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
+            try:
+                result = check.execute('PRAGMA quick_check').fetchone()
+            finally:
+                check.close()
+        except sqlite3.DatabaseError as e:
+            logger.error("Refusing to upload a corrupt snapshot: %s", e)
+            return False
+        if not result or result[0] != 'ok':
+            logger.error(
+                "Refusing to upload a corrupt snapshot: %s", result)
+            return False
+
+        local_size = os.path.getsize(tmp_path)
+        if _backup_would_shrink(local_size, remote_size):
+            logger.error(
+                "Refusing to replace a %.1f MB backup with a %.1f MB local "
+                "database. Set %s=true to allow this.",
+                remote_size / (1024 * 1024), local_size / (1024 * 1024),
+                ALLOW_BACKUP_SHRINK_ENV)
+            return False
         try:
             blob.upload_from_filename(
                 tmp_path,
-                timeout=GCS_TRANSFER_TIMEOUT_SECONDS)
+                timeout=GCS_TRANSFER_TIMEOUT_SECONDS,
+                if_generation_match=remote_generation)
         except Exception as e:
             logger.warning("GCS upload failed: %s", e)
             return False
-        size_mb = os.path.getsize(tmp_path) / (1024 * 1024)
+        size_mb = local_size / (1024 * 1024)
         logger.info("Backed up DB to GCS (%.1f MB)", size_mb)
         return True
 
@@ -158,9 +256,9 @@ def restore_db_from_gcs(db_path):
     """Download and restore a SQLite backup from GCS.
 
     Returns True on success, False on failure.
-    Sets the module-level _restore_blocked flag on corruption
-    or download failure so that backup_db_to_gcs refuses to
-    overwrite the last-known-good GCS copy.
+    Blocks backups on corruption or download failure, in memory and with an
+    on-disk marker, so that backup_db_to_gcs refuses to overwrite the
+    last-known-good GCS copy even if the container restarts.
     """
     global _restore_blocked, _restore_status, _restore_detail
     blob = _gcs_blob()
@@ -172,6 +270,7 @@ def restore_db_from_gcs(db_path):
                     timeout=GCS_METADATA_TIMEOUT_SECONDS):
                 logger.info(
                     "No GCS backup found, starting fresh")
+                _clear_restore_block(db_path)
                 _restore_status = 'fresh_start'
                 return False
             blob.download_to_filename(
@@ -183,25 +282,34 @@ def restore_db_from_gcs(db_path):
             # empty DB from this pod does not overwrite the good GCS copy.
             logger.error("GCS restore download failed (network/auth, "
                          "backup NOT corrupt): %s", e)
-            _restore_blocked = True
-            _restore_status = 'download_failed'
-            _restore_detail = f"GCS download/auth failed: {e}"
+            _block_restore(db_path, 'download_failed',
+                           f"GCS download/auth failed: {e}")
             return False
-        conn = sqlite3.connect(
-            tmp_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
         try:
-            result = conn.execute(
-                'PRAGMA quick_check').fetchone()
-        finally:
-            conn.close()
+            conn = sqlite3.connect(
+                tmp_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
+            try:
+                result = conn.execute(
+                    'PRAGMA quick_check').fetchone()
+            finally:
+                conn.close()
+        except sqlite3.DatabaseError as e:
+            logger.error(
+                "Downloaded backup is not a usable database: %s", e)
+            _block_restore(
+                db_path, 'corrupt',
+                f"downloaded backup is not a valid database: {e}")
+            return False
+
         if not result or result[0] != 'ok':
             logger.error(
                 "GCS backup is corrupt (quick_check: %s)", result)
-            _restore_blocked = True
-            _restore_status = 'corrupt'
-            _restore_detail = f"backup failed integrity check: {result}"
+            _block_restore(db_path, 'corrupt',
+                           f"backup failed integrity check: {result}")
             return False
+
         os.replace(tmp_path, db_path)
+        _clear_restore_block(db_path)
         size_mb = os.path.getsize(db_path) / (1024 * 1024)
         logger.info("Restored DB from GCS (%.1f MB)", size_mb)
         _restore_status = 'restored'
@@ -943,6 +1051,15 @@ def run_collection_background(db_path: str, config_file: str = 'config.yaml', da
         collection_status['error'] = str(e)
         collection_status['progress'] = 'Failed'
         collection_status['completed_at'] = None
+        # A collection can commit part of its work before failing. Mirror that
+        # state so a pod replacement does not discard it. The size guard in
+        # backup_db_to_gcs still refuses to replace a larger remote copy.
+        try:
+            backup_ok = backup_db_to_gcs(db_path)
+            collection_status['backup_status'] = (
+                'ok' if backup_ok else 'failed')
+        except Exception:
+            logger.exception("Backup after failed collection failed")
     finally:
         logger.info("Collection thread finished")
         collection_status['running'] = False
@@ -987,8 +1104,56 @@ def create_app(db_path: str, config: dict = None, config_file: str = 'config.yam
     except Exception as e:
         print(f"Warning: Could not load config: {e}")
 
-    # Restore database from GCS backup if local DB is empty/missing
-    if not Path(db_path).exists() or Path(db_path).stat().st_size == 0:
+    # Restore from GCS unless the local database already holds job runs.
+    # Size alone is not enough: a purged corrupt file or a fresh start leaves
+    # a schema-only database that is non-empty but has no data, and restoring
+    # over it is the only way to get the history back.
+    marker = Path(_restore_marker_path(db_path))
+    marker_present = marker.exists()
+    if marker_present:
+        # Sticky by design: an operator clears /data/.restore_blocked once the
+        # data is confirmed good, so a known-bad start cannot silently upload.
+        try:
+            marker_status, _, marker_detail = (
+                marker.read_text().partition('\t'))
+        except OSError as e:
+            logger.warning("Could not read restore block marker: %s", e)
+            marker_status, marker_detail = 'download_failed', str(e)
+        _block_restore(db_path,
+                       marker_status or 'download_failed',
+                       marker_detail or 'previous restore failed')
+
+    needs_restore = (
+        not Path(db_path).exists() or Path(db_path).stat().st_size == 0)
+    if not needs_restore:
+        try:
+            probe = sqlite3.connect(
+                db_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
+            try:
+                check = probe.execute('PRAGMA quick_check').fetchone()
+                row = probe.execute(
+                    "SELECT COUNT(*) FROM job_runs").fetchone()
+            finally:
+                probe.close()
+            needs_restore = (
+                not check or check[0] != 'ok'
+                or not row or row[0] == 0)
+        except sqlite3.OperationalError as e:
+            if 'locked' in str(e).lower() or 'busy' in str(e).lower():
+                logger.warning(
+                    "Local database is busy, keeping it: %s", e)
+            else:
+                needs_restore = True
+        except sqlite3.Error as e:
+            logger.warning(
+                "Could not inspect local database (%s), restoring from GCS",
+                e)
+            needs_restore = True
+    if marker_present:
+        # A previous restore failed. Retry it while the remote object exists,
+        # even if an auto-collection has since put rows in the local file.
+        needs_restore = True
+    if needs_restore:
         restore_db_from_gcs(db_path)
 
     db = DashboardDatabase(db_path)

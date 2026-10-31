@@ -49,7 +49,7 @@ from collectors.reportportal import ReportPortalCollector
 from collectors.prow_gcs import ProwGCSCollector
 from storage.database import DashboardDatabase
 from metrics.calculator import MetricsCalculator
-from web.server import create_app
+from web.server import backup_db_to_gcs, create_app
 from reports.weekly_report import WeeklyReportGenerator
 
 console = Console()
@@ -298,9 +298,23 @@ def collect(ctx, days, dry_run):
         except Exception as e:
             db.record_collection_end(run_id, 'failed', error=str(e))
             db.close()
+            try:
+                backup_db_to_gcs(db_path)
+            except Exception as backup_error:
+                console.print(
+                    f"[yellow]! GCS backup after failed collection failed: "
+                    f"{backup_error}[/yellow]"
+                )
             raise
 
         db.close()
+
+        # Persist the backfill. Without this the work exists only in the
+        # pod's emptyDir and is lost when the pod is replaced.
+        if backup_db_to_gcs(db_path):
+            console.print("[green]✓ Backed up database to GCS[/green]")
+        else:
+            console.print("[yellow]! GCS backup skipped or failed[/yellow]")
 
     console.print("\n[green]✓ Data collection completed successfully![/green]")
 
